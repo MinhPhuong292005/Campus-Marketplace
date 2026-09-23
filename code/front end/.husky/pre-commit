@@ -1,0 +1,10 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "⚡ [Pre-commit] Checking TypeScript types..."
+npm run build -- --noEmit
+
+echo "⚡ [Pre-commit] Running ESLint strict checks..."
+npm run lint
+
+echo "✅ [Pre-commit] Code quality checks passed successfully!"

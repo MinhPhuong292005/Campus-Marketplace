@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" fill="none">
+  <rect width="48" height="48" y="6" rx="14" fill="#2563EB"/>
+  <path d="M24 16L9 24L24 32L39 24L24 16Z" fill="white"/>
+  <path d="M14 29V39C14 44 24 48 24 48C24 48 34 44 34 39V29L24 35L14 29Z" fill="#93C5FD"/>
+  <text x="58" y="34" fill="#0F172A" font-family="Outfit, sans-serif" font-size="22" font-weight="800">Campus<tspan fill="#2563EB">Market</tspan></text>
+  <text x="58" y="47" fill="#64748B" font-family="Inter, sans-serif" font-size="10" font-weight="500">Student P2P Trading</text>
+</svg>
