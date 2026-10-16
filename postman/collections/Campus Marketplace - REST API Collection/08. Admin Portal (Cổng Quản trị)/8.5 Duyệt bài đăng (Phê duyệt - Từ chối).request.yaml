@@ -1,0 +1,15 @@
+$kind: http-request
+name: 8.5 Duyệt bài đăng (Phê duyệt / Từ chối)
+url: "{{baseUrl}}/admin/listings/{{listingId}}/moderate"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
+body:
+  type: text
+  content: |-
+    {
+      "action": "APPROVE",
+      "reason": "Nội dung chuẩn chỉ, sách giáo trình hợp lệ"
+    }
+order: 5000

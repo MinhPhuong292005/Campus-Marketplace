@@ -1,0 +1,13 @@
+$kind: http-request
+description: "Kiểm tra tính năng bảo mật: Chặn đứng mọi email không có đuôi .edu.vn và trả về mã lỗi 40001."
+url: "{{baseUrl}}/auth/send-otp"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "nguoidung@gmail.com"
+    }
+order: 3000

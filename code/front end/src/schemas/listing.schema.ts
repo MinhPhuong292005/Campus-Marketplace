@@ -9,6 +9,7 @@ export const listingSchema = z.object({
   price: z.number().min(0, 'Giá không được âm'),
   rentalTerms: z.string().optional(),
   swapTarget: z.string().optional(),
+  imageUrls: z.array(z.string()).min(1, 'Cần ít nhất 1 hình ảnh sản phẩm').max(6, 'Tối đa 6 hình ảnh'),
 }).refine(
   (data) => {
     if (data.transactionType === 'SELL' && data.price <= 0) {

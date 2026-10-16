@@ -1,0 +1,31 @@
+$kind: http-request
+description: Đăng tin bán thanh lý sách vở/đồ dùng.
+url: "{{baseUrl}}/student/listings"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "title": "Giáo trình Giải tích 1 & Đại số tuyến tính ĐH Phenikaa",
+      "description": "Sách còn mới 95%, có ghi chú bài tập giải chi tiết các kỳ thi giữa kỳ và cuối kỳ trước. Nhượng lại cho bạn nào cần.",
+      "categoryId": 1,
+      "price": 45000,
+      "transactionType": "SELL",
+      "conditionStatus": "LIKE_NEW_99",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600"
+      ]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      var jsonData = pm.response.json();
+      if (jsonData.success && jsonData.data && jsonData.data.id) {
+          pm.collectionVariables.set('listingId', jsonData.data.id);
+          console.log('✅ Đã lưu listingId mới: ' + jsonData.data.id);
+      }
+    language: text/javascript
+order: 1000

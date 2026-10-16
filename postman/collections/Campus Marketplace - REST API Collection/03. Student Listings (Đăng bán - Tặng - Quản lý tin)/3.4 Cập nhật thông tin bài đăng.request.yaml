@@ -1,0 +1,20 @@
+$kind: http-request
+url: "{{baseUrl}}/student/listings/{{listingId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "title": "[ĐÃ GIẢM GIÁ] Giáo trình Giải tích 1 ĐH Phenikaa",
+      "description": "Giảm giá cho bạn nào qua lấy trực tiếp tại KTX Bách Khoa hoặc KTX Phenikaa.",
+      "categoryId": 1,
+      "price": 35000,
+      "conditionStatus": "LIKE_NEW_99",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600"
+      ]
+    }
+order: 4000

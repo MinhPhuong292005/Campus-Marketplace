@@ -1,0 +1,11 @@
+$kind: http-request
+name: 8.10 Xem Nhật ký kiểm toán không thể can thiệp (Audit Logs)
+description: "Lưu lại toàn bộ thao tác của Admin & Moderator: ai duyệt bài nào, ai khóa tài khoản nào, lúc mấy giờ."
+url: "{{baseUrl}}/admin/audit-logs?page=0&size=20"
+method: GET
+headers:
+  Authorization: Bearer {{adminToken}}
+queryParams:
+  page: "0"
+  size: "20"
+order: 10000

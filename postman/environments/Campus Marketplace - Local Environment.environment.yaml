@@ -1,0 +1,16 @@
+name: Campus Marketplace - Local Environment
+values:
+  - key: baseUrl
+    value: 'http://localhost:8080/api/v1'
+  - key: studentToken
+    value: ''
+  - key: adminToken
+    value: ''
+  - key: listingId
+    value: '1'
+  - key: userId
+    value: '2'
+  - key: chatRoomId
+    value: '1'
+  - key: reportId
+    value: '1'

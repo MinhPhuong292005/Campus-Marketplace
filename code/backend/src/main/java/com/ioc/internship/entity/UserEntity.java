@@ -3,6 +3,7 @@ package com.ioc.internship.entity;
 import com.ioc.internship.common.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
@@ -42,9 +43,21 @@ public class UserEntity extends BaseEntity {
     @Column(name = "student_code", length = 30)
     private String studentCode;
 
+    @Column(name = "major", length = 100)
+    private String major;
+
+    @Column(name = "academic_year", length = 50)
+    private String academicYear;
+
+    @Column(name = "bio", columnDefinition = "TEXT")
+    private String bio;
+
     @Column(name = "student_card_verified")
     @Builder.Default
     private Boolean studentCardVerified = false;
+
+    @Column(name = "student_card_image_url", length = 500)
+    private String studentCardImageUrl;
 
     @Column(name = "karma_score")
     @Builder.Default
@@ -57,4 +70,10 @@ public class UserEntity extends BaseEntity {
     @Column(name = "status", length = 30)
     @Builder.Default
     private String status = "ACTIVE";
+
+    @Column(name = "block_reason", length = 255)
+    private String blockReason;
+
+    @Column(name = "suspended_until")
+    private LocalDateTime suspendedUntil;
 }

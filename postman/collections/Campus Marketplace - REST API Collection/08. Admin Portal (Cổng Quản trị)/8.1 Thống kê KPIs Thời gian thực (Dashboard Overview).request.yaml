@@ -1,0 +1,7 @@
+$kind: http-request
+description: "Chỉ số thời gian thực: Tin chờ duyệt, Báo cáo vi phạm mới, Người dùng mới đăng ký, Tỷ lệ giao dịch an toàn."
+url: "{{baseUrl}}/admin/dashboard/stats"
+method: GET
+headers:
+  Authorization: Bearer {{adminToken}}
+order: 1000

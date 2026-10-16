@@ -1,0 +1,9 @@
+$kind: http-request
+url: "{{baseUrl}}/student/chat/rooms/{{chatRoomId}}/messages?page=0&size=30"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+queryParams:
+  page: "0"
+  size: "30"
+order: 3000

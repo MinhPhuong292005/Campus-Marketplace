@@ -1,0 +1,6 @@
+$kind: http-request
+name: 2.1 Lấy danh sách Trường Đại học (Kèm Phenikaa & Khác)
+description: Trả về hơn 27 trường đại học. Trường Phenikaa nằm ở vị trí ID 5, và 'Các trường đại học khác' được sắp xếp ở cuối danh sách (ID 99).
+url: "{{baseUrl}}/public/universities"
+method: GET
+order: 1000

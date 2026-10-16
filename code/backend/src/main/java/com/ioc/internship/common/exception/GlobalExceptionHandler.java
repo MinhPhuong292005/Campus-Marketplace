@@ -25,12 +25,17 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(CustomBusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(CustomBusinessException ex) {
-        String localizedMessage = messageSource.getMessage(
-                ex.getMessage(),
-                ex.getArgs(),
-                ex.getMessage(),
-                LocaleContextHolder.getLocale()
-        );
+        String localizedMessage;
+        if (ex.getCustomMessage() != null && !ex.getCustomMessage().isBlank()) {
+            localizedMessage = ex.getCustomMessage();
+        } else {
+            localizedMessage = messageSource.getMessage(
+                    ex.getMessage(),
+                    ex.getArgs(),
+                    ex.getMessage(),
+                    LocaleContextHolder.getLocale()
+            );
+        }
         log.warn("Business Exception: code={}, msg={}", ex.getErrorCode(), localizedMessage);
         return ResponseEntity.status(ex.getHttpStatus())
                 .body(ApiResponse.error(ex.getErrorCode(), localizedMessage));

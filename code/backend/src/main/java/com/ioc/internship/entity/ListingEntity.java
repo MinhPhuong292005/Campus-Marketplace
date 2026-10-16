@@ -49,7 +49,14 @@ public class ListingEntity extends BaseEntity {
 
     @Column(name = "status", length = 30)
     @Builder.Default
-    private String status = "ACTIVE"; // DRAFT, ACTIVE, RESERVED, COMPLETED, DELETED
+    private String status = "ACTIVE"; // DRAFT, ACTIVE, RESERVED, COMPLETED, DELETED, REJECTED, PENDING_APPROVAL
+
+    @Column(name = "is_risk_flagged")
+    @Builder.Default
+    private Boolean isRiskFlagged = false;
+
+    @Column(name = "risk_reason", length = 255)
+    private String riskReason;
 
     @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

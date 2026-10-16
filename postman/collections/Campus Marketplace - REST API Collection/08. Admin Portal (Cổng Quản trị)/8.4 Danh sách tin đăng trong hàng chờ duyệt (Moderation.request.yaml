@@ -1,0 +1,11 @@
+$kind: http-request
+name: 8.4 Danh sách tin đăng trong hàng chờ duyệt (Moderation Queue)
+url: "{{baseUrl}}/admin/listings?status=PENDING&page=0&size=15"
+method: GET
+headers:
+  Authorization: Bearer {{adminToken}}
+queryParams:
+  status: PENDING
+  page: "0"
+  size: "15"
+order: 4000

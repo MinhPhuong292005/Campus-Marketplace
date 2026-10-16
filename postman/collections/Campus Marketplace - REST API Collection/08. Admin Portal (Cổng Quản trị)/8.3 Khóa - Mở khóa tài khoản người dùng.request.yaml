@@ -1,0 +1,15 @@
+$kind: http-request
+name: 8.3 Khóa / Mở khóa tài khoản người dùng
+url: "{{baseUrl}}/admin/users/{{userId}}/status"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
+body:
+  type: text
+  content: |-
+    {
+      "status": "BANNED",
+      "reason": "Vi phạm quy định nhiều lần: yêu cầu cọc tiền trước qua Zalo lừa đảo"
+    }
+order: 3000

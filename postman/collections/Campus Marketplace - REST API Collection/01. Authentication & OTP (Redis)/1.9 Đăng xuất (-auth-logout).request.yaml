@@ -1,0 +1,7 @@
+$kind: http-request
+name: 1.9 Đăng xuất (/auth/logout)
+url: "{{baseUrl}}/auth/logout"
+method: POST
+headers:
+  Authorization: Bearer {{studentToken}}
+order: 9000

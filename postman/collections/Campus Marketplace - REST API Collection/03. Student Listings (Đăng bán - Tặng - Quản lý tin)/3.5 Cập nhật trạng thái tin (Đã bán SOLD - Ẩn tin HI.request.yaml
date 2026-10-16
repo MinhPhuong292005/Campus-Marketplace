@@ -1,0 +1,14 @@
+$kind: http-request
+name: 3.5 Cập nhật trạng thái tin (Đã bán SOLD / Ẩn tin HIDE)
+url: "{{baseUrl}}/student/listings/{{listingId}}/status"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "status": "SOLD"
+    }
+order: 5000

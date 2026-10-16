@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{baseUrl}}/student/rentals"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "listingId": 1,
+      "startDate": "2026-10-15T08:00:00",
+      "endDate": "2026-10-22T18:00:00",
+      "rentalFee": 100000,
+      "depositAmount": 300000,
+      "note": "Mình thuê máy tính tính toán trong 1 tuần thi kết thúc học phần"
+    }
+order: 1000

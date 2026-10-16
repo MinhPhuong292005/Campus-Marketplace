@@ -40,10 +40,13 @@ public class RentalContractEntity extends BaseEntity {
     @Column(name = "deposit_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal depositAmount;
 
-    @Column(name = "proof_images", columnDefinition = "jsonb")
+    @Column(name = "proof_images", columnDefinition = "TEXT")
     private String proofImages;
 
     @Column(name = "status", length = 30)
     @Builder.Default
     private String status = "PENDING"; // PENDING, ACTIVE, RETURNED, DISPUTED
+
+    @Column(name = "dispute_reason", length = 500)
+    private String disputeReason;
 }

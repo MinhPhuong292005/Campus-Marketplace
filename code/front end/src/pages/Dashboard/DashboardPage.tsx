@@ -1,127 +1,49 @@
-import React, { useState } from 'react';
-import { Search, Filter, BookOpen, Laptop, Home, Wrench, Sparkles, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { BookOpen, Laptop, Home, Wrench, Sparkles, SlidersHorizontal, PackageSearch, PlusCircle } from 'lucide-react';
 import { Listing } from '../../types';
 import { ListingCard } from '../../components/features/ListingCard';
-import { BaseButton } from '../../components/base/BaseButton';
+import { SearchBar } from '../../components/features/SearchBar';
+import { FilterSidebar, FilterState } from '../../components/features/FilterSidebar';
+import { SwapModal } from '../../components/features/SwapModal';
+import { listingService } from '../../services/listingService';
 
 export const DashboardPage: React.FC = () => {
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [selectedType, setSelectedType] = useState<string>('ALL');
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [showMobileFilter, setShowMobileFilter] = useState(false);
+  const [selectedSwapListing, setSelectedSwapListing] = useState<Listing | null>(null);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sample data simulating backend listings based on SRS
-  const sampleListings: Listing[] = [
-    {
-      id: 1,
-      userId: 101,
-      authorName: 'Trần Văn Nam',
-      authorKarma: 65,
-      universityName: 'ĐH Bách Khoa',
-      campusName: 'KTX B5',
-      categoryId: 1,
-      categoryName: 'Giáo trình & Tài liệu',
-      title: 'Giáo trình Giải tích 1 + Bộ đề cương thi cuối kỳ có đáp án',
-      description: 'Sách còn 95% mới, có highlight các công thức trọng tâm thi cuối kỳ.',
-      price: 35000,
-      transactionType: 'SELL',
-      conditionStatus: 'GOOD_90',
-      status: 'ACTIVE',
-      images: [
-        {
-          id: 1,
-          listingId: 1,
-          mediaUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&q=80',
-          mediaType: 'IMAGE',
-          sortOrder: 0,
-        },
-      ],
-      createdAt: '2026-09-20T10:00:00Z',
-      updatedAt: '2026-09-20T10:00:00Z',
-    },
-    {
-      id: 2,
-      userId: 102,
-      authorName: 'Lê Thuỳ Linh',
-      authorKarma: 40,
-      universityName: 'ĐH Quốc Gia',
-      campusName: 'Khu A Thủ Đức',
-      categoryId: 2,
-      categoryName: 'Thiết bị công nghệ',
-      title: 'Cho thuê máy tính Casio fx-580VNX ôn thi cấp tốc 2 tuần',
-      description: 'Máy nguyên zin, phím bấm nhạy, pin trâu. Cọc 300k hoàn lại khi trả máy.',
-      price: 20000,
-      transactionType: 'RENT',
-      conditionStatus: 'LIKE_NEW_99',
-      rentalTerms: '20.000đ/tuần, cọc 300.000đ',
-      status: 'ACTIVE',
-      images: [
-        {
-          id: 2,
-          listingId: 2,
-          mediaUrl: 'https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?w=600&q=80',
-          mediaType: 'IMAGE',
-          sortOrder: 0,
-        },
-      ],
-      createdAt: '2026-09-21T08:30:00Z',
-      updatedAt: '2026-09-21T08:30:00Z',
-    },
-    {
-      id: 3,
-      userId: 103,
-      authorName: 'Hoàng Minh Quân',
-      authorKarma: 80,
-      universityName: 'ĐH Kinh Tế Quốc Dân',
-      campusName: 'KTX NEU',
-      categoryId: 3,
-      categoryName: 'Đồ dùng phòng trọ',
-      title: 'Tặng ấm đun nước siêu tốc Sunhouse 1.8L còn dùng tốt',
-      description: 'Mình chuyển sang ở trọ mới đã có đồ nên tặng lại cho bạn sinh viên năm nhất nào cần.',
-      price: 0,
-      transactionType: 'GIVEAWAY',
-      conditionStatus: 'GOOD_90',
-      status: 'ACTIVE',
-      images: [
-        {
-          id: 3,
-          listingId: 3,
-          mediaUrl: 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&q=80',
-          mediaType: 'IMAGE',
-          sortOrder: 0,
-        },
-      ],
-      createdAt: '2026-09-22T14:10:00Z',
-      updatedAt: '2026-09-22T14:10:00Z',
-    },
-    {
-      id: 4,
-      userId: 104,
-      authorName: 'Phạm Đức Anh',
-      authorKarma: 35,
-      universityName: 'ĐH FPT',
-      campusName: 'Campus Hòa Lạc',
-      categoryId: 2,
-      categoryName: 'Thiết bị công nghệ',
-      title: 'Đổi màn hình phụ di động 15.6 inch lấy bàn phím cơ không dây',
-      description: 'Màn hình Type-C còn bảo hành 6 tháng, muốn đổi phím cơ Akko hoặc tương đương.',
-      price: 0,
-      transactionType: 'SWAP',
-      conditionStatus: 'LIKE_NEW_99',
-      swapTarget: 'Bàn phím cơ Akko/Keychron',
-      status: 'ACTIVE',
-      images: [
-        {
-          id: 4,
-          listingId: 4,
-          mediaUrl: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&q=80',
-          mediaType: 'IMAGE',
-          sortOrder: 0,
-        },
-      ],
-      createdAt: '2026-09-23T09:15:00Z',
-      updatedAt: '2026-09-23T09:15:00Z',
-    },
-  ];
+  const initialFilters: FilterState = {
+    category: 'ALL',
+    transactionType: 'ALL',
+    condition: 'ALL',
+    campus: 'ALL',
+    maxPrice: 1000000,
+  };
+
+  const [filters, setFilters] = useState<FilterState>(initialFilters);
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      setLoading(true);
+      try {
+        const res = await listingService.getListings();
+        if (res.success && res.data?.content) {
+          setListings(res.data.content);
+        } else {
+          setListings([]);
+        }
+      } catch {
+        setListings([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchListings();
+  }, []);
 
   const categories = [
     { id: 'ALL', label: 'Tất cả danh mục', icon: <Sparkles className="w-4 h-4" /> },
@@ -131,22 +53,48 @@ export const DashboardPage: React.FC = () => {
     { id: 'TOOLS', label: 'Dụng cụ chuyên ngành', icon: <Wrench className="w-4 h-4" /> },
   ];
 
-  const transactionTabs = [
-    { id: 'ALL', label: 'Tất cả' },
-    { id: 'SELL', label: 'Bán' },
-    { id: 'RENT', label: 'Cho thuê' },
-    { id: 'GIVEAWAY', label: 'Tặng 0đ' },
-    { id: 'SWAP', label: 'Đổi đồ' },
-  ];
-
-  const filteredListings = sampleListings.filter((item) => {
-    if (selectedType !== 'ALL' && item.transactionType !== selectedType) return false;
-    if (searchQuery && !item.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+  const filteredListings = listings.filter((item) => {
+    // Transaction type
+    if (filters.transactionType !== 'ALL' && item.transactionType !== filters.transactionType) {
+      return false;
+    }
+    // Category
+    if (filters.category !== 'ALL') {
+      if (filters.category === 'BOOKS' && item.categoryId !== 1) return false;
+      if (filters.category === 'TECH' && item.categoryId !== 2) return false;
+      if (filters.category === 'ROOM' && item.categoryId !== 3) return false;
+      if (filters.category === 'TOOLS' && item.categoryId !== 4) return false;
+    }
+    // Condition
+    if (filters.condition !== 'ALL' && item.conditionStatus !== filters.condition) {
+      return false;
+    }
+    // Price
+    if (filters.maxPrice < 1000000 && item.price > filters.maxPrice) {
+      return false;
+    }
+    // Campus
+    if (filters.campus !== 'ALL') {
+      const c = (item.campusName || '').toLowerCase();
+      if (filters.campus === 'KTX_K1' && !c.includes('k1')) return false;
+      if (filters.campus === 'KTX_K2' && !c.includes('k2')) return false;
+      if (filters.campus === 'KTX_K3' && !c.includes('k3')) return false;
+      if (filters.campus === 'KTX_NU' && !c.includes('nữ') && !c.includes('nu')) return false;
+      if (filters.campus === 'CO_SO_CHINH' && !c.includes('yên nghĩa') && !c.includes('trụ sở')) return false;
+    }
+    // Search query
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchTitle = item.title.toLowerCase().includes(q);
+      const matchDesc = item.description.toLowerCase().includes(q);
+      const matchCategory = (item.categoryName || '').toLowerCase().includes(q);
+      if (!matchTitle && !matchDesc && !matchCategory) return false;
+    }
     return true;
   });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Hero Banner */}
       <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 text-white p-6 sm:p-10 shadow-lg shadow-blue-500/10">
         <div className="relative z-10 max-w-2xl space-y-3 text-left">
@@ -159,75 +107,161 @@ export const DashboardPage: React.FC = () => {
           <p className="text-sm sm:text-base text-blue-100/90 leading-relaxed">
             100% sinh viên được xác minh qua email trường và thẻ sinh viên. Hẹn gặp trực tiếp tại thư viện hoặc sảnh KTX an toàn.
           </p>
-
-          {/* Quick Search Bar */}
-          <div className="pt-2 flex items-center bg-white rounded-2xl p-1.5 shadow-md max-w-lg text-slate-800">
-            <Search className="w-5 h-5 ml-2.5 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm giáo trình, mã học phần (IT3010), máy tính..."
-              className="w-full px-3 py-2 text-sm bg-transparent focus:outline-none placeholder:text-slate-400"
-            />
-            <BaseButton variant="primary" size="sm" className="rounded-xl px-4">
-              Tìm
-            </BaseButton>
-          </div>
         </div>
       </section>
 
-      {/* Category Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setSelectedCategory(cat.id)}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-              selectedCategory === cat.id
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
-                : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
-            }`}
-          >
-            {cat.icon}
-            {cat.label}
-          </button>
-        ))}
+      {/* Search Bar with Debounce 300ms & Suggestions */}
+      <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Tìm giáo trình, mã học phần (CS50, IT3010), máy tính, KTX B5..."
+        />
       </div>
 
-      {/* Transaction Type Filters & Results Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 dark:bg-slate-800/80 rounded-xl">
-          {transactionTabs.map((tab) => (
+      {/* Category Pills & Mobile Filter Button */}
+      <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <div className="flex items-center gap-2">
+          {categories.map((cat) => (
             <button
-              key={tab.id}
-              onClick={() => setSelectedType(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                selectedType === tab.id
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              key={cat.id}
+              onClick={() => setFilters({ ...filters, category: cat.id })}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                filters.category === cat.id
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
+                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
               }`}
             >
-              {tab.label}
+              {cat.icon}
+              {cat.label}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span>Tìm thấy <b>{filteredListings.length}</b> bài đăng phù hợp</span>
+        {/* Mobile toggle button */}
+        <button
+          onClick={() => setShowMobileFilter(!showMobileFilter)}
+          className="lg:hidden p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 shrink-0 flex items-center gap-1.5 text-xs font-semibold"
+        >
+          <SlidersHorizontal className="w-4 h-4 text-blue-600" />
+          <span>Bộ lọc</span>
+        </button>
+      </div>
+
+      {/* Main Layout: Sidebar Filter + Listings Grid */}
+      <div className="flex flex-col lg:flex-row items-start gap-6">
+        {/* Sidebar Filter for Desktop & Mobile Toggle */}
+        <div className={`${showMobileFilter ? 'block w-full' : 'hidden'} lg:block`}>
+          <FilterSidebar
+            filters={filters}
+            onChange={setFilters}
+            onReset={() => setFilters(initialFilters)}
+            totalResults={filteredListings.length}
+          />
+        </div>
+
+        {/* Listings Container */}
+        <div className="flex-1 w-full space-y-4">
+          {/* Results Summary Header */}
+          <div className="flex items-center justify-between text-xs text-slate-500 pb-1 border-b border-slate-200 dark:border-slate-800">
+            <span>
+              Hiển thị <b>{filteredListings.length}</b> món đồ
+              {searchQuery ? ` cho từ khóa "${searchQuery}"` : ''}
+            </span>
+          </div>
+
+          {/* Grid of Listings */}
+          {loading ? (
+            <div className="p-16 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-xs text-slate-500 font-medium">Đang tải sản phẩm từ Chợ sinh viên...</p>
+            </div>
+          ) : listings.length === 0 ? (
+            <div className="p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+              <div className="w-16 h-16 rounded-3xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 mx-auto flex items-center justify-center">
+                <PackageSearch className="w-8 h-8" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                  Chưa có bài đăng nào trên Marketplace
+                </h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                  Toàn bộ dữ liệu mẫu đã được xóa sạch. Hãy là người đầu tiên đăng sách giáo trình, thiết bị công nghệ hoặc đồ dùng sinh viên!
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/create-listing')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all hover:scale-105"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Đăng bài đầu tiên ngay</span>
+              </button>
+            </div>
+          ) : filteredListings.length === 0 ? (
+            /* AC4: Friendly empty state with suggestions when filtered */
+            <div className="p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+              <PackageSearch className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
+                Không tìm thấy món đồ nào phù hợp
+              </h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                Thử thay đổi từ khóa tìm kiếm hoặc điều chỉnh khoảng giá và bộ lọc.
+              </p>
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="px-3 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 text-xs font-semibold hover:bg-blue-100"
+                >
+                  Xóa từ khóa tìm kiếm
+                </button>
+                <button
+                  onClick={() => setFilters(initialFilters)}
+                  className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 text-xs font-semibold hover:bg-slate-200"
+                >
+                  Xóa toàn bộ bộ lọc
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              {filteredListings.map((listing) => (
+                <div key={listing.id} className="relative group">
+                  <ListingCard
+                    listing={listing}
+                    onClick={(id) => navigate(`/listings/${id}`)}
+                  />
+
+                  {/* Quick Action Button for SWAP */}
+                  {listing.transactionType === 'SWAP' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedSwapListing(listing);
+                      }}
+                      className="mt-2 w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Đề xuất đổi đồ (Swap)</span>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Listings Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredListings.map((listing) => (
-          <ListingCard
-            key={listing.id}
-            listing={listing}
-            onClick={(id) => alert(`Xem chi tiết bài đăng #${id}: ${listing.title}`)}
-          />
-        ))}
-      </div>
+      {/* Swap Modal */}
+      {selectedSwapListing && (
+        <SwapModal
+          isOpen={true}
+          onClose={() => setSelectedSwapListing(null)}
+          targetListing={selectedSwapListing}
+          onSuccess={() => {
+            alert('Gửi đề xuất đổi đồ thành công! Người bán sẽ nhận được thông báo.');
+          }}
+        />
+      )}
     </div>
   );
 };

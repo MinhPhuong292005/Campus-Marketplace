@@ -1,0 +1,15 @@
+$kind: http-request
+name: 8.7 Xử lý báo cáo vi phạm (Gỡ bài / Cảnh cáo)
+url: "{{baseUrl}}/admin/reports/{{reportId}}/resolve"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
+body:
+  type: text
+  content: |-
+    {
+      "action": "DISMISS",
+      "note": "Đã xác minh, hai bên sinh viên giao dịch bình thường không có dấu hiệu gian lận"
+    }
+order: 7000

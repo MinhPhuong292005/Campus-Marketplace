@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/blacklists"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{adminToken}}
+body:
+  type: text
+  content: |-
+    {
+      "keyword": "bắn cá đổi thưởng",
+      "category": "GAMBLING",
+      "severity": "HIGH"
+    }
+order: 9000

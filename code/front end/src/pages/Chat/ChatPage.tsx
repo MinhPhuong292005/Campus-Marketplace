@@ -1,0 +1,1017 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Send,
+  Search,
+  MoreHorizontal,
+  SquarePen,
+  Phone,
+  Video,
+  Info,
+  ShieldCheck,
+  ShieldAlert,
+  MapPin,
+  ImagePlus,
+  Smile,
+  ThumbsUp,
+  CheckCheck,
+  ChevronDown,
+  ChevronRight,
+  User,
+  BellOff,
+  AlertTriangle,
+  ArrowLeft,
+  Lock,
+} from 'lucide-react';
+import { useAuthStore } from '../../store/useAuthStore';
+import { chatService, ChatRoom, ChatMessage, SafeMeetingPoint } from '../../services/chatService';
+import { ReportModal } from '../../components/features/ReportModal';
+import { SafeMeetingPointsModal } from '../../components/features/SafeMeetingPointsModal';
+import { KarmaBadge } from '../../components/features/KarmaBadge';
+
+export const ChatPage: React.FC = () => {
+  const { user } = useAuthStore();
+
+  // State
+  const [rooms, setRooms] = useState<ChatRoom[]>([]);
+  const [activeRoomId, setActiveRoomId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputText, setInputText] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterTab, setFilterTab] = useState<'ALL' | 'UNREAD' | 'CAMPUS'>('ALL');
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(true);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [fraudWarning, setFraudWarning] = useState<string | null>(null);
+
+  // Modals
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isSafePointModalOpen, setIsSafePointModalOpen] = useState(false);
+  const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+
+  // Accordion state in right sidebar
+  const [openSections, setOpenSections] = useState({
+    chatInfo: true,
+    customize: false,
+    media: false,
+    privacy: true,
+  });
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 1. Fetch user's conversation rooms
+  const loadRooms = useCallback(async () => {
+    try {
+      const res = await chatService.getRooms();
+      if (res && res.data) {
+        setRooms(res.data);
+        if (res.data.length > 0 && !activeRoomId) {
+          setActiveRoomId(res.data[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load chat rooms:', err);
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  }, [activeRoomId]);
+
+  // 2. Fetch messages for active room
+  const loadMessages = useCallback(async (roomId: number, silent: boolean = false) => {
+    if (!silent) setIsLoadingMessages(true);
+    try {
+      const res = await chatService.getRoomMessages(roomId);
+      if (res && res.data) {
+        setMessages(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load room messages:', err);
+    } finally {
+      if (!silent) setIsLoadingMessages(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    loadRooms();
+  }, [loadRooms]);
+
+  // Load messages when active room changes
+  useEffect(() => {
+    if (activeRoomId) {
+      loadMessages(activeRoomId);
+      chatService.markRoomAsRead(activeRoomId);
+    }
+  }, [activeRoomId, loadMessages]);
+
+  // Real-time polling every 2.5s for seamless multi-account chat
+  useEffect(() => {
+    if (!activeRoomId) return;
+    const interval = setInterval(() => {
+      loadMessages(activeRoomId, true);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [activeRoomId, loadMessages]);
+
+  // Auto-scroll to bottom of messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Real-time anti-fraud typing detector
+  useEffect(() => {
+    if (!inputText.trim()) {
+      setFraudWarning(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const res = await chatService.scanAntiFraud(inputText);
+      if (res.data?.isSuspicious) {
+        setFraudWarning(res.data.warningMessage);
+      } else {
+        setFraudWarning(null);
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [inputText]);
+
+  // Send message
+  const handleSendMessage = async (e?: React.FormEvent, customContent?: string) => {
+    if (e) e.preventDefault();
+    const contentToSend = (customContent || inputText).trim();
+    if (!contentToSend || !activeRoomId) return;
+
+    // Optimistic UI update
+    const tempMsg: ChatMessage = {
+      id: Date.now(),
+      chatRoomId: activeRoomId,
+      senderId: user?.id || 0,
+      senderName: user?.fullName || 'Tôi',
+      content: contentToSend,
+      createdAt: new Date().toISOString(),
+      isRead: false,
+    };
+    setMessages((prev) => [...prev, tempMsg]);
+    setInputText('');
+    setFraudWarning(null);
+
+    try {
+      await chatService.sendMessage(activeRoomId, contentToSend);
+      loadMessages(activeRoomId, true);
+      loadRooms();
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    }
+  };
+
+  // Quick Like Thumb Up (Messenger signature feature)
+  const handleSendThumbUp = () => {
+    handleSendMessage(undefined, '👍');
+  };
+
+  // Safe meeting point proposal
+  const handleSelectSafePoint = async (point: SafeMeetingPoint) => {
+    if (!activeRoomId) return;
+    const meetingMsg = `📍 [ĐỀ XUẤT ĐIỂM HẸN AN TOÀN]\nĐịa điểm: ${point.name}\nĐịa chỉ: ${point.address}\nThời gian khuyến nghị: ${point.recommendedHours}\nKhu vực có bảo vệ & Camera an ninh giám sát.`;
+    handleSendMessage(undefined, meetingMsg);
+    setIsSafePointModalOpen(false);
+  };
+
+  // Create room with second test user
+  const handleStartChatWithPeer = async (peerId: number) => {
+    try {
+      const res = await chatService.createOrGetRoom(peerId);
+      if (res && res.data) {
+        await loadRooms();
+        setActiveRoomId(res.data.id);
+        setIsNewChatModalOpen(false);
+      }
+    } catch (err) {
+      console.error('Failed to create chat room:', err);
+    }
+  };
+
+  // Find active room object
+  const activeRoom = rooms.find((r) => r.id === activeRoomId) || rooms[0];
+
+  // Filter rooms
+  const filteredRooms = rooms.filter((r) => {
+    const matchesSearch =
+      r.peerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.lastMessage && r.lastMessage.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (!matchesSearch) return false;
+    if (filterTab === 'UNREAD') return (r.unreadCount || 0) > 0;
+    return true;
+  });
+
+  // Relative time formatter
+  const formatTime = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const toggleSection = (section: keyof typeof openSections) => {
+    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-130px)] min-h-[580px] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+      {/* ======================================================== */}
+      {/* 1. LEFT SIDEBAR: CONVERSATIONS LIST (ĐOẠN CHAT)           */}
+      {/* ======================================================== */}
+      <div
+        className={`w-full lg:w-[350px] xl:w-[380px] flex-shrink-0 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-slate-900 ${
+          activeRoomId ? 'hidden lg:flex' : 'flex'
+        }`}
+      >
+        {/* Header */}
+        <div className="p-4 pb-2 flex items-center justify-between">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Đoạn chat
+          </h1>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsNewChatModalOpen(true)}
+              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
+              title="Tạo đoạn chat mới / Nhắn tin với bạn học"
+            >
+              <SquarePen className="w-5 h-5" />
+            </button>
+            <button
+              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
+              title="Tùy chọn"
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Search Bar (Messenger Style) */}
+        <div className="px-4 py-2">
+          <div className="relative flex items-center">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm kiếm trên Messenger..."
+              className="w-full pl-9 pr-4 py-2 text-sm bg-slate-100 dark:bg-slate-800/80 rounded-full border-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 transition"
+            />
+          </div>
+        </div>
+
+        {/* Filter Pills */}
+        <div className="px-4 py-1.5 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800/60 pb-3">
+          <button
+            onClick={() => setFilterTab('ALL')}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
+              filterTab === 'ALL'
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            Tất cả
+          </button>
+          <button
+            onClick={() => setFilterTab('UNREAD')}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
+              filterTab === 'UNREAD'
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            Chưa đọc
+          </button>
+          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 ml-auto font-medium flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Realtime
+          </span>
+        </div>
+
+        {/* Rooms Scrollable List */}
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {isLoadingRooms ? (
+            <div className="p-4 space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-3 animate-pulse">
+                  <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-800"></div>
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-1/2"></div>
+                    <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-3/4"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredRooms.length === 0 ? (
+            <div className="text-center py-12 px-4 text-slate-400">
+              <p className="text-sm">Chưa có đoạn chat nào.</p>
+              <button
+                onClick={() => setIsNewChatModalOpen(true)}
+                className="mt-3 text-xs text-blue-600 hover:underline font-semibold"
+              >
+                + Bắt đầu nhắn tin với bạn học
+              </button>
+            </div>
+          ) : (
+            filteredRooms.map((room) => {
+              const isActive = activeRoom?.id === room.id;
+              const hasUnread = (room.unreadCount || 0) > 0;
+              return (
+                <div
+                  key={room.id}
+                  onClick={() => setActiveRoomId(room.id)}
+                  className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition select-none ${
+                    isActive
+                      ? 'bg-slate-100 dark:bg-slate-800/90'
+                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                  }`}
+                >
+                  {/* Avatar with Online Status Dot */}
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={
+                        room.peerAvatar ||
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+                      }
+                      alt={room.peerName}
+                      className="w-12 h-12 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                    />
+                    {room.peerStatus === 'SUSPENDED' ? (
+                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-amber-500 border-2 border-white dark:border-slate-900" title="Tài khoản tạm khóa"></span>
+                    ) : (
+                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
+                    )}
+                  </div>
+
+                  {/* Room Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <h3
+                          className={`text-sm truncate ${
+                            hasUnread
+                              ? 'font-bold text-slate-900 dark:text-white'
+                              : 'font-semibold text-slate-800 dark:text-slate-200'
+                          }`}
+                        >
+                          {room.peerName}
+                        </h3>
+                        {room.peerStatus === 'SUSPENDED' && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-bold shrink-0 border border-amber-300/60">
+                            Tạm khóa
+                          </span>
+                        )}
+                      </div>
+                      {room.lastMessageTime && (
+                        <span className="text-[11px] text-slate-400 flex-shrink-0">
+                          {formatTime(room.lastMessageTime)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <p
+                        className={`truncate max-w-[190px] ${
+                          hasUnread
+                            ? 'font-semibold text-slate-900 dark:text-white'
+                            : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        {room.lastMessage || 'Chưa có tin nhắn'}
+                      </p>
+                      {hasUnread && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600 flex-shrink-0 ml-1"></span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Current logged-in user summary */}
+        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-500 flex items-center justify-between">
+          <span>
+            Đang đăng nhập: <strong>{user?.fullName || 'Sinh Viên'}</strong>
+          </span>
+          <button
+            onClick={() => setIsNewChatModalOpen(true)}
+            className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+          >
+            Đổi bạn chat
+          </button>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* 2. MIDDLE COLUMN: MAIN ACTIVE CHAT AREA                  */}
+      {/* ======================================================== */}
+      {activeRoom ? (
+        <div
+          className={`flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 ${
+            !activeRoomId ? 'hidden lg:flex' : 'flex'
+          }`}
+        >
+          {/* Top Header of Active Chat (Messenger Style) */}
+          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur shrink-0 z-10 shadow-xs">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={() => setActiveRoomId(null)}
+                className="lg:hidden p-1.5 -ml-1 text-slate-600 hover:bg-slate-100 rounded-full"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+
+              <div className="relative flex-shrink-0">
+                <img
+                  src={
+                    activeRoom.peerAvatar ||
+                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+                  }
+                  alt={activeRoom.peerName}
+                  className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                />
+                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white truncate">
+                    {activeRoom.peerName}
+                  </h2>
+                  {activeRoom.peerStatus === 'SUSPENDED' && (
+                    <span className="px-2 py-0.5 rounded-full text-[11px] bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-bold border border-amber-300/60">
+                      Tài khoản tạm khóa
+                    </span>
+                  )}
+                  {activeRoom.peerKarma && (
+                    <KarmaBadge score={activeRoom.peerKarma} showText={false} />
+                  )}
+                </div>
+                {activeRoom.peerStatus === 'SUSPENDED' ? (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    Tạm khóa 1 tuần do vi phạm nội quy sàn
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                    Đang hoạt động
+                    <span className="text-slate-400 font-normal">
+                      • {activeRoom.peerCampus || 'Trường Đại học Phenikaa'}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Top Right Action Icons (Messenger Call, Video, Info) */}
+            <div className="flex items-center gap-1.5 text-blue-600">
+              <button
+                onClick={() => alert('📞 Tính năng thoại âm thanh qua mạng P2P đang kích hoạt!')}
+                className="p-2.5 rounded-full hover:bg-blue-50 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 transition"
+                title="Bắt đầu gọi thoại"
+              >
+                <Phone className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => alert('📹 Tính năng Video Call kiểm tra đồ trực tiếp đang kích hoạt!')}
+                className="p-2.5 rounded-full hover:bg-blue-50 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 transition"
+                title="Bắt đầu gọi video"
+              >
+                <Video className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setIsRightSidebarOpen((prev) => !prev)}
+                className={`p-2.5 rounded-full transition ${
+                  isRightSidebarOpen
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
+                    : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                }`}
+                title="Thông tin về cuộc trò chuyện"
+              >
+                <Info className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Campus Marketplace Anti-Fraud Shield Banner */}
+          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 dark:from-slate-800/80 dark:to-slate-800/80 border-b border-blue-100 dark:border-slate-800 px-4 py-2 flex items-center justify-between gap-2 text-[11px]">
+            <div className="flex items-center gap-2 text-blue-800 dark:text-blue-200 truncate">
+              <ShieldCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              <span className="truncate">
+                <strong>Anti-Fraud Shield:</strong> Không chuyển cọc ngoài app. Luôn gặp mặt kiểm
+                tra hàng tại Điểm hẹn an toàn trong trường.
+              </span>
+            </div>
+            <button
+              onClick={() => setIsSafePointModalOpen(true)}
+              className="text-blue-700 dark:text-blue-300 hover:text-blue-900 font-bold whitespace-nowrap flex items-center gap-1 hover:underline"
+            >
+              <MapPin className="w-3.5 h-3.5 text-blue-600" />
+              Chọn điểm hẹn
+            </button>
+          </div>
+
+          {/* Messages Stream Container */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#ffffff] dark:bg-[#0b141a]">
+            {/* Encryption & Profile Header inside chat stream (Messenger style) */}
+            <div className="text-center py-6">
+              <img
+                src={
+                  activeRoom.peerAvatar ||
+                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+                }
+                alt={activeRoom.peerName}
+                className="w-16 h-16 rounded-full mx-auto object-cover border-2 border-slate-200 dark:border-slate-700 shadow-sm"
+              />
+              <h3 className="font-bold text-base mt-2 text-slate-900 dark:text-white">
+                {activeRoom.peerName}
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Sinh viên {activeRoom.peerCampus || 'Trường Đại học Phenikaa'}
+              </p>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-500 mt-2">
+                <Lock className="w-3 h-3 text-slate-400" />
+                <span>Đoạn chat được mã hóa đầu cuối</span>
+              </div>
+            </div>
+
+            {/* Date Pill */}
+            <div className="text-center my-2">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50 dark:bg-slate-800/60 px-3 py-1 rounded-full">
+                Hôm nay
+              </span>
+            </div>
+
+            {/* Messages */}
+            {isLoadingMessages ? (
+              <div className="text-center py-6 text-slate-400 text-xs">
+                Đang tải tin nhắn...
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-xs">
+                Chưa có tin nhắn nào. Hãy gửi lời chào đến {activeRoom.peerName}!
+              </div>
+            ) : (
+              messages.map((msg, index) => {
+                const isMe =
+                  msg.sender === 'ME' || (user && msg.senderId === user.id);
+
+                return (
+                  <div
+                    key={msg.id || index}
+                    className={`flex items-end gap-2 ${
+                      isMe ? 'justify-end' : 'justify-start'
+                    } group`}
+                  >
+                    {!isMe && (
+                      <img
+                        src={
+                          activeRoom.peerAvatar ||
+                          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+                        }
+                        alt="peer"
+                        className="w-7 h-7 rounded-full object-cover mb-1 border border-slate-200 dark:border-slate-700 flex-shrink-0"
+                      />
+                    )}
+
+                    <div
+                      className={`max-w-[75%] sm:max-w-[65%] space-y-1 flex flex-col ${
+                        isMe ? 'items-end' : 'items-start'
+                      }`}
+                    >
+                      {/* Message Bubble (Messenger Colors) */}
+                      <div
+                        className={`px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed shadow-2xs whitespace-pre-line ${
+                          isMe
+                            ? 'bg-[#0084ff] text-white rounded-br-xs'
+                            : 'bg-[#f0f2f5] dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-xs'
+                        }`}
+                      >
+                        {msg.content || msg.text}
+                      </div>
+
+                      {/* Timestamp & Read Receipt */}
+                      <div className="flex items-center gap-1 text-[10px] text-slate-400 px-1 opacity-80 group-hover:opacity-100 transition">
+                        <span>{formatTime(msg.createdAt || msg.time)}</span>
+                        {isMe && (
+                          <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Typing Anti-Fraud Alert */}
+          {fraudWarning && (
+            <div className="mx-4 mb-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 animate-in fade-in">
+              <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0" />
+              <span>{fraudWarning}</span>
+            </div>
+          )}
+
+          {/* Chat Input Bar OR Locked Account Notice (Facebook Messenger UI Exact Match) */}
+          {activeRoom.peerStatus === 'SUSPENDED' ? (
+            <div className="p-7 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center select-none animate-in fade-in">
+              <h4 className="text-[15px] font-bold text-slate-900 dark:text-white mb-1.5">
+                {activeRoom.peerName} chưa thể truy cập vào đoạn chat này
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-lg mx-auto leading-relaxed">
+                Tài khoản này đang bị Ban quản trị tạm khóa chức năng do vi phạm quy định sàn Phenikaa (Bị báo cáo / trừ điểm uy tín). Bạn sẽ có thể gửi tin nhắn sau khi tài khoản của {activeRoom.peerName} được mở khóa.
+              </p>
+            </div>
+          ) : user?.status === 'SUSPENDED' ? (
+            <div className="p-7 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center select-none animate-in fade-in">
+              <h4 className="text-[15px] font-bold text-slate-900 dark:text-white mb-1.5 flex items-center justify-center gap-2">
+                <Lock className="w-4 h-4 text-amber-500" />
+                Tài khoản của bạn đang bị tạm khóa chức năng nhắn tin
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-lg mx-auto leading-relaxed">
+                Bạn không thể gửi tin nhắn trong thời gian này do tài khoản đang bị tạm khóa 1 tuần{user?.blockReason ? ` (${user.blockReason})` : ''}. Vui lòng liên hệ Quản trị viên để được hỗ trợ giải quyết tranh chấp.
+              </p>
+            </div>
+          ) : (
+            <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                {/* Left Action Icons */}
+                <div className="flex items-center text-blue-600 dark:text-blue-400">
+                  <button
+                    type="button"
+                    onClick={() => setIsSafePointModalOpen(true)}
+                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                    title="Đề xuất điểm hẹn an toàn"
+                  >
+                    <MapPin className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      alert('🖼️ Bạn có thể tải lên ảnh chụp sản phẩm hoặc ảnh biên lai cọc!')
+                    }
+                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                    title="Gửi hình ảnh"
+                  >
+                    <ImagePlus className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Capsule Input Field */}
+                <div className="flex-1 relative flex items-center bg-[#f0f2f5] dark:bg-slate-800 rounded-full px-4 py-2 border border-transparent focus-within:border-blue-400 transition">
+                  <input
+                    type="text"
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    placeholder="Nhắn tin..."
+                    className="w-full bg-transparent border-none text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setInputText((prev) => prev + ' 😊')}
+                    className="text-slate-400 hover:text-blue-600 transition ml-2"
+                  >
+                    <Smile className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Right Action: Send OR Messenger Thumbs Up */}
+                {inputText.trim() ? (
+                  <button
+                    type="submit"
+                    className="p-2 rounded-full bg-[#0084ff] text-white hover:bg-blue-600 transition shadow-sm hover:scale-105 active:scale-95"
+                    title="Gửi tin nhắn"
+                  >
+                    <Send className="w-5 h-5" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSendThumbUp}
+                    className="p-2 rounded-full text-[#0084ff] hover:bg-blue-50 dark:hover:bg-slate-800 transition hover:scale-110 active:scale-90"
+                    title="Gửi biểu tượng thích (Like)"
+                  >
+                    <ThumbsUp className="w-5 h-5 fill-current" />
+                  </button>
+                )}
+              </form>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex-1 hidden lg:flex items-center justify-center text-slate-400 text-sm">
+          Chọn một đoạn chat hoặc bắt đầu cuộc trò chuyện mới.
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 3. RIGHT SIDEBAR: MESSENGER CHAT INFO PANEL              */}
+      {/* ======================================================== */}
+      {isRightSidebarOpen && activeRoom && (
+        <div className="w-[300px] xl:w-[320px] flex-shrink-0 border-l border-slate-200 dark:border-slate-800 hidden xl:flex flex-col bg-white dark:bg-slate-900 overflow-y-auto">
+          {/* Header Contact Profile */}
+          <div className="p-6 text-center border-b border-slate-100 dark:border-slate-800">
+            <div className="relative inline-block mx-auto">
+              <img
+                src={
+                  activeRoom.peerAvatar ||
+                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+                }
+                alt={activeRoom.peerName}
+                className="w-20 h-20 rounded-full object-cover mx-auto ring-4 ring-slate-100 dark:ring-slate-800"
+              />
+              <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
+            </div>
+
+            <h3 className="font-bold text-base text-slate-900 dark:text-white mt-3">
+              {activeRoom.peerName}
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {activeRoom.peerCampus || 'Trường Đại học Phenikaa'}
+            </p>
+
+            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300">
+              <Lock className="w-3 h-3 text-slate-500" />
+              <span>Được mã hóa đầu cuối</span>
+            </div>
+
+            {/* Quick Action Circle Buttons (Trang cá nhân, Tắt thông báo, Tìm kiếm) */}
+            <div className="flex items-center justify-center gap-6 mt-5">
+              <div className="flex flex-col items-center gap-1 cursor-pointer group">
+                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-slate-200 transition">
+                  <User className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                </div>
+                <span className="text-[10px] text-slate-500">Trang cá nhân</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 cursor-pointer group">
+                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-slate-200 transition">
+                  <BellOff className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                </div>
+                <span className="text-[10px] text-slate-500">Tắt thông báo</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 cursor-pointer group">
+                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-slate-200 transition">
+                  <Search className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+                </div>
+                <span className="text-[10px] text-slate-500">Tìm kiếm</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Accordion Menu Sections */}
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+            {/* 1. Thông tin về đoạn chat */}
+            <div>
+              <button
+                onClick={() => toggleSection('chatInfo')}
+                className="w-full px-4 py-3 flex items-center justify-between font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+              >
+                <span>Thông tin về đoạn chat</span>
+                {openSections.chatInfo ? (
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                )}
+              </button>
+              {openSections.chatInfo && (
+                <div className="px-4 pb-3 space-y-2 text-xs text-slate-600 dark:text-slate-400">
+                  <div className="flex justify-between items-center py-1">
+                    <span>Trường đại học:</span>
+                    <span className="font-medium text-slate-900 dark:text-white">
+                      ĐH Phenikaa
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1">
+                    <span>Điểm tín nhiệm:</span>
+                    <KarmaBadge score={activeRoom.peerKarma || 80} showText={true} />
+                  </div>
+                  <div className="flex justify-between items-center py-1">
+                    <span>Xác minh thẻ sinh viên:</span>
+                    <span className="text-emerald-600 font-semibold">Đã xác minh ✓</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. File phương tiện và file */}
+            <div>
+              <button
+                onClick={() => toggleSection('media')}
+                className="w-full px-4 py-3 flex items-center justify-between font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+              >
+                <span>File phương tiện & File</span>
+                {openSections.media ? (
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                )}
+              </button>
+              {openSections.media && (
+                <div className="px-4 pb-3 text-xs text-slate-400 italic">
+                  Chưa có hình ảnh hoặc file đính kèm nào được chia sẻ.
+                </div>
+              )}
+            </div>
+
+            {/* 3. Quyền riêng tư & Báo cáo */}
+            <div>
+              <button
+                onClick={() => toggleSection('privacy')}
+                className="w-full px-4 py-3 flex items-center justify-between font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+              >
+                <span>Quyền riêng tư và hỗ trợ</span>
+                {openSections.privacy ? (
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                )}
+              </button>
+              {openSections.privacy && (
+                <div className="px-4 pb-3 space-y-2">
+                  <button
+                    onClick={() => setIsSafePointModalOpen(true)}
+                    className="w-full text-left py-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    Xem các điểm hẹn an toàn trong trường
+                  </button>
+                  <button
+                    onClick={() => setIsReportModalOpen(true)}
+                    className="w-full text-left py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1.5"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Báo cáo tài khoản / Vi phạm hẹn gặp
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 4. MODAL: TẠO ĐOẠN CHAT MỚI HOẶC CHỌN BẠN HỌC           */}
+      {/* ======================================================== */}
+      {isNewChatModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-xl border border-slate-200 dark:border-slate-800">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+              Bắt đầu đoạn chat mới
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Chọn tài khoản bạn học để bắt đầu trao đổi hoặc kiểm thử tin nhắn 2 chiều:
+            </p>
+
+            <div className="space-y-2">
+              {/* Option 1: Hoàng Minh Đức (ID 22 - Tài khoản bị tạm khóa 1 tuần) */}
+              <div
+                onClick={() => handleStartChatWithPeer(22)}
+                className="p-3 rounded-2xl border border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 hover:border-amber-500 cursor-pointer transition flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
+                    ĐỨC
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Hoàng Minh Đức
+                      </h4>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-200 text-amber-900 font-bold">
+                        Tạm khóa
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      1@st.phenikaa-uni.edu.vn • K17 Phenikaa
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs bg-amber-600 text-white px-2.5 py-1 rounded-full font-semibold">
+                  Xem chat
+                </span>
+              </div>
+
+              {/* Option 2: Lê Thu Hà (ID 25 - Phenikaa K16) */}
+              <div
+                onClick={() => handleStartChatWithPeer(25)}
+                className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-sm">
+                    HÀ
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Lê Thu Hà (Phenikaa K16)
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      4@st.phenikaa-uni.edu.vn • K16 Phenikaa
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-full font-semibold">
+                  Nhắn tin
+                </span>
+              </div>
+
+              {/* Option 3: Hoài Thương (ID 12) */}
+              <div
+                onClick={() => handleStartChatWithPeer(12)}
+                className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <img
+                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80"
+                    alt="Hoài Thương"
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Hoài Thương
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      23010191@st.phenikaa-uni.edu.vn • K17 Phenikaa
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-full font-semibold">
+                  Nhắn tin
+                </span>
+              </div>
+
+              {/* Option 2: Sinh Viên Phenikaa (ID 11) */}
+              <div
+                onClick={() => handleStartChatWithPeer(11)}
+                className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                    SV
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Sinh Viên Phenikaa
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      23010190@st.phenikaa-uni.edu.vn • K17 Phenikaa
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-full font-semibold">
+                  Nhắn tin
+                </span>
+              </div>
+
+              {/* Option 3: Hoàng Minh Đức (Phenikaa - ID 1) */}
+              <div
+                onClick={() => handleStartChatWithPeer(1)}
+                className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                    ĐỨC
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Hoàng Minh Đức
+                    </h4>
+                    <p className="text-[11px] text-slate-400">
+                      1@st.phenikaa-uni.edu.vn • ĐH Phenikaa
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full font-semibold">
+                  Nhắn tin
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsNewChatModalOpen(false)}
+              className="mt-5 w-full py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        targetUserId={activeRoom?.peerUserId}
+        targetUserName={activeRoom?.peerName}
+      />
+
+      <SafeMeetingPointsModal
+        isOpen={isSafePointModalOpen}
+        onClose={() => setIsSafePointModalOpen(false)}
+        onSelectPoint={handleSelectSafePoint}
+      />
+    </div>
+  );
+};

@@ -1,0 +1,23 @@
+$kind: http-request
+description: "Đăng nhập tài khoản sinh viên Phenikaa (Mật khẩu: Aa123). Script test sẽ tự động lưu `studentToken`."
+url: "{{baseUrl}}/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "student@phenikaa-uni.edu.vn",
+      "password": "Aa123"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      var jsonData = pm.response.json();
+      if (jsonData.success && jsonData.data && jsonData.data.accessToken) {
+          pm.collectionVariables.set('studentToken', jsonData.data.accessToken);
+          console.log('✅ Đã tự động lưu studentToken vào Collection Variables!');
+      }
+    language: text/javascript
+order: 6000

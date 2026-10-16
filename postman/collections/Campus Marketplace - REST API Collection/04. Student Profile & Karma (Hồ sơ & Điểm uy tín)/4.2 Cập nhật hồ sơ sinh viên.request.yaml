@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/student/profile/me"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "fullName": "Nguyễn Văn An (Cập nhật)",
+      "phone": "0988776655",
+      "dormitory": "Ký túc xá B5 - P.302",
+      "universityId": 1,
+      "campusId": 2
+    }
+order: 2000

@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/blacklists"
+method: GET
+headers:
+  Authorization: Bearer {{adminToken}}
+order: 8000

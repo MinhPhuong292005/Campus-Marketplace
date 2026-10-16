@@ -10,18 +10,31 @@ interface AuthState {
   updateKarma: (newScore: number) => void;
 }
 
+const getInitialUser = (): User | null => {
+  try {
+    const raw = localStorage.getItem('user_info');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const initialToken = localStorage.getItem('access_token');
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  isAuthenticated: false,
-  token: localStorage.getItem('access_token'),
+  user: getInitialUser(),
+  isAuthenticated: !!initialToken,
+  token: initialToken,
 
   login: (user, token) => {
     localStorage.setItem('access_token', token);
+    localStorage.setItem('user_info', JSON.stringify(user));
     set({ user, isAuthenticated: true, token });
   },
 
   logout: () => {
     localStorage.removeItem('access_token');
+    localStorage.removeItem('user_info');
     set({ user: null, isAuthenticated: false, token: null });
   },
 

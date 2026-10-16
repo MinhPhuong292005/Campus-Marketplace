@@ -1,0 +1,21 @@
+$kind: http-request
+description: Tạo tài khoản sinh viên mới. Tặng ngay +20 điểm Campus Karma ban đầu.
+url: "{{baseUrl}}/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "fullName": "Trần Minh Đức",
+      "email": "duc.tm2101@phenikaa-uni.edu.vn",
+      "password": "Aa123456",
+      "universityId": 5,
+      "campusId": 8,
+      "dormitory": "Phòng 402 - KTX Phenikaa",
+      "studentCode": "21012345",
+      "phone": "0912345678",
+      "otp": ""
+    }
+order: 5000

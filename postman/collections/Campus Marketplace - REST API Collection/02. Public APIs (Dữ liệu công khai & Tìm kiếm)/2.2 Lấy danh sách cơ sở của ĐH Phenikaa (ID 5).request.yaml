@@ -1,0 +1,5 @@
+$kind: http-request
+description: Trả về các cơ sở của Đại học Phenikaa (Cơ sở Yên Nghĩa, Ký túc xá Phenikaa).
+url: "{{baseUrl}}/public/universities/5/campuses"
+method: GET
+order: 2000

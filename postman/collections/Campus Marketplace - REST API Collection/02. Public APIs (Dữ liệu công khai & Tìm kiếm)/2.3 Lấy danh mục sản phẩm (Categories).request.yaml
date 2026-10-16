@@ -1,0 +1,5 @@
+$kind: http-request
+description: "Danh mục: Giáo trình & Sách vở, Thiết bị công nghệ, Đồ dùng phòng trọ, Thể thao, Thời trang."
+url: "{{baseUrl}}/public/categories"
+method: GET
+order: 3000

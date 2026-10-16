@@ -19,6 +19,6 @@ public class LoginReq {
     private String email;
 
     @NotBlank(message = "Mật khẩu không được để trống")
-    @Size(min = 6, message = "Mật khẩu phải từ 6 ký tự trở lên")
+    @Size(min = 5, message = "Mật khẩu phải từ 5 ký tự trở lên")
     private String password;
 }

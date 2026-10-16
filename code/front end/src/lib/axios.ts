@@ -13,7 +13,17 @@ export const apiClient: AxiosInstance = axios.create({
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
+    // Check if request is an admin API or if user is currently inside /admin route
+    const isAdminRoute =
+      config.url?.startsWith('/admin') ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'));
+
+    const adminToken = localStorage.getItem('admin_access_token');
+    const customerToken = localStorage.getItem('access_token');
+
+    // Admin endpoints strictly prioritize admin_access_token
+    const token = isAdminRoute ? (adminToken || customerToken) : customerToken;
+
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -25,8 +35,18 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response.data,
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('access_token');
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      const isAdminRoute =
+        error.config?.url?.startsWith('/admin') ||
+        (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'));
+
+      if (isAdminRoute) {
+        localStorage.removeItem('admin_access_token');
+        localStorage.removeItem('admin_user_info');
+      } else {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user_info');
+      }
     }
     return Promise.reject(error);
   }

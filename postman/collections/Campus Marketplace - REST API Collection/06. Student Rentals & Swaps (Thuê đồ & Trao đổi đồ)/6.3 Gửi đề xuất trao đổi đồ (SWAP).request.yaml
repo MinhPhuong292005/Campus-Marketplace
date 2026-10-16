@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{baseUrl}}/student/swaps"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "targetListingId": 1,
+      "offeredListingId": 2,
+      "compensationMoney": 20000,
+      "message": "Mình đổi bộ sách Tiếng Anh TOEIC lấy giáo trình này và bù thêm 20k được không bạn?"
+    }
+order: 3000

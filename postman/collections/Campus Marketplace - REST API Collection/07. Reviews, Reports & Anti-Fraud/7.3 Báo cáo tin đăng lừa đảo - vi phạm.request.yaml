@@ -1,0 +1,19 @@
+$kind: http-request
+name: 7.3 Báo cáo tin đăng lừa đảo / vi phạm
+url: "{{baseUrl}}/student/reports"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "reportedListingId": 1,
+      "reason": "SCAM_OR_FRAUD",
+      "description": "Tài khoản này yêu cầu chuyển khoản đặt cọc trước qua Zalo nhưng không chịu gặp mặt trực tiếp tại trường.",
+      "evidenceUrls": [
+        "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600"
+      ]
+    }
+order: 3000

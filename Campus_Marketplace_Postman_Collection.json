@@ -1,0 +1,895 @@
+{
+  "info": {
+    "_postman_id": "c8e192a0-8a4b-4f9e-9d8a-campus-marketplace-2026",
+    "name": "Campus Marketplace - REST API Collection",
+    "description": "Bộ sưu tập Postman hoàn chỉnh dành cho nền tảng Chợ đồ cũ sinh viên (Campus Marketplace). Bao gồm đầy đủ các luồng: Xác thực OTP Redis, Định danh sinh viên .edu.vn, Đăng bán/tặng đồ, Chat, Thuê đồ, Đổi đồ, Báo cáo vi phạm và Cổng Quản trị Admin.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "studentToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "listingId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "chatRoomId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "reportId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Authentication & OTP (Redis)",
+      "item": [
+        {
+          "name": "1.1 Gửi OTP (Email Phenikaa .edu.vn)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student@phenikaa-uni.edu.vn\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/send-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "send-otp"]
+            },
+            "description": "Gửi mã OTP 6 số đến email trường sinh viên. Mã được lưu vào Redis với TTL 5 phút, cooldown chống spam 60s."
+          }
+        },
+        {
+          "name": "1.2 Gửi OTP (Email trường khác .edu.vn)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nguyenvana@daihocquangbinh.edu.vn\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/send-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "send-otp"]
+            },
+            "description": "Gửi OTP cho trường đại học khác có đuôi .edu.vn hợp lệ."
+          }
+        },
+        {
+          "name": "1.3 Test Chặn Email không phải .edu.vn (Lỗi 40001)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nguoidung@gmail.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/send-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "send-otp"]
+            },
+            "description": "Kiểm tra tính năng bảo mật: Chặn đứng mọi email không có đuôi .edu.vn và trả về mã lỗi 40001."
+          }
+        },
+        {
+          "name": "1.4 Xác thực mã OTP trong Redis",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student@phenikaa-uni.edu.vn\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "verify-otp"]
+            },
+            "description": "Xác thực mã OTP từ Redis. Khi đúng mã, Redis sẽ lập tức hủy key để chống tấn công Replay Attack."
+          }
+        },
+        {
+          "name": "1.5 Đăng ký tài khoản Sinh viên (+20 Karma)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Trần Minh Đức\",\n  \"email\": \"duc.tm2101@phenikaa-uni.edu.vn\",\n  \"password\": \"Aa123456\",\n  \"universityId\": 5,\n  \"campusId\": 8,\n  \"dormitory\": \"Phòng 402 - KTX Phenikaa\",\n  \"studentCode\": \"21012345\",\n  \"phone\": \"0912345678\",\n  \"otp\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Tạo tài khoản sinh viên mới. Tặng ngay +20 điểm Campus Karma ban đầu."
+          }
+        },
+        {
+          "name": "1.6 Đăng nhập Sinh viên (Tự động lưu Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.accessToken) {",
+                  "    pm.collectionVariables.set('studentToken', jsonData.data.accessToken);",
+                  "    console.log('✅ Đã tự động lưu studentToken vào Collection Variables!');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student@phenikaa-uni.edu.vn\",\n  \"password\": \"Aa123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Đăng nhập tài khoản sinh viên Phenikaa (Mật khẩu: Aa123). Script test sẽ tự động lưu `studentToken`."
+          }
+        },
+        {
+          "name": "1.7 Đăng nhập Admin (Tự động lưu adminToken)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.accessToken) {",
+                  "    pm.collectionVariables.set('adminToken', jsonData.data.accessToken);",
+                  "    console.log('✅ Đã tự động lưu adminToken vào Collection Variables!');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@gmail.com\",\n  \"password\": \"Aa123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Đăng nhập tài khoản Quản trị viên (admin@gmail.com / Aa123). Script test sẽ tự động lưu `adminToken`."
+          }
+        },
+        {
+          "name": "1.8 Lấy thông tin tài khoản hiện tại (/auth/me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Lấy thông tin người dùng từ JWT Access Token."
+          }
+        },
+        {
+          "name": "1.9 Đăng xuất (/auth/logout)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Public APIs (Dữ liệu công khai & Tìm kiếm)",
+      "item": [
+        {
+          "name": "2.1 Lấy danh sách Trường Đại học (Kèm Phenikaa & Khác)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/universities",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "universities"]
+            },
+            "description": "Trả về hơn 27 trường đại học. Trường Phenikaa nằm ở vị trí ID 5, và 'Các trường đại học khác' được sắp xếp ở cuối danh sách (ID 99)."
+          }
+        },
+        {
+          "name": "2.2 Lấy danh sách cơ sở của ĐH Phenikaa (ID 5)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/universities/5/campuses",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "universities", "5", "campuses"]
+            },
+            "description": "Trả về các cơ sở của Đại học Phenikaa (Cơ sở Yên Nghĩa, Ký túc xá Phenikaa)."
+          }
+        },
+        {
+          "name": "2.3 Lấy danh mục sản phẩm (Categories)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "categories"]
+            },
+            "description": "Danh mục: Giáo trình & Sách vở, Thiết bị công nghệ, Đồ dùng phòng trọ, Thể thao, Thời trang."
+          }
+        },
+        {
+          "name": "2.4 Lấy danh sách bài đăng công khai mới nhất",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/listings?page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "listings"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.5 Tìm kiếm tin đăng nâng cao (Bộ lọc đa chiều)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/public/listings/search?keyword=giáo trình&categoryId=1&transactionType=SELL&minPrice=0&maxPrice=100000&page=0&size=15",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "listings", "search"],
+              "query": [
+                { "key": "keyword", "value": "giáo trình" },
+                { "key": "categoryId", "value": "1" },
+                { "key": "transactionType", "value": "SELL" },
+                { "key": "minPrice", "value": "0" },
+                { "key": "maxPrice", "value": "100000" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "15" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Student Listings (Đăng bán / Tặng / Quản lý tin)",
+      "item": [
+        {
+          "name": "3.1 Đăng bài bán đồ cũ (SELL)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.id) {",
+                  "    pm.collectionVariables.set('listingId', jsonData.data.id);",
+                  "    console.log('✅ Đã lưu listingId mới: ' + jsonData.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Giáo trình Giải tích 1 & Đại số tuyến tính ĐH Phenikaa\",\n  \"description\": \"Sách còn mới 95%, có ghi chú bài tập giải chi tiết các kỳ thi giữa kỳ và cuối kỳ trước. Nhượng lại cho bạn nào cần.\",\n  \"categoryId\": 1,\n  \"price\": 45000,\n  \"transactionType\": \"SELL\",\n  \"conditionStatus\": \"LIKE_NEW_99\",\n  \"imageUrls\": [\n    \"https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/listings",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "listings"]
+            },
+            "description": "Đăng tin bán thanh lý sách vở/đồ dùng."
+          }
+        },
+        {
+          "name": "3.2 Đăng bài Tặng đồ miễn phí (GIVEAWAY - Giá 0đ)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Tặng móc treo quần áo và rổ đựng đồ phòng trọ\",\n  \"description\": \"Mình dọn phòng về quê nên tặng lại cho tân sinh viên khó khăn hoặc bạn nào cần ở KTX Yên Nghĩa.\",\n  \"categoryId\": 3,\n  \"price\": 0,\n  \"transactionType\": \"GIVEAWAY\",\n  \"conditionStatus\": \"GOOD_90\",\n  \"imageUrls\": [\n    \"https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/listings",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "listings"]
+            },
+            "description": "Đăng tin tặng đồ (Bắt buộc giá = 0đ)."
+          }
+        },
+        {
+          "name": "3.3 Xem danh sách tin đăng của tôi",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/student/my-listings?page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "my-listings"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.4 Cập nhật thông tin bài đăng",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"[ĐÃ GIẢM GIÁ] Giáo trình Giải tích 1 ĐH Phenikaa\",\n  \"description\": \"Giảm giá cho bạn nào qua lấy trực tiếp tại KTX Bách Khoa hoặc KTX Phenikaa.\",\n  \"categoryId\": 1,\n  \"price\": 35000,\n  \"conditionStatus\": \"LIKE_NEW_99\",\n  \"imageUrls\": [\n    \"https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/listings/{{listingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "listings", "{{listingId}}"]
+            }
+          }
+        },
+        {
+          "name": "3.5 Cập nhật trạng thái tin (Đã bán SOLD / Ẩn tin HIDE)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SOLD\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/listings/{{listingId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "listings", "{{listingId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "3.6 Xóa tin đăng",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/student/listings/{{listingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "listings", "{{listingId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Student Profile & Karma (Hồ sơ & Điểm uy tín)",
+      "item": [
+        {
+          "name": "4.1 Xem hồ sơ cá nhân & Điểm Karma",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/student/profile/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "profile", "me"]
+            }
+          }
+        },
+        {
+          "name": "4.2 Cập nhật hồ sơ sinh viên",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyễn Văn An (Cập nhật)\",\n  \"phone\": \"0988776655\",\n  \"dormitory\": \"Ký túc xá B5 - P.302\",\n  \"universityId\": 1,\n  \"campusId\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/profile/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "profile", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Student Chat & Messages (Chat thời gian thực)",
+      "item": [
+        {
+          "name": "5.1 Mở hoặc Tạo phòng chat với Người bán",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.data && jsonData.data.id) {",
+                  "    pm.collectionVariables.set('chatRoomId', jsonData.data.id);",
+                  "    console.log('✅ Đã lưu chatRoomId: ' + jsonData.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": 1,\n  \"sellerId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/chat/rooms",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "chat", "rooms"]
+            }
+          }
+        },
+        {
+          "name": "5.2 Danh sách phòng chat của sinh viên",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/student/chat/rooms",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "chat", "rooms"]
+            }
+          }
+        },
+        {
+          "name": "5.3 Lịch sử tin nhắn trong phòng chat",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/student/chat/rooms/{{chatRoomId}}/messages?page=0&size=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "chat", "rooms", "{{chatRoomId}}", "messages"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "30" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Student Rentals & Swaps (Thuê đồ & Trao đổi đồ)",
+      "item": [
+        {
+          "name": "6.1 Tạo yêu cầu thuê đồ",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": 1,\n  \"startDate\": \"2026-10-15T08:00:00\",\n  \"endDate\": \"2026-10-22T18:00:00\",\n  \"rentalFee\": 100000,\n  \"depositAmount\": 300000,\n  \"note\": \"Mình thuê máy tính tính toán trong 1 tuần thi kết thúc học phần\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/rentals",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "rentals"]
+            }
+          }
+        },
+        {
+          "name": "6.2 Danh sách hợp đồng thuê đồ của tôi",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/student/rentals/my-contracts",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "rentals", "my-contracts"]
+            }
+          }
+        },
+        {
+          "name": "6.3 Gửi đề xuất trao đổi đồ (SWAP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetListingId\": 1,\n  \"offeredListingId\": 2,\n  \"compensationMoney\": 20000,\n  \"message\": \"Mình đổi bộ sách Tiếng Anh TOEIC lấy giáo trình này và bù thêm 20k được không bạn?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/swaps",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "swaps"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. Reviews, Reports & Anti-Fraud",
+      "item": [
+        {
+          "name": "7.1 Đánh giá giao dịch & Tặng điểm Karma",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetUserId\": 1,\n  \"listingId\": 1,\n  \"rating\": 5,\n  \"comment\": \"Bạn sinh viên giao dịch rất đúng giờ, sách vở bọc bìa cẩn thận sạch đẹp. Rất uy tín!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/reviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "reviews"]
+            }
+          }
+        },
+        {
+          "name": "7.2 Xem danh sách đánh giá của sinh viên",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/student/reviews/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "reviews", "user", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "7.3 Báo cáo tin đăng lừa đảo / vi phạm",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reportedListingId\": 1,\n  \"reason\": \"SCAM_OR_FRAUD\",\n  \"description\": \"Tài khoản này yêu cầu chuyển khoản đặt cọc trước qua Zalo nhưng không chịu gặp mặt trực tiếp tại trường.\",\n  \"evidenceUrls\": [\n    \"https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/reports",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "reports"]
+            }
+          }
+        },
+        {
+          "name": "7.4 Kiểm tra từ khóa cấm & lừa đảo (Anti-Fraud Check)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Cần pass lại pod vape và hỗ trợ chạy điểm thi qua môn\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/student/anti-fraud/check-content",
+              "host": ["{{baseUrl}}"],
+              "path": ["student", "anti-fraud", "check-content"]
+            },
+            "description": "Tự động phát hiện các từ khóa vi phạm (vape, chạy điểm, cọc trước...)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Admin Portal (Cổng Quản trị)",
+      "item": [
+        {
+          "name": "8.1 Thống kê KPIs Thời gian thực (Dashboard Overview)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "dashboard", "stats"]
+            },
+            "description": "Chỉ số thời gian thực: Tin chờ duyệt, Báo cáo vi phạm mới, Người dùng mới đăng ký, Tỷ lệ giao dịch an toàn."
+          }
+        },
+        {
+          "name": "8.2 Danh sách người dùng hệ thống",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?keyword=&role=ALL&status=ALL&page=0&size=15",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "keyword", "value": "" },
+                { "key": "role", "value": "ALL" },
+                { "key": "status", "value": "ALL" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "15" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "8.3 Khóa / Mở khóa tài khoản người dùng",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"BANNED\",\n  \"reason\": \"Vi phạm quy định nhiều lần: yêu cầu cọc tiền trước qua Zalo lừa đảo\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{userId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "{{userId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "8.4 Danh sách tin đăng trong hàng chờ duyệt (Moderation Queue)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/listings?status=PENDING&page=0&size=15",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "listings"],
+              "query": [
+                { "key": "status", "value": "PENDING" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "15" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "8.5 Duyệt bài đăng (Phê duyệt / Từ chối)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"APPROVE\",\n  \"reason\": \"Nội dung chuẩn chỉ, sách giáo trình hợp lệ\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/listings/{{listingId}}/moderate",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "listings", "{{listingId}}", "moderate"]
+            }
+          }
+        },
+        {
+          "name": "8.6 Danh sách báo cáo vi phạm cần xử lý",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports?status=PENDING&page=0&size=15",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports"],
+              "query": [
+                { "key": "status", "value": "PENDING" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "15" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "8.7 Xử lý báo cáo vi phạm (Gỡ bài / Cảnh cáo)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"DISMISS\",\n  \"note\": \"Đã xác minh, hai bên sinh viên giao dịch bình thường không có dấu hiệu gian lận\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/{{reportId}}/resolve",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports", "{{reportId}}", "resolve"]
+            }
+          }
+        },
+        {
+          "name": "8.8 Quản lý danh sách từ khóa cấm (Keyword Blacklist)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/blacklists",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "blacklists"]
+            }
+          }
+        },
+        {
+          "name": "8.9 Thêm từ khóa cấm mới",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"keyword\": \"bắn cá đổi thưởng\",\n  \"category\": \"GAMBLING\",\n  \"severity\": \"HIGH\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/blacklists",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "blacklists"]
+            }
+          }
+        },
+        {
+          "name": "8.10 Xem Nhật ký kiểm toán không thể can thiệp (Audit Logs)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/audit-logs?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "audit-logs"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            },
+            "description": "Lưu lại toàn bộ thao tác của Admin & Moderator: ai duyệt bài nào, ai khóa tài khoản nào, lúc mấy giờ."
+          }
+        },
+        {
+          "name": "8.11 Quản lý danh sách trường đại học (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/universities",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "universities"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# JVM & System Crash Logs
+*.log
+hs_err_pid*
+replay_pid*
+
+# IDE & Editor Configs
+.idea/
+.vscode/
+.postman/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Maven & Node Build Outputs
+target/
+code/backend/target/
+node_modules/
+code/front end/node_modules/
+dist/
+code/front end/dist/
+*.tsbuildinfo
+
+# Uploaded Files
+uploads/
+code/backend/uploads/
+
+# OS Specific
+.DS_Store
+Thumbs.db

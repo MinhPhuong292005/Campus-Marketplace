@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/admin/users?keyword=&role=ALL&status=ALL&page=0&size=15"
+method: GET
+headers:
+  Authorization: Bearer {{adminToken}}
+queryParams:
+  keyword: ""
+  role: ALL
+  status: ALL
+  page: "0"
+  size: "15"
+order: 2000

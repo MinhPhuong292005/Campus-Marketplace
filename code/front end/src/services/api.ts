@@ -13,6 +13,20 @@ export const putRequest = async <T>(url: string, data?: unknown): Promise<ApiRes
   return apiClient.put(url, data);
 };
 
+export const patchRequest = async <T>(url: string, data?: unknown): Promise<ApiResponse<T>> => {
+  return apiClient.patch(url, data);
+};
+
 export const deleteRequest = async <T>(url: string): Promise<ApiResponse<T>> => {
   return apiClient.delete(url);
 };
+
+export const api = {
+  get: getRequest,
+  post: postRequest,
+  put: putRequest,
+  patch: patchRequest,
+  delete: deleteRequest,
+};
+
+export default api;

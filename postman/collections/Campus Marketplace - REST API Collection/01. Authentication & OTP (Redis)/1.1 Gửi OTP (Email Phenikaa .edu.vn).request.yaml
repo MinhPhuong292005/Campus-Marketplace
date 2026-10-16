@@ -1,0 +1,13 @@
+$kind: http-request
+description: Gửi mã OTP 6 số đến email trường sinh viên. Mã được lưu vào Redis với TTL 5 phút, cooldown chống spam 60s.
+url: "{{baseUrl}}/auth/send-otp"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "student@phenikaa-uni.edu.vn"
+    }
+order: 1000

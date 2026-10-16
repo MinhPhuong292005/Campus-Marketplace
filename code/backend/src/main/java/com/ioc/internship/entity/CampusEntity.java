@@ -13,6 +13,7 @@ import lombok.*;
 @Builder
 public class CampusEntity extends BaseEntity {
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "university_id", nullable = false)
     private UniversityEntity university;

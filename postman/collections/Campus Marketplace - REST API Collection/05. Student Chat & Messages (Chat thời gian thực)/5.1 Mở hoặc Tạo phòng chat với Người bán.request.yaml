@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{baseUrl}}/student/chat/rooms"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "listingId": 1,
+      "sellerId": 1
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      var jsonData = pm.response.json();
+      if (jsonData.success && jsonData.data && jsonData.data.id) {
+          pm.collectionVariables.set('chatRoomId', jsonData.data.id);
+          console.log('✅ Đã lưu chatRoomId: ' + jsonData.data.id);
+      }
+    language: text/javascript
+order: 1000

@@ -1,0 +1,9 @@
+$kind: http-request
+url: "{{baseUrl}}/student/my-listings?page=0&size=10"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+queryParams:
+  page: "0"
+  size: "10"
+order: 3000

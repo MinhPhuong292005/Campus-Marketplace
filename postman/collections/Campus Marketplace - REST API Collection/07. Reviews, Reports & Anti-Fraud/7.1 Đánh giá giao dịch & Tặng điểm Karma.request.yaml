@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{baseUrl}}/student/reviews"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "targetUserId": 1,
+      "listingId": 1,
+      "rating": 5,
+      "comment": "Bạn sinh viên giao dịch rất đúng giờ, sách vở bọc bìa cẩn thận sạch đẹp. Rất uy tín!"
+    }
+order: 1000

@@ -1,0 +1,22 @@
+$kind: http-request
+description: Đăng tin tặng đồ (Bắt buộc giá = 0đ).
+url: "{{baseUrl}}/student/listings"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "title": "Tặng móc treo quần áo và rổ đựng đồ phòng trọ",
+      "description": "Mình dọn phòng về quê nên tặng lại cho tân sinh viên khó khăn hoặc bạn nào cần ở KTX Yên Nghĩa.",
+      "categoryId": 3,
+      "price": 0,
+      "transactionType": "GIVEAWAY",
+      "conditionStatus": "GOOD_90",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600"
+      ]
+    }
+order: 2000

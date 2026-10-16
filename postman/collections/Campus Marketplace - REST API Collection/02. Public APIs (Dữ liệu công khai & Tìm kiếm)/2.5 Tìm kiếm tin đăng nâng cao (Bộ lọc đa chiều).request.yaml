@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/public/listings/search?keyword=giáo trình&categoryId=1&transactionType=SELL&minPrice=0&maxPrice=100000&page=0&size=15"
+method: GET
+queryParams:
+  keyword: giáo trình
+  categoryId: "1"
+  transactionType: SELL
+  minPrice: "0"
+  maxPrice: "100000"
+  page: "0"
+  size: "15"
+order: 5000

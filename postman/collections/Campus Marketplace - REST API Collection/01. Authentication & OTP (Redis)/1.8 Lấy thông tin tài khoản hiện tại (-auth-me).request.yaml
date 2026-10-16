@@ -1,0 +1,8 @@
+$kind: http-request
+name: 1.8 Lấy thông tin tài khoản hiện tại (/auth/me)
+description: Lấy thông tin người dùng từ JWT Access Token.
+url: "{{baseUrl}}/auth/me"
+method: GET
+headers:
+  Authorization: Bearer {{studentToken}}
+order: 8000

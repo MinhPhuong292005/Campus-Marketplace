@@ -1,0 +1,15 @@
+$kind: http-request
+name: 7.4 Kiểm tra từ khóa cấm & lừa đảo (Anti-Fraud Check)
+description: Tự động phát hiện các từ khóa vi phạm (vape, chạy điểm, cọc trước...).
+url: "{{baseUrl}}/student/anti-fraud/check-content"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{studentToken}}
+body:
+  type: text
+  content: |-
+    {
+      "text": "Cần pass lại pod vape và hỗ trợ chạy điểm thi qua môn"
+    }
+order: 4000

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tag, MapPin, Repeat, Clock, Gift, ShoppingBag } from 'lucide-react';
 import { Listing } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
@@ -11,6 +12,15 @@ interface ListingCardProps {
 }
 
 export const ListingCard: React.FC<ListingCardProps> = ({ listing, onClick }) => {
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    if (onClick) {
+      onClick(listing.id);
+    } else {
+      navigate(`/listings/${listing.id}`);
+    }
+  };
   const getBadgeTypeStyle = (type: Listing['transactionType']) => {
     switch (type) {
       case 'SELL':
@@ -37,11 +47,12 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onClick }) =>
   };
 
   const badgeConfig = getBadgeTypeStyle(listing.transactionType);
-  const primaryImage = listing.images?.[0]?.mediaUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&q=80';
+  const rawPrimaryImage = listing.images?.[0]?.mediaUrl || (listing as any).imageUrls?.[0];
+  const primaryImage = rawPrimaryImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&q=80';
 
   return (
     <div
-      onClick={() => onClick && onClick(listing.id)}
+      onClick={handleClick}
       className="group flex flex-col rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500/50 transition-all duration-200 cursor-pointer"
     >
       {/* Image Thumbnail */}

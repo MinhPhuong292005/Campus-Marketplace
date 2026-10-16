@@ -1,0 +1,23 @@
+$kind: http-request
+description: Đăng nhập tài khoản Quản trị viên (admin@gmail.com / Aa123). Script test sẽ tự động lưu `adminToken`.
+url: "{{baseUrl}}/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "admin@gmail.com",
+      "password": "Aa123"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      var jsonData = pm.response.json();
+      if (jsonData.success && jsonData.data && jsonData.data.accessToken) {
+          pm.collectionVariables.set('adminToken', jsonData.data.accessToken);
+          console.log('✅ Đã tự động lưu adminToken vào Collection Variables!');
+      }
+    language: text/javascript
+order: 7000

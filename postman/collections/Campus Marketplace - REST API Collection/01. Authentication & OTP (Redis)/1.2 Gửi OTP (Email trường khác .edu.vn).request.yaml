@@ -1,0 +1,13 @@
+$kind: http-request
+description: Gửi OTP cho trường đại học khác có đuôi .edu.vn hợp lệ.
+url: "{{baseUrl}}/auth/send-otp"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "nguyenvana@daihocquangbinh.edu.vn"
+    }
+order: 2000

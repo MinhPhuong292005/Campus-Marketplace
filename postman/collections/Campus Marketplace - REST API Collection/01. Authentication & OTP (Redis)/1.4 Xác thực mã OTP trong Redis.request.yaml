@@ -1,0 +1,14 @@
+$kind: http-request
+description: Xác thực mã OTP từ Redis. Khi đúng mã, Redis sẽ lập tức hủy key để chống tấn công Replay Attack.
+url: "{{baseUrl}}/auth/verify-otp"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "email": "student@phenikaa-uni.edu.vn",
+      "otp": "123456"
+    }
+order: 4000
