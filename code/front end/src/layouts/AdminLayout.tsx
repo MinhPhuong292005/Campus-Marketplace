@@ -101,9 +101,6 @@ export const AdminLayout: React.FC = () => {
               <span className="font-black text-white text-base tracking-tight">
                 CAMPUS<span className="text-indigo-400">ADMIN</span>
               </span>
-              <span className="text-[10px] text-slate-400 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-800 bg-slate-950">
-                CONSOLE
-              </span>
             </div>
             <p className="text-[11px] text-slate-400 -mt-0.5 hidden sm:block">Trung tâm Điều hành & Kiểm duyệt Tập trung</p>
           </div>
@@ -188,11 +185,6 @@ export const AdminLayout: React.FC = () => {
                 </Link>
               );
             })}
-          </div>
-
-          {/* Clean minimal footer without database status card */}
-          <div className="pt-4 mt-6 border-t border-slate-800/80 text-center">
-            <p className="text-[10px] font-mono text-slate-400">Campus Marketplace Admin Console</p>
           </div>
         </aside>
 
