@@ -71,3 +71,8 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     operationsSorter: method
+
+# Logging - tắt periodic WebSocket stats log (chỉ là INFO, không phải lỗi)
+logging:
+  level:
+    org.springframework.web.socket.config.WebSocketMessageBrokerStats: WARN

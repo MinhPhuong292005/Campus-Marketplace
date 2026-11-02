@@ -644,9 +644,14 @@ export const ListingDetailPage: React.FC = () => {
 
             {listing.transactionType === 'SWAP' && (
               <div className="space-y-2">
-                <div className="text-lg font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
-                  <Repeat className="w-5 h-5" />
-                  <span>Đổi Đồ (Không Bán Tiền)</span>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="text-lg font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                    <Repeat className="w-5 h-5" />
+                    <span>Hình thức Trao Đổi Đồ</span>
+                  </div>
+                  <span className="text-base font-extrabold text-amber-600 dark:text-amber-400 font-mono bg-amber-50 dark:bg-amber-950/40 px-3 py-1 rounded-xl border border-amber-200 dark:border-amber-900/60">
+                    Định giá: {formatCurrency(listing.price)}
+                  </span>
                 </div>
                 {listing.swapTarget && (
                   <div className="p-3 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900 rounded-2xl text-xs text-amber-800 dark:text-amber-200">

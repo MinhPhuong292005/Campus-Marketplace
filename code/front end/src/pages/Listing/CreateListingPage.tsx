@@ -149,11 +149,11 @@ export const CreateListingPage: React.FC = () => {
     fetchCats();
   }, [setValue]);
 
-  // Adjust price when switching transaction type (Tặng đồ & Đổi đồ không dùng tiền -> giá = 0)
+  // Adjust price when switching transaction type (Tặng đồ -> giá = 0; Bán & Trao đổi -> có định giá món đồ)
   useEffect(() => {
-    if (transactionType === 'GIVEAWAY' || transactionType === 'SWAP') {
+    if (transactionType === 'GIVEAWAY') {
       setValue('price', 0);
-    } else if (transactionType === 'SELL') {
+    } else if (transactionType === 'SELL' || transactionType === 'SWAP') {
       const curPrice = watch('price');
       if (!curPrice || curPrice <= 0) {
         setValue('price', 50000);
@@ -406,8 +406,8 @@ export const CreateListingPage: React.FC = () => {
         spamProtectionService.resetPostSpam(user.id);
       }
 
-      // Đối với GIVEAWAY và SWAP: đảm bảo giá bằng 0đ
-      if (pendingFormData.transactionType === 'SWAP' || pendingFormData.transactionType === 'GIVEAWAY') {
+      // Đối với GIVEAWAY: đảm bảo giá bằng 0đ
+      if (pendingFormData.transactionType === 'GIVEAWAY') {
         pendingFormData.price = 0;
       }
 
@@ -778,22 +778,35 @@ export const CreateListingPage: React.FC = () => {
               </div>
             </div>
           ) : transactionType === 'SWAP' ? (
-            <div className="space-y-3">
-              <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between">
+            <div className="space-y-4 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20">
+              <div className="p-3.5 rounded-2xl bg-amber-100/70 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <ArrowLeftRight className="w-5 h-5 text-amber-600 shrink-0" />
                   <div>
-                    <p className="font-bold">Hình thức Trao đổi đồ (Không sử dụng tiền mặt)</p>
+                    <p className="font-bold">Hình thức Trao đổi đồ (Giao lưu ngang giá)</p>
                     <p className="text-[11px] text-amber-700 dark:text-amber-400">
                       Giao lưu món đồ này lấy tài liệu, dụng cụ học tập hoặc vật dụng khác với các bạn sinh viên Phenikaa.
                     </p>
                   </div>
                 </div>
-                <span className="font-mono font-extrabold text-xs px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 shrink-0">
-                  Trao đổi (0 VNĐ)
+                <span className="font-mono font-extrabold text-xs px-2.5 py-1 rounded-full bg-amber-200/80 dark:bg-amber-800/60 text-amber-900 dark:text-amber-100 shrink-0">
+                  Trao đổi đồ
                 </span>
               </div>
 
+              {/* Ô 1: Nhập giá trị ước tính của món đồ */}
+              <div>
+                <BaseInput
+                  type="number"
+                  label="Giá trị ước tính của món đồ (VNĐ) *"
+                  placeholder="vd: 50000 (Nhập giá trị tham khảo của món đồ bạn đem đổi)"
+                  helperText="Bắt buộc nhập giá trị lớn hơn 0đ để các bạn sinh viên khác dễ dàng chọn món đồ ngang tầm để trao đổi"
+                  error={errors.price?.message}
+                  {...register('price', { valueAsNumber: true })}
+                />
+              </div>
+
+              {/* Ô 2: Món đồ muốn đổi lấy */}
               <div>
                 <BaseInput
                   label="Món đồ bạn muốn đổi lấy (Không bắt buộc)"
@@ -950,7 +963,7 @@ export const CreateListingPage: React.FC = () => {
                       {pendingFormData.transactionType === 'GIVEAWAY'
                         ? 'Tặng miễn phí (0 đ)'
                         : pendingFormData.transactionType === 'SWAP'
-                        ? `Đổi đồ: ${pendingFormData.swapTarget || 'Theo thỏa thuận'}`
+                        ? `Trao đổi: ~${Number(pendingFormData.price).toLocaleString('vi-VN')} đ ${pendingFormData.swapTarget ? `(Đổi: ${pendingFormData.swapTarget})` : ''}`
                         : `${Number(pendingFormData.price).toLocaleString('vi-VN')} đ`}
                     </span>
                     <span className="text-slate-400">•</span>
@@ -1042,7 +1055,7 @@ export const CreateListingPage: React.FC = () => {
                   {createdListingData.transactionType === 'GIVEAWAY'
                     ? 'Tặng 0đ (Free)'
                     : createdListingData.transactionType === 'SWAP'
-                    ? `Trao đổi: ${createdListingData.swapTarget || 'Tự do thỏa thuận'}`
+                    ? `Trao đổi: ~${Number(createdListingData.price).toLocaleString('vi-VN')} đ ${createdListingData.swapTarget ? `(Đổi: ${createdListingData.swapTarget})` : ''}`
                     : `${Number(createdListingData.price).toLocaleString('vi-VN')} đ`}
                 </p>
                 <p className="text-[10px] text-slate-400 mt-0.5">

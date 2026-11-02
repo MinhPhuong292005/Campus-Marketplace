@@ -17,10 +17,13 @@ export const listingSchema = z.object({
     if (data.transactionType === 'SELL' && data.price <= 0) {
       return false;
     }
+    if (data.transactionType === 'SWAP' && data.price <= 0) {
+      return false;
+    }
     return true;
   },
   {
-    message: 'Bài đăng bán bắt buộc phải có giá lớn hơn 0đ',
+    message: 'Vui lòng nhập giá trị của món đồ (lớn hơn 0đ)',
     path: ['price'],
   }
 );

@@ -130,6 +130,11 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onClick }) =>
                 0 đ{' '}
                 <span className="text-xs font-normal text-pink-500">(Tặng 0đ)</span>
               </p>
+            ) : listing.transactionType === 'SWAP' ? (
+              <p className="text-base font-bold text-amber-600 dark:text-amber-400">
+                ~{formatCurrency(listing.price)}{' '}
+                <span className="text-xs font-normal text-slate-500 dark:text-slate-400">(Đổi đồ)</span>
+              </p>
             ) : (
               <p className="text-base font-bold text-blue-600 dark:text-blue-400">
                 {formatCurrency(listing.price)}
