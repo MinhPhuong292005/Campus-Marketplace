@@ -1,13 +1,5 @@
 # 🎓 Campus Marketplace - Nền Tảng Thương Mại Điện Tử & Trao Đổi Đồ Dùng Nội Bộ Sinh Viên
 
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.4-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)
-[![React](https://img.shields.io/badge/React-18.3.1-blue?logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue?logo=typescript)](https://www.typescriptlang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql)](https://www.postgresql.org/)
-[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8?logo=tailwindcss)](https://tailwindcss.com/)
-[![Docker](https://img.shields.io/badge/Docker-Enabled-2496ed?logo=docker)](https://www.docker.com/)
-[![AI OCR](https://img.shields.io/badge/AI%20OCR-Phenikaa%20Card-orange)](./code/ai_ocr/)
-
 > **Campus Marketplace** là giải pháp P2P thương mại điện tử chuyên biệt khép kín dành cho sinh viên **Trường Đại học Phenikaa (Phenikaa University)**. Nền tảng giải quyết bài toán lãng phí giáo trình, thiết bị học tập và đồ dùng phòng trọ; tối ưu chi phí học tập thông qua môi trường giao dịch an toàn, minh bạch với điểm tín nhiệm **Campus Karma** và công nghệ **AI OCR xác minh thẻ sinh viên chính chủ**.
 
 ---

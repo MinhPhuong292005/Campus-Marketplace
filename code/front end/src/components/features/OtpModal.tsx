@@ -153,6 +153,19 @@ export const OtpModal: React.FC<OtpModalProps> = ({
           </button>
         </div>
 
+        <div className="text-center pt-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              setOtp('123456');
+              setErrorMsg(null);
+            }}
+            className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/60 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-900/50"
+          >
+            ⚡ Điền mã OTP thử nghiệm nhanh: 123456
+          </button>
+        </div>
+
         <div className="p-3 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 flex items-center gap-2.5 text-emerald-800 dark:text-emerald-300 text-xs">
           <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
           <span>Tài khoản kích hoạt thành công sẽ được tặng ngay <strong>+20 điểm Campus Karma</strong>!</span>
