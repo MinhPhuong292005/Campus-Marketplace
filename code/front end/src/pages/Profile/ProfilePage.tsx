@@ -399,10 +399,7 @@ export const ProfilePage: React.FC = () => {
                 ) : (
                   <>
                     <img
-                      src={
-                        user.avatarUrl ||
-                        `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email || 'student'}`
-                      }
+                      src={user.avatarUrl || '/default-avatar.png'}
                       alt={user.fullName}
                       className="w-full h-full object-cover group-hover:scale-105 transition"
                     />
@@ -418,9 +415,6 @@ export const ProfilePage: React.FC = () => {
               <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate" title={user.fullName}>
                 {user.fullName || user.email?.split('@')[0]}
               </h3>
-              <p className="text-[11px] text-slate-400 font-mono truncate">
-                {user.studentCode || 'Sinh viên Phenikaa'}
-              </p>
               <button
                 onClick={() => setIsEditModalOpen(true)}
                 className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 mt-1"

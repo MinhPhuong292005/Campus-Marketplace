@@ -4,11 +4,8 @@ import {
   CreditCard,
   AlertCircle,
   ShieldCheck,
-  Sparkles,
   Camera,
-  Sun,
   Maximize2,
-  Lock,
   Clock,
   Send,
   RotateCcw,
@@ -77,12 +74,6 @@ export const StudentCardVerifyModal: React.FC<StudentCardVerifyModalProps> = ({
     }
   };
 
-  const handleUsePhenikaaSample = () => {
-    setFrontImage('/images/phenikaa_card_sample.jpg');
-    setBackImage('/images/phenikaa_card_guide.jpg');
-    setErrorMsg(null);
-  };
-
   const handleSubmitVerification = async () => {
     if (!frontImage || !backImage) {
       setErrorMsg('Vui lòng chụp và tải lên đầy đủ ảnh cả 2 mặt (mặt trước và mặt sau) của thẻ sinh viên.');
@@ -143,16 +134,11 @@ export const StudentCardVerifyModal: React.FC<StudentCardVerifyModalProps> = ({
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                  Xác Thực Thẻ Sinh Viên Phenikaa
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[10px] font-extrabold flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> Ban Quản Trị Duyệt
-                </span>
-              </div>
+              <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                Xác Thực Thẻ Sinh Viên Phenikaa
+              </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Chụp ảnh 2 mặt thẻ sinh viên gửi Ban Quản Trị xét duyệt và cấp Tích Xanh chính chủ (+15 Karma)
+                Chụp ảnh 2 mặt thẻ sinh viên để xét duyệt và cấp Tích Xanh chính chủ (+15 Karma)
               </p>
             </div>
           </div>
@@ -240,46 +226,15 @@ export const StudentCardVerifyModal: React.FC<StudentCardVerifyModalProps> = ({
         ) : (
           /* MÀN HÌNH 2: FORM TẢI ẢNH 2 MẶT & LƯU Ý */
           <div className="mt-5 space-y-5">
-            {/* KHỐI LƯU Ý CHỤP ẢNH THẺ (ĐỦ SÁNG, RÕ RÀNG, ĐỦ 4 GÓC,...) */}
-            <div className="p-4 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 space-y-2.5">
-              <div className="flex items-center gap-2 text-xs font-bold text-blue-900 dark:text-blue-200">
-                <Sun className="w-4 h-4 text-amber-500" />
-                <span>Lưu ý quan trọng để ảnh thẻ được Ban Quản Trị duyệt nhanh:</span>
-              </div>
-              <ul className="text-[11px] text-blue-950/80 dark:text-blue-300/90 space-y-1.5 pl-1 leading-relaxed">
-                <li className="flex items-start gap-2">
-                  <span className="font-bold text-blue-600 shrink-0">•</span>
-                  <span><strong>Chụp ở nơi đủ ánh sáng:</strong> Không bị tối hay sấp bóng; tắt đèn flash điện thoại để tránh bị lóa sáng phản chiếu trên bề mặt thẻ nhựa.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="font-bold text-blue-600 shrink-0">•</span>
-                  <span><strong>Ảnh rõ nét, không mờ nhòe:</strong> Chụp vuông góc, chữ và số (Họ tên, Mã sinh viên, Niên khóa) phải đọc được rõ ràng.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="font-bold text-blue-600 shrink-0">•</span>
-                  <span><strong>Đầy đủ 4 góc viền:</strong> Đặt thẻ trên mặt phẳng bàn, chụp thấy trọn vẹn 4 góc thẻ, không dùng ngón tay che khuất thông tin.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="font-bold text-blue-600 shrink-0">•</span>
-                  <span><strong>Thẻ sinh viên chính chủ:</strong> Thông tin trên thẻ phải trùng khớp với Họ tên và Mã sinh viên của tài khoản đăng ký.</span>
-                </li>
-              </ul>
+            {/* LƯU Ý CHỤP THẺ */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+              <p className="font-semibold text-slate-800 dark:text-slate-200">Lưu ý khi chụp ảnh thẻ:</p>
+              <p>• Chụp rõ nét cả 2 mặt thẻ, thấy rõ Họ tên và Mã sinh viên Phenikaa.</p>
+              <p>• Đặt thẻ ngay ngắn, đủ ánh sáng, không lóa và không che khuất thông tin.</p>
             </div>
 
-            {/* Quick Test Sample Button */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Tải lên 2 mặt thẻ sinh viên của bạn:
-              </span>
-              <button
-                type="button"
-                onClick={handleUsePhenikaaSample}
-                className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1 cursor-pointer bg-blue-50 dark:bg-blue-950/60 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-blue-900/50 transition-colors"
-                title="Tự động chọn 2 mặt thẻ mẫu Phenikaa để kiểm thử nhanh"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                <span>Dùng ảnh mẫu thẻ Phenikaa chuẩn (2 mặt)</span>
-              </button>
+            <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Tải lên 2 mặt thẻ sinh viên của bạn:
             </div>
 
             {/* 2 VÙNG TẢI ẢNH: MẶT TRƯỚC VÀ MẶT SAU */}

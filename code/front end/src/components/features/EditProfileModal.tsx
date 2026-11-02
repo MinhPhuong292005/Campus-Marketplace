@@ -201,39 +201,33 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
-              Ngành học
-            </label>
-            <select
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white"
+            <BaseInput
+              label="Ngành học"
+              placeholder="vd: Khoa học máy tính / Quản trị kinh doanh"
+              leftIcon={<GraduationCap className="w-4 h-4 text-blue-600" />}
+              list="phenikaa-majors-list"
               {...register('major')}
-            >
-              <option value="">-- Chọn ngành học chính quy --</option>
+            />
+            <datalist id="phenikaa-majors-list">
               {PHENIKAA_MAJORS.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
+                <option key={m} value={m} />
               ))}
-            </select>
+            </datalist>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-blue-600" />
-              Niên khóa
-            </label>
-            <select
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white"
+            <BaseInput
+              label="Niên khóa"
+              placeholder="vd: K17 (2023 - 2027)"
+              leftIcon={<Calendar className="w-4 h-4 text-blue-600" />}
+              list="phenikaa-years-list"
               {...register('academicYear')}
-            >
-              <option value="">-- Chọn khóa học --</option>
+            />
+            <datalist id="phenikaa-years-list">
               {PHENIKAA_ACADEMIC_YEARS.map((y) => (
-                <option key={y.id} value={y.label}>
-                  {y.label}
-                </option>
+                <option key={y.id} value={y.label} />
               ))}
-            </select>
+            </datalist>
           </div>
         </div>
 

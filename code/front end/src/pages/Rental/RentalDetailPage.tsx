@@ -55,6 +55,7 @@ export const RentalDetailPage: React.FC = () => {
   const [meetingTime, setMeetingTime] = useState<string>('');
   const [isEditingMeeting, setIsEditingMeeting] = useState(false);
   const [hasSavedProof, setHasSavedProof] = useState(false);
+  const [returnConfirmRole, setReturnConfirmRole] = useState<'owner' | 'renter'>('owner');
 
   const fetchDetail = async () => {
     if (!id) return;
@@ -69,6 +70,9 @@ export const RentalDetailPage: React.FC = () => {
         res.data.meetingPoint || 'Sảnh Tòa A10 (Trung tâm Thư viện Phenikaa & Tòa nhà Điều hành)'
       );
       setMeetingTime(res.data.meetingTime || '14:30 - Ngày bắt đầu thuê đồ');
+      if (user) {
+        setReturnConfirmRole(user.id === res.data.ownerId ? 'owner' : 'renter');
+      }
     }
   };
 
@@ -86,7 +90,6 @@ export const RentalDetailPage: React.FC = () => {
   }
 
   const isOwner = user?.id === contract.ownerId;
-  const [returnConfirmRole, setReturnConfirmRole] = useState<'owner' | 'renter'>(isOwner ? 'owner' : 'renter');
 
   // Trạng thái các bước trong quy trình giao dịch thuê - BẮT BUỘC CẢ 2 BÊN XÁC NHẬN TỪ BƯỚC 2 TRỞ ĐI
   const isStep1Done = contract.status !== 'PENDING';
