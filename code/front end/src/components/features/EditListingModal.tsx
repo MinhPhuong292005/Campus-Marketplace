@@ -544,12 +544,8 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({
 
           {/* Safe Meeting Point */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-              <span>Điểm hẹn giao dịch tại Phenikaa *</span>
-              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Có Camera giám sát</span>
-              </span>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+              Điểm hẹn giao dịch tại Phenikaa *
             </label>
             <select
               value={safeMeetingPoint}
@@ -562,14 +558,6 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({
                 </option>
               ))}
             </select>
-          </div>
-
-          {/* Note about admin moderation */}
-          <div className="p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 text-[11px] text-blue-800 dark:text-blue-300 flex items-start gap-2">
-            <CheckCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <p>
-              Sau khi lưu chỉnh sửa, bài đăng sẽ chuyển về trạng thái chờ Ban Quản trị phê duyệt lại trước khi hiển thị công khai trên Chợ Sinh viên Phenikaa.
-            </p>
           </div>
 
           {/* Actions */}

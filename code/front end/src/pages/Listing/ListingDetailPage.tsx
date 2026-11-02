@@ -555,9 +555,6 @@ export const ListingDetailPage: React.FC = () => {
                 <span className="text-3xl font-extrabold text-blue-600 dark:text-blue-400">
                   {formatCurrency(listing.price)}
                 </span>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
-                  Tiết kiệm đến 60%
-                </span>
               </div>
             )}
 
@@ -647,14 +644,13 @@ export const ListingDetailPage: React.FC = () => {
             )}
 
             {listing.transactionType === 'SWAP' && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="text-lg font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
-                    <Repeat className="w-5 h-5" />
-                    <span>Hình thức Trao Đổi Đồ</span>
-                  </div>
-                  <span className="text-base font-extrabold text-amber-600 dark:text-amber-400 font-mono bg-amber-50 dark:bg-amber-950/40 px-3 py-1 rounded-xl border border-amber-200 dark:border-amber-900/60">
-                    Định giá: {formatCurrency(listing.price)}
+              <div className="space-y-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-extrabold text-amber-600 dark:text-amber-400">
+                    {formatCurrency(listing.price)}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">
+                    (Định giá món đồ)
                   </span>
                 </div>
                 {listing.swapTarget && (
@@ -1206,8 +1202,22 @@ export const ListingDetailPage: React.FC = () => {
 
       {/* Modal Cảnh báo khi người bán tự click mua/thuê sản phẩm của chính mình */}
       {isOwnerModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 text-center space-y-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setIsOwnerModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 text-center space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setIsOwnerModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Đóng"
+            >
+              <X className="w-5 h-5" />
+            </button>
             <div className="w-14 h-14 bg-amber-50 dark:bg-amber-950/40 text-amber-500 rounded-3xl mx-auto flex items-center justify-center">
               <AlertTriangle className="w-7 h-7" />
             </div>
