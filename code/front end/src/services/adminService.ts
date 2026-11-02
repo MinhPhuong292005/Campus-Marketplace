@@ -158,7 +158,7 @@ const saveStoredUsers = (users: AdminUserItem[]) => {
   }
 };
 
-const LOCAL_STORAGE_UNIVERSITIES_KEY = 'campus_admin_universities_v1';
+const LOCAL_STORAGE_UNIVERSITIES_KEY = 'campus_admin_universities_v2';
 
 export const INITIAL_UNIVERSITIES: UniversityItem[] = [
   {
@@ -168,8 +168,6 @@ export const INITIAL_UNIVERSITIES: UniversityItem[] = [
     emailDomains: 'st.phenikaa-uni.edu.vn,phenikaa-uni.edu.vn',
     campuses: [
       { id: 1, name: 'Cơ sở Yên Nghĩa (Trụ sở chính)', location: 'Đường Nguyễn Trác, P. Yên Nghĩa, Q. Hà Đông, Hà Nội' },
-      { id: 2, name: 'Khu Ký túc xá Phenikaa (Tòa K1 - K2 - K3)', location: 'Khuôn viên Nội trú ĐH Phenikaa' },
-      { id: 3, name: 'Khu Thể thao & Nhà thi đấu Đa năng Phenikaa', location: 'Cạnh Tòa A3 & KTX Phenikaa' },
     ],
   },
 ];

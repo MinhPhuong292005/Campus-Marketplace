@@ -29,6 +29,12 @@ import {
   Zap,
   Eye,
   MapPin,
+  School,
+  Building,
+  Building2,
+  Pencil,
+  Video,
+  ShieldCheck,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
 import { BaseModal } from '../../components/base/BaseModal';
@@ -41,7 +47,9 @@ import {
   KeywordBlacklistItem,
   AuditLogItem,
   BannedStudentItem,
+  UniversityItem,
 } from '../../services/adminService';
+import { PhenikaaSafePoint } from '../../constants/phenikaaData';
 import { reportService, ResolveReportPayload } from '../../services/reportService';
 import { ReportItem } from '../../types';
 import { keywordViolationService, KeywordViolationRecord } from '../../services/keywordViolationService';
@@ -50,7 +58,8 @@ import { studentNotificationService } from '../../services/studentNotificationSe
 import { adminNotificationService } from '../../services/adminNotificationService';
 import { useAuthStore } from '../../store/useAuthStore';
 
-type TabType = 'overview' | 'listings' | 'users' | 'reports' | 'metadata' | 'settings';
+type TabType = 'overview' | 'listings' | 'users' | 'reports' | 'locations' | 'metadata' | 'settings';
+type CampusItem = { id: number; name: string; location?: string };
 
 export const AdminDashboardPage: React.FC = () => {
   const location = useLocation();
@@ -59,6 +68,7 @@ export const AdminDashboardPage: React.FC = () => {
     if (pathname.includes('/listings') || pathname.includes('/moderation')) return 'listings';
     if (pathname.includes('/users')) return 'users';
     if (pathname.includes('/reports')) return 'reports';
+    if (pathname.includes('/locations') || pathname.includes('/campuses')) return 'locations';
     if (pathname.includes('/metadata')) return 'metadata';
     if (pathname.includes('/settings')) return 'settings';
     return 'overview';
@@ -198,6 +208,74 @@ export const AdminDashboardPage: React.FC = () => {
     user: null,
     actionType: 'SUSPEND_1_WEEK',
     reason: '',
+  });
+
+  // 4b. Locations & Campuses State
+  const [locationSubTab, setLocationSubTab] = useState<'points' | 'campuses' | 'universities'>('points');
+  const [meetingPoints, setMeetingPoints] = useState<PhenikaaSafePoint[]>([]);
+  const [universities, setUniversities] = useState<UniversityItem[]>([]);
+  const [pointSearch, setPointSearch] = useState<string>('');
+  const [pointCampusFilter, setPointCampusFilter] = useState<string>('ALL');
+
+  // Modals for Locations
+  const [pointModal, setPointModal] = useState<{
+    isOpen: boolean;
+    editingItem: PhenikaaSafePoint | null;
+    form: {
+      name: string;
+      address: string;
+      campusName: string;
+      description: string;
+      recommendedHours: string;
+      isCctvMonitored: boolean;
+    };
+  }>({
+    isOpen: false,
+    editingItem: null,
+    form: {
+      name: '',
+      address: '',
+      campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
+      description: '',
+      recommendedHours: '07:30 – 21:00 hàng ngày',
+      isCctvMonitored: true,
+    },
+  });
+
+  const [campusModal, setCampusModal] = useState<{
+    isOpen: boolean;
+    editingCampus: CampusItem | null;
+    universityId: number;
+    form: {
+      name: string;
+      location: string;
+    };
+  }>({
+    isOpen: false,
+    editingCampus: null,
+    universityId: 1,
+    form: {
+      name: '',
+      location: '',
+    },
+  });
+
+  const [uniModal, setUniModal] = useState<{
+    isOpen: boolean;
+    editingUni: UniversityItem | null;
+    form: {
+      name: string;
+      shortName: string;
+      emailDomains: string;
+    };
+  }>({
+    isOpen: false,
+    editingUni: null,
+    form: {
+      name: '',
+      shortName: '',
+      emailDomains: '',
+    },
   });
 
   // Confirmation Modal State (Mọi thao tác quản trị viên đều phải xác nhận 2 bước)
@@ -390,10 +468,212 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // Load Locations, Campuses & Universities
+  const loadLocations = async () => {
+    try {
+      const pts = adminService.getMeetingPoints();
+      setMeetingPoints(pts);
+
+      const uRes = await adminService.getUniversities();
+      if (uRes.success && uRes.data) {
+        setUniversities(uRes.data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Locations Management Handlers
+  const handleOpenAddPoint = () => {
+    const defaultCampus = universities[0]?.campuses?.[0]?.name || 'Cơ sở Yên Nghĩa (Trụ sở chính)';
+    setPointModal({
+      isOpen: true,
+      editingItem: null,
+      form: {
+        name: '',
+        address: '',
+        campusName: defaultCampus,
+        description: '',
+        recommendedHours: '07:30 – 21:00 hàng ngày',
+        isCctvMonitored: true,
+      },
+    });
+  };
+
+  const handleOpenEditPoint = (item: PhenikaaSafePoint) => {
+    setPointModal({
+      isOpen: true,
+      editingItem: item,
+      form: {
+        name: item.name,
+        address: item.address,
+        campusName: item.campusName,
+        description: item.description,
+        recommendedHours: item.recommendedHours,
+        isCctvMonitored: item.isCctvMonitored,
+      },
+    });
+  };
+
+  const handleSavePoint = () => {
+    if (!pointModal.form.name.trim() || !pointModal.form.address.trim()) {
+      notify('Vui lòng nhập tên điểm hẹn và địa chỉ chi tiết!');
+      return;
+    }
+    if (pointModal.editingItem) {
+      adminService.updateMeetingPoint(pointModal.editingItem.id, pointModal.form);
+      notify(`Đã cập nhật điểm hẹn "${pointModal.form.name}" thành công!`);
+    } else {
+      adminService.createMeetingPoint(pointModal.form);
+      notify(`Đã thêm điểm hẹn an toàn "${pointModal.form.name}" mới thành công!`);
+    }
+    setPointModal((prev) => ({ ...prev, isOpen: false }));
+    loadLocations();
+  };
+
+  const handleDeletePoint = (item: PhenikaaSafePoint) => {
+    askConfirmation(
+      'Xóa điểm hẹn an toàn',
+      `Bạn có chắc chắn muốn xóa điểm hẹn "${item.name}" khỏi danh sách điểm hẹn an toàn của Phenikaa?`,
+      () => {
+        adminService.deleteMeetingPoint(item.id);
+        notify(`Đã xóa điểm hẹn "${item.name}"!`);
+        loadLocations();
+      },
+      true,
+      'Xác nhận xóa'
+    );
+  };
+
+  const handleOpenAddCampus = () => {
+    setCampusModal({
+      isOpen: true,
+      editingCampus: null,
+      universityId: universities[0]?.id || 1,
+      form: {
+        name: '',
+        location: '',
+      },
+    });
+  };
+
+  const handleOpenEditCampus = (campus: CampusItem, uniId: number) => {
+    setCampusModal({
+      isOpen: true,
+      editingCampus: campus,
+      universityId: uniId,
+      form: {
+        name: campus.name,
+        location: campus.location || '',
+      },
+    });
+  };
+
+  const handleSaveCampus = async () => {
+    if (!campusModal.form.name.trim()) {
+      notify('Vui lòng nhập tên cơ sở campus!');
+      return;
+    }
+    try {
+      if (campusModal.editingCampus) {
+        await adminService.updateCampus(campusModal.editingCampus.id, {
+          universityId: campusModal.universityId,
+          name: campusModal.form.name,
+          location: campusModal.form.location,
+        });
+        notify(`Đã cập nhật cơ sở "${campusModal.form.name}" thành công!`);
+      } else {
+        await adminService.createCampus({
+          universityId: campusModal.universityId,
+          name: campusModal.form.name,
+          location: campusModal.form.location,
+        });
+        notify(`Đã thêm cơ sở "${campusModal.form.name}" mới thành công!`);
+      }
+      setCampusModal((prev) => ({ ...prev, isOpen: false }));
+      loadLocations();
+    } catch {
+      notify('Lỗi khi lưu cơ sở campus!');
+    }
+  };
+
+  const handleDeleteCampus = (campus: CampusItem) => {
+    askConfirmation(
+      'Xóa cơ sở campus',
+      `Bạn có chắc chắn muốn xóa cơ sở "${campus.name}"? Các điểm hẹn an toàn thuộc cơ sở này sẽ cần được kiểm tra lại.`,
+      async () => {
+        await adminService.deleteCampus(campus.id);
+        notify(`Đã xóa cơ sở "${campus.name}"!`);
+        loadLocations();
+      },
+      true,
+      'Xác nhận xóa'
+    );
+  };
+
+  const handleOpenAddUni = () => {
+    setUniModal({
+      isOpen: true,
+      editingUni: null,
+      form: {
+        name: '',
+        shortName: '',
+        emailDomains: '',
+      },
+    });
+  };
+
+  const handleOpenEditUni = (uni: UniversityItem) => {
+    setUniModal({
+      isOpen: true,
+      editingUni: uni,
+      form: {
+        name: uni.name,
+        shortName: uni.shortName,
+        emailDomains: uni.emailDomains,
+      },
+    });
+  };
+
+  const handleSaveUni = async () => {
+    if (!uniModal.form.name.trim() || !uniModal.form.shortName.trim()) {
+      notify('Vui lòng nhập đầy đủ tên và mã trường đại học!');
+      return;
+    }
+    try {
+      if (uniModal.editingUni) {
+        await adminService.updateUniversity(uniModal.editingUni.id, uniModal.form);
+        notify(`Đã cập nhật trường "${uniModal.form.name}" thành công!`);
+      } else {
+        await adminService.createUniversity(uniModal.form);
+        notify(`Đã thêm trường "${uniModal.form.name}" mới thành công!`);
+      }
+      setUniModal((prev) => ({ ...prev, isOpen: false }));
+      loadLocations();
+    } catch {
+      notify('Lỗi khi lưu trường đại học!');
+    }
+  };
+
+  const handleDeleteUni = (uni: UniversityItem) => {
+    askConfirmation(
+      'Xóa trường đại học',
+      `Bạn có chắc chắn muốn xóa trường "${uni.name}" khỏi hệ thống?`,
+      async () => {
+        await adminService.deleteUniversity(uni.id);
+        notify(`Đã xóa trường "${uni.name}"!`);
+        loadLocations();
+      },
+      true,
+      'Xác nhận xóa'
+    );
+  };
+
   useEffect(() => {
     loadStats();
     loadMetadata();
     loadUsers();
+    loadLocations();
 
     const handleNotifUpdate = () => {
       loadStats();
@@ -407,18 +687,25 @@ export const AdminDashboardPage: React.FC = () => {
       loadUsers();
       loadStats();
     };
+    const handleLocationsUpdate = () => {
+      loadLocations();
+    };
 
     window.addEventListener('admin_notifications_updated', handleNotifUpdate);
     window.addEventListener('campus_keyword_violations_updated', handleViolationsUpdate);
     window.addEventListener('campus_user_status_changed', handleViolationsUpdate);
     window.addEventListener('student_notifications_updated', handleNotifUpdate);
     window.addEventListener('campus_audit_logs_updated', handleViolationsUpdate);
+    window.addEventListener('campus_meeting_points_updated', handleLocationsUpdate);
+    window.addEventListener('campus_universities_updated', handleLocationsUpdate);
     return () => {
       window.removeEventListener('admin_notifications_updated', handleNotifUpdate);
       window.removeEventListener('campus_keyword_violations_updated', handleViolationsUpdate);
       window.removeEventListener('campus_user_status_changed', handleViolationsUpdate);
       window.removeEventListener('student_notifications_updated', handleNotifUpdate);
       window.removeEventListener('campus_audit_logs_updated', handleViolationsUpdate);
+      window.removeEventListener('campus_meeting_points_updated', handleLocationsUpdate);
+      window.removeEventListener('campus_universities_updated', handleLocationsUpdate);
     };
   }, []);
 
@@ -430,6 +717,7 @@ export const AdminDashboardPage: React.FC = () => {
     }
     if (activeTab === 'users') loadUsers();
     if (activeTab === 'reports') loadReports();
+    if (activeTab === 'locations') loadLocations();
     if (activeTab === 'metadata') loadMetadata();
     if (activeTab === 'settings') loadSettings();
   }, [activeTab]);
@@ -715,6 +1003,18 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  const filteredPoints = meetingPoints.filter((pt) => {
+    const matchesSearch =
+      !pointSearch.trim() ||
+      pt.name.toLowerCase().includes(pointSearch.toLowerCase()) ||
+      pt.address.toLowerCase().includes(pointSearch.toLowerCase()) ||
+      pt.description.toLowerCase().includes(pointSearch.toLowerCase());
+    const matchesCampus =
+      pointCampusFilter === 'ALL' ||
+      pt.campusName.toLowerCase().includes(pointCampusFilter.toLowerCase());
+    return matchesSearch && matchesCampus;
+  });
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 font-sans">
       {/* Floating Action Notice Toast */}
@@ -937,8 +1237,8 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
           )}
 
-          {/* 4 Realtime KPI Cards with vibrant accents */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* 5 Realtime KPI Cards with vibrant accents */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* KPI 1 */}
             <div className="bg-gradient-to-b from-slate-900/90 to-slate-900/40 border border-slate-800/80 hover:border-amber-500/40 rounded-2xl p-5 relative overflow-hidden transition-all duration-300 group shadow-lg">
               <div className="flex items-center justify-between text-slate-400 mb-3">
@@ -1015,6 +1315,30 @@ export const AdminDashboardPage: React.FC = () => {
                   className="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-0.5"
                 >
                   Danh sách →
+                </Link>
+              </div>
+            </div>
+
+            {/* KPI 5: Điểm hẹn & Cơ sở trường */}
+            <div className="bg-gradient-to-b from-slate-900/90 to-slate-900/40 border border-slate-800/80 hover:border-indigo-500/40 rounded-2xl p-5 relative overflow-hidden transition-all duration-300 group shadow-lg">
+              <div className="flex items-center justify-between text-slate-400 mb-3">
+                <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">Điểm hẹn & Cơ sở</span>
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <MapPin className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-3xl font-black text-white tracking-tight">
+                {meetingPoints.length} <span className="text-xs font-semibold text-slate-400">điểm</span>
+              </p>
+              <div className="mt-2 flex items-center justify-between text-xs">
+                <span className="text-indigo-400/80 font-medium">
+                  {universities.reduce((acc, u) => acc + (u.campuses?.length || 0), 0)} cơ sở campus
+                </span>
+                <Link
+                  to="/admin/locations"
+                  className="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-0.5"
+                >
+                  Chi tiết →
                 </Link>
               </div>
             </div>
@@ -2014,6 +2338,387 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
+          {/* TAB: ĐIỂM HẸN AN TOÀN & CƠ SỞ TRƯỜNG */}
+          {activeTab === 'locations' && (
+            <div className="space-y-6">
+              {/* Header Title & Action */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+                    <span>Quản Lý Điểm Hẹn & Cơ Sở Trường</span>
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
+                      Safe Locations
+                    </span>
+                  </h1>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Quản lý các điểm hẹn giao dịch an toàn (có camera giám sát), cơ sở campus (hiện tại có 1 cơ sở chính) và thông tin trường Phenikaa
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {locationSubTab === 'points' && (
+                    <BaseButton size="sm" onClick={handleOpenAddPoint} className="flex items-center gap-1.5 shadow-lg shadow-indigo-600/30">
+                      <Plus className="w-4 h-4" />
+                      <span>Thêm điểm hẹn an toàn</span>
+                    </BaseButton>
+                  )}
+                  {locationSubTab === 'campuses' && (
+                    <BaseButton size="sm" onClick={handleOpenAddCampus} className="flex items-center gap-1.5 shadow-lg shadow-indigo-600/30">
+                      <Plus className="w-4 h-4" />
+                      <span>Thêm cơ sở campus</span>
+                    </BaseButton>
+                  )}
+                  {locationSubTab === 'universities' && (
+                    <BaseButton size="sm" onClick={handleOpenAddUni} className="flex items-center gap-1.5 shadow-lg shadow-indigo-600/30">
+                      <Plus className="w-4 h-4" />
+                      <span>Thêm trường đại học</span>
+                    </BaseButton>
+                  )}
+                </div>
+              </div>
+
+              {/* Sub-tab Navigation */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+                <button
+                  type="button"
+                  onClick={() => setLocationSubTab('points')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                    locationSubTab === 'points'
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                      : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <MapPin className="w-4 h-4" />
+                  <span>📍 Điểm hẹn an toàn ({meetingPoints.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLocationSubTab('campuses')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                    locationSubTab === 'campuses'
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                      : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Building2 className="w-4 h-4" />
+                  <span>🏫 Cơ sở campus ({universities.reduce((acc, u) => acc + (u.campuses?.length || 0), 0)})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLocationSubTab('universities')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                    locationSubTab === 'universities'
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                      : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <School className="w-4 h-4" />
+                  <span>🏛️ Trường đại học ({universities.length})</span>
+                </button>
+              </div>
+
+              {/* SUB-TAB 1: ĐIỂM HẸN AN TOÀN */}
+              {locationSubTab === 'points' && (
+                <div className="space-y-4">
+                  {/* Search and Filters */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800">
+                    <div className="flex flex-1 items-center gap-3">
+                      <div className="relative flex-1 max-w-md">
+                        <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Tìm điểm hẹn theo tên, tòa nhà, địa chỉ..."
+                          value={pointSearch}
+                          onChange={(e) => setPointSearch(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+
+                      <select
+                        value={pointCampusFilter}
+                        onChange={(e) => setPointCampusFilter(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
+                      >
+                        <option value="ALL">Tất cả khuôn viên / campus</option>
+                        {Array.from(new Set(meetingPoints.map((p) => p.campusName))).map((cName) => (
+                          <option key={cName} value={cName}>
+                            {cName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="text-xs text-slate-400">
+                      Hiển thị <span className="text-white font-bold">{filteredPoints.length}</span> / {meetingPoints.length} điểm hẹn
+                    </div>
+                  </div>
+
+                  {/* Grid of Safe Meeting Points */}
+                  {filteredPoints.length === 0 ? (
+                    <div className="p-12 text-center bg-slate-900/40 rounded-2xl border border-slate-800 text-slate-400">
+                      <MapPin className="w-10 h-10 mx-auto text-slate-600 mb-2 opacity-50" />
+                      <p className="font-semibold text-sm">Không tìm thấy điểm hẹn nào phù hợp</p>
+                      <p className="text-xs text-slate-500 mt-1">Thử đổi từ khóa tìm kiếm hoặc bấm Thêm điểm hẹn an toàn mới</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredPoints.map((pt) => (
+                        <div
+                          key={pt.id}
+                          className="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 flex flex-col justify-between transition-all duration-200 group hover:shadow-xl hover:shadow-indigo-950/20"
+                        >
+                          <div className="space-y-2.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-start gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+                                  <MapPin className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <h3 className="font-bold text-white text-sm line-clamp-2 leading-snug">
+                                    {pt.name}
+                                  </h3>
+                                  <p className="text-[11px] text-indigo-400 font-medium mt-0.5">
+                                    {pt.campusName}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1.5 text-xs text-slate-300 pt-1">
+                              <p className="flex items-start gap-1.5 text-slate-400">
+                                <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+                                <span className="line-clamp-2">{pt.address}</span>
+                              </p>
+                              {pt.recommendedHours && (
+                                <p className="flex items-center gap-1.5 text-slate-400">
+                                  <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                                  <span>{pt.recommendedHours}</span>
+                                </p>
+                              )}
+                              {pt.description && (
+                                <p className="text-[11px] text-slate-400 bg-slate-800/50 p-2 rounded-xl border border-slate-800 leading-relaxed">
+                                  {pt.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
+                            <div>
+                              {pt.isCctvMonitored ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  <ShieldCheck className="w-3 h-3" />
+                                  <span>Có Camera giám sát</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                                  <span>Không có CCTV</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditPoint(pt)}
+                                title="Chỉnh sửa điểm hẹn"
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePoint(pt)}
+                                title="Xóa điểm hẹn"
+                                className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SUB-TAB 2: CƠ SỞ CAMPUS */}
+              {locationSubTab === 'campuses' && (
+                <div className="space-y-4">
+                  {/* Informational Banner */}
+                  <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300 flex items-start gap-3">
+                    <Building2 className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-bold text-white text-sm">
+                        Quy mô cơ sở trường hiện tại: 1 Cơ sở chính (Trụ sở chính Yên Nghĩa)
+                      </p>
+                      <p className="text-slate-300 leading-relaxed">
+                        Toàn bộ giao dịch P2P, ký gửi và hẹn gặp an toàn của sinh viên Phenikaa hiện tập trung tại Cơ sở Yên Nghĩa. Khi Nhà trường mở rộng các phân hiệu hoặc cơ sở mới, bạn có thể bấm <strong className="text-white">"Thêm cơ sở campus"</strong> để bổ sung ngay vào hệ thống.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* List of Campuses */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {universities.flatMap((u) =>
+                      (u.campuses || []).map((camp) => {
+                        const matchedPtsCount = meetingPoints.filter(
+                          (pt) =>
+                            pt.campusName.toLowerCase().includes('yên nghĩa') ||
+                            pt.campusName.toLowerCase().includes(camp.name.toLowerCase())
+                        ).length;
+
+                        return (
+                          <div
+                            key={camp.id}
+                            className="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-lg"
+                          >
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-bold">
+                                    <Building className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-bold text-white text-base flex items-center gap-2">
+                                      <span>{camp.name}</span>
+                                    </h3>
+                                    <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                                      <School className="w-3.5 h-3.5 text-indigo-400" />
+                                      <span>{u.name} ({u.shortName})</span>
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  Cơ sở chính
+                                </span>
+                              </div>
+
+                              <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-800 text-xs text-slate-300 space-y-1.5">
+                                <p className="flex items-start gap-1.5">
+                                  <MapPin className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                                  <span>{camp.location || 'Chưa cập nhật địa chỉ'}</span>
+                                </p>
+                                <p className="text-[11px] text-slate-400 flex items-center gap-1.5 pt-1 border-t border-slate-800">
+                                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>{matchedPtsCount} điểm hẹn an toàn đã kích hoạt tại cơ sở này</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                              <BaseButton
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleOpenEditCampus(camp, u.id)}
+                                className="text-xs flex items-center gap-1"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                                <span>Chỉnh sửa</span>
+                              </BaseButton>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCampus(camp)}
+                                title="Xóa cơ sở"
+                                className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition cursor-pointer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 3: TRƯỜNG ĐẠI HỌC */}
+              {locationSubTab === 'universities' && (
+                <div className="space-y-4">
+                  {/* University Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {universities.map((uni) => (
+                      <div
+                        key={uni.id}
+                        className="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200 shadow-lg"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-bold">
+                                <School className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-white text-base">
+                                  {uni.name}
+                                </h3>
+                                <p className="text-xs text-indigo-400 font-mono font-bold mt-0.5">
+                                  Mã trường: {uni.shortName}
+                                </p>
+                              </div>
+                            </div>
+
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                              Trường chính
+                            </span>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-800 text-xs text-slate-300 space-y-2">
+                            <div>
+                              <p className="text-[11px] text-slate-400 font-semibold mb-1">Email Domains hợp lệ:</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {uni.emailDomains.split(',').map((domain) => (
+                                  <span
+                                    key={domain}
+                                    className="px-2 py-0.5 rounded-lg bg-slate-900 text-indigo-300 font-mono text-[11px] border border-slate-700"
+                                  >
+                                    @{domain.trim()}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-800 flex items-center gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                              <span>{uni.campuses?.length || 0} cơ sở campus trực thuộc</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                          <BaseButton
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleOpenEditUni(uni)}
+                            className="text-xs flex items-center gap-1"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>Chỉnh sửa</span>
+                          </BaseButton>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUni(uni)}
+                            title="Xóa trường"
+                            className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* TAB 5: CATEGORIES MANAGEMENT */}
           {activeTab === 'metadata' && (
@@ -3548,6 +4253,242 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
           </div>
         )}
+      </BaseModal>
+
+      {/* MODAL 1: THÊM / SỬA ĐIỂM HẸN AN TOÀN */}
+      <BaseModal
+        theme="dark"
+        isOpen={pointModal.isOpen}
+        onClose={() => setPointModal((prev) => ({ ...prev, isOpen: false }))}
+        title={pointModal.editingItem ? 'Chỉnh sửa Điểm hẹn an toàn' : 'Thêm Điểm hẹn an toàn mới'}
+      >
+        <div className="space-y-4 text-xs text-slate-200">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Tên điểm hẹn <span className="text-rose-400">*</span>:
+            </label>
+            <input
+              type="text"
+              placeholder="Ví dụ: Sảnh Tòa A10 (Trung tâm Thư viện Phenikaa)"
+              value={pointModal.form.name}
+              onChange={(e) => setPointModal((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Địa chỉ chi tiết trong trường <span className="text-rose-400">*</span>:
+            </label>
+            <input
+              type="text"
+              placeholder="Ví dụ: Sảnh chính Tầng 1 Tòa A10, Tòa nhà Điều hành"
+              value={pointModal.form.address}
+              onChange={(e) => setPointModal((prev) => ({ ...prev, form: { ...prev.form, address: e.target.value } }))}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Khuôn viên / Campus:
+              </label>
+              <input
+                type="text"
+                placeholder="Ví dụ: Trường Đại học Phenikaa (Yên Nghĩa, Hà Đông)"
+                value={pointModal.form.campusName}
+                onChange={(e) => setPointModal((prev) => ({ ...prev, form: { ...prev.form, campusName: e.target.value } }))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Khung giờ khuyến nghị:
+              </label>
+              <input
+                type="text"
+                placeholder="Ví dụ: 07:30 – 21:00 hàng ngày"
+                value={pointModal.form.recommendedHours}
+                onChange={(e) => setPointModal((prev) => ({ ...prev, form: { ...prev.form, recommendedHours: e.target.value } }))}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 text-xs text-slate-300 font-medium cursor-pointer p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/60">
+              <input
+                type="checkbox"
+                checked={pointModal.form.isCctvMonitored}
+                onChange={(e) => setPointModal((prev) => ({ ...prev, form: { ...prev.form, isCctvMonitored: e.target.checked } }))}
+                className="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-0"
+              />
+              <span className="flex items-center gap-1.5 font-bold text-white">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                Có Camera an ninh giám sát 24/7 & Bảo vệ túc trực
+              </span>
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Mô tả & Hướng dẫn nhận diện điểm hẹn:
+            </label>
+            <textarea
+              rows={3}
+              placeholder="Mô tả vị trí sảnh, bảo vệ, ghế ngồi chờ giao dịch..."
+              value={pointModal.form.description}
+              onChange={(e) => setPointModal((prev) => ({ ...prev, form: { ...prev.form, description: e.target.value } }))}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+            <BaseButton
+              variant="secondary"
+              size="sm"
+              onClick={() => setPointModal((prev) => ({ ...prev, isOpen: false }))}
+            >
+              Hủy bỏ
+            </BaseButton>
+            <BaseButton size="sm" onClick={handleSavePoint} className="bg-indigo-600 hover:bg-indigo-700">
+              {pointModal.editingItem ? 'Lưu thay đổi' : 'Thêm điểm hẹn'}
+            </BaseButton>
+          </div>
+        </div>
+      </BaseModal>
+
+      {/* MODAL 2: THÊM / SỬA CƠ SỞ CAMPUS */}
+      <BaseModal
+        theme="dark"
+        isOpen={campusModal.isOpen}
+        onClose={() => setCampusModal((prev) => ({ ...prev, isOpen: false }))}
+        title={campusModal.editingCampus ? 'Chỉnh sửa Cơ sở Campus' : 'Thêm Cơ sở Campus mới'}
+      >
+        <div className="space-y-4 text-xs text-slate-200">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Trường đại học chủ quản:
+            </label>
+            <select
+              value={campusModal.universityId}
+              onChange={(e) => setCampusModal((prev) => ({ ...prev, universityId: Number(e.target.value) }))}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            >
+              {universities.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.shortName})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Tên cơ sở campus <span className="text-rose-400">*</span>:
+            </label>
+            <input
+              type="text"
+              placeholder="Ví dụ: Cơ sở Yên Nghĩa (Trụ sở chính) hoặc Cơ sở 2"
+              value={campusModal.form.name}
+              onChange={(e) => setCampusModal((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Địa chỉ / Vị trí cơ sở:
+            </label>
+            <input
+              type="text"
+              placeholder="Ví dụ: Đường Nguyễn Trác, P. Yên Nghĩa, Q. Hà Đông, Hà Nội"
+              value={campusModal.form.location}
+              onChange={(e) => setCampusModal((prev) => ({ ...prev, form: { ...prev.form, location: e.target.value } }))}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+            <BaseButton
+              variant="secondary"
+              size="sm"
+              onClick={() => setCampusModal((prev) => ({ ...prev, isOpen: false }))}
+            >
+              Hủy bỏ
+            </BaseButton>
+            <BaseButton size="sm" onClick={handleSaveCampus} className="bg-indigo-600 hover:bg-indigo-700">
+              {campusModal.editingCampus ? 'Lưu thay đổi' : 'Thêm cơ sở'}
+            </BaseButton>
+          </div>
+        </div>
+      </BaseModal>
+
+      {/* MODAL 3: THÊM / SỬA TRƯỜNG ĐẠI HỌC */}
+      <BaseModal
+        theme="dark"
+        isOpen={uniModal.isOpen}
+        onClose={() => setUniModal((prev) => ({ ...prev, isOpen: false }))}
+        title={uniModal.editingUni ? 'Chỉnh sửa Trường đại học' : 'Thêm Trường đại học mới'}
+      >
+        <div className="space-y-4 text-xs text-slate-200">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Tên trường đại học <span className="text-rose-400">*</span>:
+            </label>
+            <input
+              type="text"
+              placeholder="Ví dụ: Trường Đại học Phenikaa"
+              value={uniModal.form.name}
+              onChange={(e) => setUniModal((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Mã trường viết tắt <span className="text-rose-400">*</span>:
+            </label>
+            <input
+              type="text"
+              placeholder="Ví dụ: PHENIKAA"
+              value={uniModal.form.shortName}
+              onChange={(e) => setUniModal((prev) => ({ ...prev, form: { ...prev.form, shortName: e.target.value } }))}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 uppercase"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Email Domains được phép đăng ký (phân cách bởi dấu phẩy) <span className="text-rose-400">*</span>:
+            </label>
+            <input
+              type="text"
+              placeholder="Ví dụ: st.phenikaa-uni.edu.vn,phenikaa-uni.edu.vn"
+              value={uniModal.form.emailDomains}
+              onChange={(e) => setUniModal((prev) => ({ ...prev, form: { ...prev.form, emailDomains: e.target.value } }))}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 lowercase"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              Chỉ các sinh viên có email thuộc domain này mới có thể đăng ký tài khoản xác thực trường.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+            <BaseButton
+              variant="secondary"
+              size="sm"
+              onClick={() => setUniModal((prev) => ({ ...prev, isOpen: false }))}
+            >
+              Hủy bỏ
+            </BaseButton>
+            <BaseButton size="sm" onClick={handleSaveUni} className="bg-indigo-600 hover:bg-indigo-700">
+              {uniModal.editingUni ? 'Lưu thay đổi' : 'Thêm trường'}
+            </BaseButton>
+          </div>
+        </div>
       </BaseModal>
 
       {/* GLOBAL CONFIRMATION MODAL - Xác nhận 2 bước cho mọi thao tác của Quản trị viên */}
