@@ -2154,10 +2154,10 @@ export const AdminDashboardPage: React.FC = () => {
                   <div>
                     <h3 className="font-black text-white text-sm flex items-center gap-2">
                       <ShieldAlert className="w-4 h-4 text-amber-500" />
-                      <span>Quy Chế Chế Tài Tự Động: Vi Phạm Từ Khóa Cấm (3 Strikes)</span>
+                      <span>Quy Chế Chế Tài Tự Động: Vi Phạm Từ Khóa Cấm</span>
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Sinh viên đăng bài chứa từ khóa cấm sẽ bị nhắc nhở (Strike). Bị nhắc nhở đủ 3 lần sẽ <strong>TỰ ĐỘNG BỊ TẠM KHÓA 1 NGÀY (24 giờ)</strong>.
+                      Sinh viên đăng bài chứa từ khóa cấm sẽ bị cảnh báo vi phạm. Vi phạm đủ 3 lần sẽ <strong>TỰ ĐỘNG BỊ TẠM KHÓA 1 NGÀY (24 giờ)</strong>.
                     </p>
                   </div>
 
@@ -3411,7 +3411,6 @@ export const AdminDashboardPage: React.FC = () => {
                     type: 'SUSPEND_1_DAY',
                     tag: '24 Giờ',
                     label: 'Tạm khóa 1 ngày',
-                    desc: 'Vi phạm từ cấm (3 gậy)',
                     deduct: '-10 Karma',
                     theme: 'amber',
                   },
@@ -3419,7 +3418,6 @@ export const AdminDashboardPage: React.FC = () => {
                     type: 'SUSPEND_1_WEEK',
                     tag: '7 Ngày',
                     label: 'Tạm khóa 1 tuần',
-                    desc: 'Vi phạm quy chế mua bán',
                     deduct: '-20 Karma',
                     theme: 'amber',
                   },
@@ -3427,8 +3425,7 @@ export const AdminDashboardPage: React.FC = () => {
                     type: 'BAN',
                     tag: 'Vĩnh viễn',
                     label: 'Cấm vĩnh viễn',
-                    desc: 'Lừa đảo / Hàng cấm nặng',
-                    deduct: '-50 Karma',
+                    deduct: null,
                     theme: 'rose',
                   },
                 ].map((opt) => {
@@ -3460,26 +3457,18 @@ export const AdminDashboardPage: React.FC = () => {
                         >
                           {opt.tag}
                         </span>
-                        {isSelected && (
-                          <span className={`text-[10px] font-black ${isRose ? 'text-rose-400' : 'text-amber-400'}`}>
-                            ✓ Đang chọn
-                          </span>
-                        )}
                       </div>
 
                       <div>
                         <p className={`font-black text-xs ${isSelected ? 'text-white' : 'text-slate-200'}`}>
                           {opt.label}
                         </p>
-                        <p className={`text-[10px] mt-0.5 line-clamp-1 ${isSelected ? (isRose ? 'text-rose-200' : 'text-amber-200') : 'text-slate-400'}`}>
-                          {opt.desc}
-                        </p>
                       </div>
 
                       <div className="mt-2 pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[10px]">
                         <span className="text-slate-500">Chế tài:</span>
                         <span className={`font-mono font-bold ${isSelected ? (isRose ? 'text-rose-300' : 'text-amber-300') : 'text-slate-400'}`}>
-                          {opt.deduct}
+                          {opt.deduct ? opt.deduct : 'Không có'}
                         </span>
                       </div>
                     </button>
@@ -3495,7 +3484,7 @@ export const AdminDashboardPage: React.FC = () => {
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {[
-                  'Đăng bài chứa từ cấm nhiều lần (3 strikes)',
+                  'Đăng bài chứa từ cấm nhiều lần',
                   'Nghi ngờ gian lận điểm hẹn an toàn',
                   'Bom hẹn mua bán / Quỵt cọc thỏa thuận',
                   'Cung cấp thông tin sinh viên giả mạo',
@@ -3543,7 +3532,7 @@ export const AdminDashboardPage: React.FC = () => {
                 Hệ quả:{' '}
                 <strong className={userActionModal.actionType === 'BAN' ? 'text-rose-400 font-black' : 'text-amber-400 font-black'}>
                   {userActionModal.actionType === 'BAN'
-                    ? 'Trừ 50 Karma • Khóa Vĩnh Viễn'
+                    ? 'Khóa Vĩnh Viễn (Không có chế tài trừ Karma)'
                     : userActionModal.actionType === 'SUSPEND_1_DAY'
                     ? 'Trừ 10 Karma • Khóa 24h'
                     : 'Trừ 20 Karma • Khóa 7 Ngày'}
@@ -3563,7 +3552,7 @@ export const AdminDashboardPage: React.FC = () => {
                   onClick={async () => {
                     if (!userActionModal.user) return;
                     const action = userActionModal.actionType === 'BAN' ? 'BAN' : 'SUSPEND';
-                    const karmaDeduction = userActionModal.actionType === 'BAN' ? -50 : userActionModal.actionType === 'SUSPEND_1_DAY' ? -10 : -20;
+                    const karmaDeduction = userActionModal.actionType === 'BAN' ? 0 : userActionModal.actionType === 'SUSPEND_1_DAY' ? -10 : -20;
                     const finalReason = userActionModal.reason || (action === 'BAN' ? 'Cấm vĩnh viễn do vi phạm nghiêm trọng' : 'Tạm khóa tài khoản do vi phạm quy chế');
                     
                     await handleUserAction(userActionModal.user.id, action, karmaDeduction, finalReason);
