@@ -24,6 +24,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
+import { BaseModal } from '../../components/base/BaseModal';
 import { rentalService } from '../../services/rentalService';
 import { RentalContract } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -44,6 +45,7 @@ export const RentalDetailPage: React.FC = () => {
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isRejectCancelModalOpen, setIsRejectCancelModalOpen] = useState(false);
+  const [isReturnConfirmModalOpen, setIsReturnConfirmModalOpen] = useState(false);
   const [rejectCancelType, setRejectCancelType] = useState<'REJECT' | 'CANCEL'>('REJECT');
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -243,9 +245,12 @@ export const RentalDetailPage: React.FC = () => {
   };
 
   // 3. Hoàn tất trả đồ & hoàn cọc (+5 Karma) (Bước 3)
-  const handleConfirmReturn = async () => {
-    if (!window.confirm('Xác nhận thiết bị đã được nhận lại đầy đủ nguyên vẹn và hoàn trả 100% tiền cọc cho người thuê? Cả 2 bạn sẽ được thưởng +5 điểm tín nhiệm Campus Karma!')) return;
+  const handleConfirmReturn = () => {
+    setIsReturnConfirmModalOpen(true);
+  };
 
+  const executeConfirmReturn = async () => {
+    if (!contract) return;
     try {
       setIsSubmitting(true);
       setErrorMsg(null);
@@ -258,6 +263,7 @@ export const RentalDetailPage: React.FC = () => {
       setErrorMsg(err.message || 'Lỗi khi xác nhận hoàn tất hợp đồng.');
     } finally {
       setIsSubmitting(false);
+      setIsReturnConfirmModalOpen(false);
     }
   };
 
@@ -1101,6 +1107,45 @@ export const RentalDetailPage: React.FC = () => {
         peerName={isOwner ? contract.renterName : contract.ownerName}
         isLoading={isSubmitting}
       />
+
+      {/* Confirmation Modal for Return & Refund (In-App thay cho localhost say) */}
+      {isReturnConfirmModalOpen && (
+        <BaseModal
+          isOpen={isReturnConfirmModalOpen}
+          onClose={() => setIsReturnConfirmModalOpen(false)}
+          title="Xác nhận nhận lại thiết bị & Hoàn cọc"
+          maxWidth="md"
+        >
+          <div className="space-y-4 py-1">
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Xác nhận bạn đã nhận lại thiết bị <strong>"{contract.listingTitle}"</strong> đầy đủ nguyên vẹn và hoàn trả 100% tiền cọc ({contract.depositAmount ? formatCurrency(contract.depositAmount) : '0 đ'}) cho người thuê?
+            </p>
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Giao dịch thành công sẽ cộng ngay <strong>+5 điểm tín nhiệm Campus Karma</strong> cho cả hai bạn!</span>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <BaseButton
+                variant="outline"
+                size="sm"
+                disabled={isSubmitting}
+                onClick={() => setIsReturnConfirmModalOpen(false)}
+              >
+                Hủy
+              </BaseButton>
+              <BaseButton
+                variant="primary"
+                size="sm"
+                isLoading={isSubmitting}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white"
+                onClick={executeConfirmReturn}
+              >
+                Xác nhận hoàn tất (+5 Karma)
+              </BaseButton>
+            </div>
+          </div>
+        </BaseModal>
+      )}
     </div>
   );
 };

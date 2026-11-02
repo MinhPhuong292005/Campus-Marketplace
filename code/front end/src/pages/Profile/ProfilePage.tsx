@@ -35,6 +35,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { KarmaBadge } from '../../components/features/KarmaBadge';
 import { BaseButton } from '../../components/base/BaseButton';
+import { BaseModal } from '../../components/base/BaseModal';
 import { EditProfileModal } from '../../components/features/EditProfileModal';
 import { StudentCardVerifyModal } from '../../components/features/StudentCardVerifyModal';
 import { ListingCard } from '../../components/features/ListingCard';
@@ -138,6 +139,7 @@ export const ProfilePage: React.FC = () => {
   const [orderSubTab, setOrderSubTab] = useState<OrderSubTab>('ALL');
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [selectedDisputeOrder, setSelectedDisputeOrder] = useState<PurchaseOrder | null>(null);
+  const [withdrawConfirmOrderId, setWithdrawConfirmOrderId] = useState<string | null>(null);
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
 
   // Notifications state
@@ -831,12 +833,7 @@ export const ProfilePage: React.FC = () => {
                             ) : order.status === 'DISPUTED' ? (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  if (window.confirm('Bạn có chắc muốn rút lại yêu cầu khiếu nại cho đơn hàng này?')) {
-                                    orderService.cancelDispute(order.id);
-                                    loadOrdersAndClaims();
-                                  }
-                                }}
+                                onClick={() => setWithdrawConfirmOrderId(order.id)}
                                 className="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
                               >
                                 Rút lại khiếu nại
@@ -1396,6 +1393,39 @@ export const ProfilePage: React.FC = () => {
           }
         }}
       />
+
+      {/* Confirmation Modal for Rút lại khiếu nại (Thay thế window.confirm / localhost say) */}
+      {withdrawConfirmOrderId && (
+        <BaseModal
+          isOpen={true}
+          onClose={() => setWithdrawConfirmOrderId(null)}
+          title="Rút lại yêu cầu khiếu nại"
+          maxWidth="sm"
+        >
+          <div className="space-y-4 py-1 text-center">
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Bạn có chắc chắn muốn rút lại yêu cầu khiếu nại cho đơn hàng này không?
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <BaseButton variant="outline" size="sm" onClick={() => setWithdrawConfirmOrderId(null)}>
+                Hủy
+              </BaseButton>
+              <BaseButton
+                variant="primary"
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-500 text-white"
+                onClick={() => {
+                  orderService.cancelDispute(withdrawConfirmOrderId);
+                  setWithdrawConfirmOrderId(null);
+                  loadOrdersAndClaims();
+                }}
+              >
+                Xác nhận rút lại
+              </BaseButton>
+            </div>
+          </div>
+        </BaseModal>
+      )}
     </div>
   );
 };

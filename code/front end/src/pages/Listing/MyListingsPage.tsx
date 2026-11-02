@@ -144,8 +144,11 @@ export const MyListingsPage: React.FC = () => {
       setSwapProposals((prev) =>
         prev.map((p) => (p.id === proposalId ? { ...p, status: newStatus } : p))
       );
+      setToastMessage(newStatus === 'ACCEPTED' ? 'Đã chấp thuận đề xuất đổi đồ!' : 'Đã từ chối đề xuất đổi đồ.');
+      setTimeout(() => setToastMessage(null), 3500);
     } catch (e: any) {
-      alert(e.message || 'Lỗi khi cập nhật trạng thái');
+      setToastMessage(e.message || 'Lỗi khi cập nhật trạng thái');
+      setTimeout(() => setToastMessage(null), 3500);
     }
   };
 
@@ -857,7 +860,8 @@ export const MyListingsPage: React.FC = () => {
         listingTitle={reviewModalData.listingTitle}
         isGiveaway={reviewModalData.isGiveaway}
         onSuccess={(awarded) => {
-          alert(`Đã hoàn tất đánh giá và cộng +${awarded} điểm Campus Karma!`);
+          setToastMessage(`🎉 Đã hoàn tất đánh giá và cộng +${awarded} điểm Campus Karma!`);
+          setTimeout(() => setToastMessage(null), 4000);
         }}
       />
     </div>

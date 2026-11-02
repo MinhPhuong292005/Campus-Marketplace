@@ -100,6 +100,7 @@ export interface Listing {
   rentalTerms?: string;
   depositAmount?: number;
   swapTarget?: string;
+  safeMeetingPoint?: string;
   status: ListingStatus;
   isRiskFlagged?: boolean;
   riskReason?: string;

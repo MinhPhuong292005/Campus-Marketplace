@@ -240,6 +240,11 @@ export const ListingDetailPage: React.FC = () => {
     setRentalDays(calculateDays(rentalStartDate, cleanVal));
   };
 
+  const showNotice = (msg: string) => {
+    setGiveawayToast(msg);
+    setTimeout(() => setGiveawayToast(null), 4500);
+  };
+
   const handleSendRentalRequest = async () => {
     if (!listing) return;
     if (user?.id === listing.userId) {
@@ -247,15 +252,15 @@ export const ListingDetailPage: React.FC = () => {
       return;
     }
     if (!user) {
-      alert('Vui lòng đăng nhập để gửi yêu cầu thuê thiết bị.');
+      showNotice('⚠️ Vui lòng đăng nhập để gửi yêu cầu thuê thiết bị.');
       return;
     }
     if (user.status === 'SUSPENDED') {
-      alert('⚠️ Tài khoản của bạn đang bị tạm khóa 1 tuần do vi phạm quy chế.');
+      showNotice('⚠️ Tài khoản của bạn đang bị tạm khóa do vi phạm quy chế.');
       return;
     }
     if (spamStatus.isLocked) {
-      alert(
+      showNotice(
         `⛔ Tài khoản của bạn đang bị tạm khóa tính năng thuê đồ trong 1 giờ do liên tục spam thao tác. Vui lòng quay lại sau ${spamStatus.minutesLeft} phút.`
       );
       return;
@@ -282,7 +287,7 @@ export const ListingDetailPage: React.FC = () => {
         setRentalSuccessModal(true);
       }
     } catch (err: any) {
-      alert(err.message || 'Không thể tạo yêu cầu thuê. Vui lòng thử lại.');
+      showNotice(err.message || 'Không thể tạo yêu cầu thuê. Vui lòng thử lại.');
     } finally {
       setIsSubmittingRental(false);
     }
@@ -819,11 +824,11 @@ export const ListingDetailPage: React.FC = () => {
                 <BaseButton
                   onClick={() => {
                     if (user?.status === 'SUSPENDED') {
-                      alert('⚠️ Tài khoản của bạn đang bị tạm khóa 1 tuần do vi phạm. Không thể tạo hợp đồng thuê đồ.');
+                      showNotice('⚠️ Tài khoản của bạn đang bị tạm khóa do vi phạm quy chế.');
                       return;
                     }
                     if (listing.authorStatus === 'SUSPENDED') {
-                      alert('⚠️ Người đăng bài này đang bị tạm khóa tài khoản. Tạm ngưng dịch vụ cho thuê.');
+                      showNotice('⚠️ Người đăng bài này đang bị tạm khóa tài khoản. Tạm ngưng dịch vụ cho thuê.');
                       return;
                     }
                     navigate('/rentals');
@@ -842,11 +847,11 @@ export const ListingDetailPage: React.FC = () => {
               <BaseButton
                 onClick={() => {
                   if (user?.status === 'SUSPENDED') {
-                    alert('⚠️ Tài khoản của bạn đang bị tạm khóa 1 tuần do vi phạm. Không thể gửi đề xuất đổi đồ.');
+                    showNotice('⚠️ Tài khoản của bạn đang bị tạm khóa do vi phạm quy chế.');
                     return;
                   }
                   if (listing.authorStatus === 'SUSPENDED') {
-                    alert('⚠️ Người đăng bài này đang bị tạm khóa tài khoản. Tạm ngưng giao dịch trao đổi.');
+                    showNotice('⚠️ Người đăng bài này đang bị tạm khóa tài khoản. Tạm ngưng giao dịch trao đổi.');
                     return;
                   }
                   setIsSwapModalOpen(true);
@@ -896,15 +901,15 @@ export const ListingDetailPage: React.FC = () => {
                   <BaseButton
                     onClick={() => {
                       if (!user) {
-                        alert('Vui lòng đăng nhập để đăng ký nhận món đồ tặng.');
+                        showNotice('⚠️ Vui lòng đăng nhập để đăng ký nhận món đồ tặng.');
                         return;
                       }
                       if (user.status === 'SUSPENDED') {
-                        alert('⚠️ Tài khoản của bạn đang bị tạm khóa 1 tuần do vi phạm. Không thể nhận đồ tặng.');
+                        showNotice('⚠️ Tài khoản của bạn đang bị tạm khóa do vi phạm quy chế. Không thể nhận đồ tặng.');
                         return;
                       }
                       if (listing.authorStatus === 'SUSPENDED') {
-                        alert('⚠️ Người đăng bài này đang bị tạm khóa tài khoản.');
+                        showNotice('⚠️ Người đăng bài này đang bị tạm khóa tài khoản.');
                         return;
                       }
                       setIsGiveawayModalOpen(true);
@@ -1049,7 +1054,7 @@ export const ListingDetailPage: React.FC = () => {
         targetUserId={listing.userId}
         targetUserName={listing.authorName}
         onReportSuccess={() => {
-          alert('Báo cáo đã được gửi tới Ban quản trị kiểm duyệt!');
+          showNotice('🛡️ Báo cáo đã được gửi tới Ban Quản trị kiểm duyệt!');
         }}
       />
 
@@ -1058,7 +1063,7 @@ export const ListingDetailPage: React.FC = () => {
         onClose={() => setIsSwapModalOpen(false)}
         targetListing={listing}
         onSuccess={() => {
-          alert('Gửi đề xuất đổi đồ thành công! Bạn có thể theo dõi trong mục Chat.');
+          showNotice('🎉 Gửi đề xuất đổi đồ thành công! Bạn có thể theo dõi trong mục Tin nhắn.');
         }}
       />
 

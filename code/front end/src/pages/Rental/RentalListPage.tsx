@@ -9,6 +9,7 @@ import {
   Package,
   CheckCircle,
   CheckCircle2,
+  Check,
   MessageCircle,
   XCircle,
   AlertCircle,
@@ -16,6 +17,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
+import { BaseModal } from '../../components/base/BaseModal';
 import { rentalService } from '../../services/rentalService';
 import { spamProtectionService, SpamStatus } from '../../services/spamProtectionService';
 import { RentalRejectCancelModal } from '../../components/features/RentalRejectCancelModal';
@@ -37,6 +39,7 @@ export const RentalListPage: React.FC = () => {
   const [modalContract, setModalContract] = useState<RentalContract | null>(null);
   const [modalType, setModalType] = useState<'REJECT' | 'CANCEL'>('REJECT');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [returnConfirmContract, setReturnConfirmContract] = useState<RentalContract | null>(null);
 
   // Spam status for renter
   const [spamStatus, setSpamStatus] = useState<SpamStatus>({
@@ -95,7 +98,7 @@ export const RentalListPage: React.FC = () => {
         fetchRentals();
       }
     } catch (err: any) {
-      alert(err.message || 'Lỗi khi duyệt hợp đồng thuê.');
+      showToast(err.message || 'Lỗi khi duyệt hợp đồng thuê.');
     } finally {
       setIsProcessingId(null);
     }
@@ -126,7 +129,7 @@ export const RentalListPage: React.FC = () => {
       setModalContract(null);
       fetchRentals();
     } catch (err: any) {
-      alert(err.message || 'Lỗi khi xử lý thao tác.');
+      showToast(err.message || 'Lỗi khi xử lý thao tác.');
     } finally {
       setIsProcessingId(null);
     }
@@ -141,16 +144,17 @@ export const RentalListPage: React.FC = () => {
         fetchRentals();
       }
     } catch (err: any) {
-      alert(err.message || 'Lỗi khi xác nhận bàn giao.');
+      showToast(err.message || 'Lỗi khi xác nhận bàn giao.');
     } finally {
       setIsProcessingId(null);
     }
   };
 
-  const handleReturn = async (contract: RentalContract) => {
-    if (!window.confirm(`Xác nhận đã nhận lại thiết bị "${contract.listingTitle}" nguyên vẹn và hoàn trả tiền cọc cho bạn thuê? Cả 2 bạn sẽ được cộng +5 Karma!`)) {
-      return;
-    }
+  const handleReturn = (contract: RentalContract) => {
+    setReturnConfirmContract(contract);
+  };
+
+  const executeReturn = async (contract: RentalContract) => {
     try {
       setIsProcessingId(contract.id);
       const res = await rentalService.confirmReturnAndRefund(contract.id);
@@ -159,7 +163,7 @@ export const RentalListPage: React.FC = () => {
         fetchRentals();
       }
     } catch (err: any) {
-      alert(err.message || 'Lỗi khi hoàn tất hợp đồng.');
+      showToast(err.message || 'Lỗi khi hoàn tất hợp đồng.');
     } finally {
       setIsProcessingId(null);
     }
@@ -524,6 +528,43 @@ export const RentalListPage: React.FC = () => {
           peerName={modalContract.ownerId === user?.id ? modalContract.renterName : modalContract.ownerName}
           isLoading={isProcessingId === modalContract.id}
         />
+      )}
+
+      {/* Confirmation Modal for Return & Refund (Thay thế hoàn toàn localhost say) */}
+      {returnConfirmContract && (
+        <BaseModal
+          isOpen={true}
+          onClose={() => setReturnConfirmContract(null)}
+          title="Xác nhận nhận lại thiết bị & Hoàn cọc"
+          maxWidth="md"
+        >
+          <div className="space-y-4 py-1">
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Xác nhận bạn đã nhận lại thiết bị <strong>"{returnConfirmContract.listingTitle}"</strong> đầy đủ nguyên vẹn và hoàn trả 100% tiền cọc ({returnConfirmContract.depositAmount ? formatCurrency(returnConfirmContract.depositAmount) : '0 đ'}) cho bạn thuê?
+            </p>
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Giao dịch thành công sẽ cộng ngay <strong>+5 điểm tín nhiệm Campus Karma</strong> cho cả 2 bạn!</span>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <BaseButton variant="outline" size="sm" onClick={() => setReturnConfirmContract(null)}>
+                Hủy
+              </BaseButton>
+              <BaseButton
+                variant="primary"
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white"
+                onClick={() => {
+                  const c = returnConfirmContract;
+                  setReturnConfirmContract(null);
+                  executeReturn(c);
+                }}
+              >
+                Xác nhận hoàn tất (+5 Karma)
+              </BaseButton>
+            </div>
+          </div>
+        </BaseModal>
       )}
     </div>
   );

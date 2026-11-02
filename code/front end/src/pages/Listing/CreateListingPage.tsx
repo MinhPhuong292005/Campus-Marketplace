@@ -15,6 +15,7 @@ import {
   Clock,
   ArrowLeftRight,
   ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { listingSchema, ListingFormData } from '../../schemas/listing.schema';
 import { BaseInput } from '../../components/base/BaseInput';
@@ -22,11 +23,12 @@ import { BaseButton } from '../../components/base/BaseButton';
 import { BaseModal } from '../../components/base/BaseModal';
 import { listingService } from '../../services/listingService';
 import { useAuthStore } from '../../store/useAuthStore';
-import { Category } from '../../types';
+import { Category, Listing } from '../../types';
 import { SuspendedAccountModal } from '../../components/features/SuspendedAccountModal';
 import { PolicyViolationModal, ViolationAlertData } from '../../components/features/PolicyViolationModal';
 import { keywordViolationService } from '../../services/keywordViolationService';
 import { adminNotificationService } from '../../services/adminNotificationService';
+import { spamProtectionService, SpamStatus } from '../../services/spamProtectionService';
 import { PHENIKAA_SAFE_MEETING_POINTS } from '../../constants/phenikaaData';
 
 export const CreateListingPage: React.FC = () => {
@@ -43,6 +45,11 @@ export const CreateListingPage: React.FC = () => {
   const [isViolationModalOpen, setIsViolationModalOpen] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingFormData, setPendingFormData] = useState<ListingFormData | null>(null);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [createdListingData, setCreatedListingData] = useState<Listing | null>(null);
+  const [postSpamStatus, setPostSpamStatus] = useState<SpamStatus>(() =>
+    spamProtectionService.checkPostSpamStatus(user?.id)
+  );
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successToastData, setSuccessToastData] = useState<{
     title: string;
@@ -50,10 +57,23 @@ export const CreateListingPage: React.FC = () => {
     isAutoApproved: boolean;
   } | null>(null);
   const [violationAlert, setViolationAlert] = useState<ViolationAlertData | null>(null);
-  const [violationRecord, setViolationRecord] = useState(() =>
+  const [, setViolationRecord] = useState(() =>
     user ? keywordViolationService.getRecordByUserId(user.id) : null
   );
   const navigate = useNavigate();
+
+  // Theo dõi cập nhật trạng thái spam đăng bài (khóa 1 tiếng nếu spam)
+  useEffect(() => {
+    const handleSpamUpdate = () => {
+      setPostSpamStatus(spamProtectionService.checkPostSpamStatus(user?.id));
+    };
+    window.addEventListener('campus_post_spam_status_updated', handleSpamUpdate);
+    const interval = setInterval(handleSpamUpdate, 15000); // Tự động đếm lùi thời gian khóa
+    return () => {
+      window.removeEventListener('campus_post_spam_status_updated', handleSpamUpdate);
+      clearInterval(interval);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (user?.status === 'SUSPENDED' || user?.status === 'BANNED' || user?.status === 'BLOCKED') {
@@ -129,9 +149,9 @@ export const CreateListingPage: React.FC = () => {
     fetchCats();
   }, [setValue]);
 
-  // Adjust price when switching transaction type
+  // Adjust price when switching transaction type (Tặng đồ & Đổi đồ không dùng tiền -> giá = 0)
   useEffect(() => {
-    if (transactionType === 'GIVEAWAY') {
+    if (transactionType === 'GIVEAWAY' || transactionType === 'SWAP') {
       setValue('price', 0);
     } else if (transactionType === 'SELL') {
       const curPrice = watch('price');
@@ -269,6 +289,15 @@ export const CreateListingPage: React.FC = () => {
       return;
     }
 
+    // Kiểm tra trạng thái khóa do spam bài đăng (tạm khóa 1 tiếng)
+    const curSpam = spamProtectionService.checkPostSpamStatus(user?.id);
+    if (curSpam.isLocked) {
+      setErrorMsg(
+        `⛔ Tài khoản của bạn đang bị TẠM KHÓA ĐĂNG BÀI TRONG 1 TIẾNG do spam đăng bài liên tục. Vui lòng thử lại sau ~${curSpam.minutesLeft} phút nữa.`
+      );
+      return;
+    }
+
     if (
       user?.status === 'SUSPENDED' ||
       user?.status === 'BANNED' ||
@@ -279,7 +308,7 @@ export const CreateListingPage: React.FC = () => {
       const isKwSuspended = user && keywordViolationService.isUserSuspended(user.id);
       setErrorMsg(
         isKwSuspended
-          ? '🚫 Tài khoản của bạn đang bị TẠM KHÓA 1 NGÀY (24 giờ) do vi phạm quy chế hoặc bị phạt spam. Chức năng đăng bài bị tạm dừng.'
+          ? '🚫 Tài khoản của bạn đang bị TẠM KHÓA do vi phạm quy chế hoặc bị phạt spam. Chức năng đăng bài bị tạm dừng.'
           : `⚠️ Tài khoản của bạn đang bị Ban quản trị tạm khóa do vi phạm quy định sàn${user.blockReason ? ` (${user.blockReason})` : ''}. Chức năng đăng bài mới đang bị tạm ngưng.`
       );
       return;
@@ -289,33 +318,30 @@ export const CreateListingPage: React.FC = () => {
     if (user) {
       const now = Date.now();
       const lastPostKey = `campus_last_post_ts_${user.id}`;
-      const spamWarnKey = `campus_spam_warned_${user.id}`;
       const lastPostTimeStr = sessionStorage.getItem(lastPostKey);
       const lastPostTime = lastPostTimeStr ? parseInt(lastPostTimeStr, 10) : 0;
-      const hasSpamWarned = sessionStorage.getItem(spamWarnKey) === 'true';
 
       if (lastPostTime && now - lastPostTime < 15000) {
-        if (!hasSpamWarned) {
-          sessionStorage.setItem(spamWarnKey, 'true');
-          const rem = Math.max(0, 3 - (violationRecord?.strikeCount || 0));
-          setViolationAlert({
-            message:
-              'CẢNH BÁO SPAM BÀI ĐĂNG: Bạn vừa gửi bài đăng cách đây ít giây. Vui lòng không spam bài đăng liên tục! Nếu bạn tiếp tục spam, tài khoản sẽ bị CẤM ĐĂNG BÀI TRONG 1 NGÀY (24 giờ).',
-            isSuspended: false,
-            remainingChances: rem,
-          });
-          setIsViolationModalOpen(true);
-          return;
-        } else {
+        const nextSpam = spamProtectionService.recordPostSpamAction(user.id);
+        setPostSpamStatus(nextSpam);
+
+        if (nextSpam.isLocked) {
           keywordViolationService.recordSpamBan(user.id, user.email, user.fullName);
-          sessionStorage.removeItem(spamWarnKey);
           setViolationAlert({
             message:
-              'TÀI KHOẢN ĐÃ BỊ CẤM ĐĂNG BÀI 1 NGÀY: Bạn tiếp tục spam bài đăng sau khi đã được cảnh báo. Hệ thống đã tự động khóa quyền đăng bài của bạn trong 24 giờ.',
+              '⛔ TÀI KHOẢN ĐÃ BỊ TẠM KHÓA ĐĂNG BÀI 1 TIẾNG: Bạn tiếp tục spam bài đăng sau khi đã được cảnh báo. Hệ thống đã tự động khóa quyền đăng bài của bạn trong vòng 1 giờ (60 phút).',
             isSuspended: true,
             remainingChances: 0,
           });
           setIsSuspendedModalOpen(true);
+          return;
+        } else {
+          setViolationAlert({
+            message: `🚨 CẢNH BÁO SPAM BÀI ĐĂNG (Lần ${nextSpam.count}/3): Bạn vừa gửi bài đăng cách đây ít giây. Vui lòng không spam bài đăng liên tục! Nếu bạn tiếp tục spam, tài khoản sẽ bị TẠM KHÓA ĐĂNG BÀI TRONG 1 TIẾNG (60 phút).`,
+            isSuspended: false,
+            remainingChances: Math.max(0, 4 - nextSpam.count),
+          });
+          setIsViolationModalOpen(true);
           return;
         }
       }
@@ -373,10 +399,16 @@ export const CreateListingPage: React.FC = () => {
       setErrorMsg(null);
       setSuccessMsg(null);
 
-      // Ghi lại mốc thời gian đăng bài hợp lệ
+      // Ghi lại mốc thời gian đăng bài hợp lệ & reset spam
       if (user) {
         sessionStorage.setItem(`campus_last_post_ts_${user.id}`, Date.now().toString());
         sessionStorage.removeItem(`campus_spam_warned_${user.id}`);
+        spamProtectionService.resetPostSpam(user.id);
+      }
+
+      // Đối với GIVEAWAY và SWAP: đảm bảo giá bằng 0đ
+      if (pendingFormData.transactionType === 'SWAP' || pendingFormData.transactionType === 'GIVEAWAY') {
+        pendingFormData.price = 0;
       }
 
       const res = await listingService.createListing(pendingFormData);
@@ -388,8 +420,11 @@ export const CreateListingPage: React.FC = () => {
             `❌ Bài đăng bị từ chối duyệt: ${res.data.riskReason || 'Nội dung chứa từ khóa cấm trong danh mục của Quản trị viên.'}`
           );
         } else {
+          setCreatedListingData(res.data);
+          setIsSuccessModalOpen(true);
+
           setSuccessToastData({
-            title: 'Bạn đã đăng bài thành công',
+            title: 'Gửi bài đăng thành công',
             subtitle:
               'Bài đăng của bạn đã được gửi thành công và đang chờ Quản trị viên kiểm duyệt trước khi hiển thị công khai trên Chợ Sinh viên Phenikaa.',
             isAutoApproved: false,
@@ -407,13 +442,9 @@ export const CreateListingPage: React.FC = () => {
             reportedListingTitle: res.data.title,
             reportedListingPrice: res.data.price,
             violationReason: res.data.riskReason || 'Bài đăng mới cần Quản trị viên duyệt',
-            message: `Bài viết "${res.data.title}" được đăng tải với giá ${res.data.price?.toLocaleString()} đ. Chờ Quản trị viên kiểm tra hình ảnh và nội dung.`,
+            message: `Bài viết "${res.data.title}" (${res.data.transactionType === 'SWAP' ? 'Đổi đồ' : res.data.transactionType === 'GIVEAWAY' ? 'Tặng 0đ' : `${res.data.price?.toLocaleString()} đ`}). Chờ Quản trị viên kiểm tra hình ảnh và nội dung.`,
             imageUrl: res.data.images?.[0]?.mediaUrl || pendingFormData.imageUrls[0] || '',
           });
-
-          setTimeout(() => {
-            navigate('/my-listings');
-          }, 2500);
         }
       } else {
         setErrorMsg(res.message || 'Không thể tạo bài đăng lúc này. Vui lòng kiểm tra lại thông tin.');
@@ -446,6 +477,36 @@ export const CreateListingPage: React.FC = () => {
       </div>
 
 
+
+      {/* Banner cảnh báo đỏ / tạm khóa 1 tiếng khi spam */}
+      {postSpamStatus.isLocked && (
+        <div className="mb-4 p-4 rounded-2xl bg-rose-600 text-white shadow-xl flex items-center justify-between gap-3 text-xs border-2 border-rose-400 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <ShieldAlert className="w-6 h-6 shrink-0 text-white" />
+            <div>
+              <p className="font-black text-sm">⛔ TÀI KHOẢN ĐANG BỊ TẠM KHÓA ĐĂNG BÀI TRONG 1 TIẾNG</p>
+              <p className="text-xs text-rose-100 mt-0.5 leading-relaxed">
+                Hệ thống phát hiện bạn thao tác gửi bài đăng liên tiếp quá nhiều lần. Quyền đăng bài mới tạm khóa trong 1 giờ để bảo vệ sàn. Tự động mở lại sau khoảng ~{postSpamStatus.minutesLeft} phút.
+              </p>
+            </div>
+          </div>
+          <span className="shrink-0 px-3 py-1 bg-white/20 rounded-full font-mono font-bold text-xs">
+            ~{postSpamStatus.minutesLeft} phút
+          </span>
+        </div>
+      )}
+
+      {!postSpamStatus.isLocked && postSpamStatus.isWarning && (
+        <div className="mb-4 p-3.5 rounded-2xl bg-amber-500 text-white shadow-md flex items-center gap-2.5 text-xs animate-pulse">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <div>
+            <p className="font-black">🚨 CẢNH BÁO SPAM ({postSpamStatus.count}/3 LẦN THAO TÁC LIÊN TIẾP)</p>
+            <p className="text-[11px] opacity-95 mt-0.5">
+              Bạn đang thao tác quá nhanh. Vui lòng không spam bài đăng liên tục! Nếu tiếp tục spam, tài khoản sẽ bị tạm khóa đăng bài trong vòng 1 tiếng!
+            </p>
+          </div>
+        </div>
+      )}
 
       {errorMsg && (
         <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
@@ -718,18 +779,31 @@ export const CreateListingPage: React.FC = () => {
             </div>
           ) : transactionType === 'SWAP' ? (
             <div className="space-y-3">
-              <BaseInput
-                type="number"
-                label="Giá trị ước tính món đồ (VNĐ) *"
-                placeholder="vd: 50000"
-                error={errors.price?.message}
-                {...register('price', { valueAsNumber: true })}
-              />
-              <BaseInput
-                label="Món đồ bạn muốn đổi lấy (Swap Target)"
-                placeholder="vd: Đổi lấy máy tính Casio FX 580 hoặc bộ giáo trình Kỹ thuật lập trình"
-                {...register('swapTarget')}
-              />
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <ArrowLeftRight className="w-5 h-5 text-amber-600 shrink-0" />
+                  <div>
+                    <p className="font-bold">Hình thức Trao đổi đồ (Không sử dụng tiền mặt)</p>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                      Giao lưu món đồ này lấy tài liệu, dụng cụ học tập hoặc vật dụng khác với các bạn sinh viên Phenikaa.
+                    </p>
+                  </div>
+                </div>
+                <span className="font-mono font-extrabold text-xs px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 shrink-0">
+                  Trao đổi (0 VNĐ)
+                </span>
+              </div>
+
+              <div>
+                <BaseInput
+                  label="Món đồ bạn muốn đổi lấy (Không bắt buộc)"
+                  placeholder="vd: Đổi lấy máy tính Casio FX 580, bộ giáo trình Kỹ thuật lập trình, hoặc đồ dùng học tập tương đương..."
+                  {...register('swapTarget')}
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Nhập tên món đồ hoặc loại đồ bạn mong muốn nhận lại (bạn có thể để trống nếu cởi mở với mọi đề xuất giao lưu từ các bạn sinh viên khác).
+                </p>
+              </div>
             </div>
           ) : null}
 
@@ -778,17 +852,28 @@ export const CreateListingPage: React.FC = () => {
             Hủy
           </BaseButton>
           <BaseButton
-            type={user?.status === 'SUSPENDED' ? 'button' : 'submit'}
-            variant={user?.status === 'SUSPENDED' ? 'danger' : 'primary'}
+            type={user?.status === 'SUSPENDED' || postSpamStatus.isLocked ? 'button' : 'submit'}
+            variant={user?.status === 'SUSPENDED' || postSpamStatus.isLocked ? 'danger' : 'primary'}
             isLoading={isSubmitting}
+            disabled={postSpamStatus.isLocked}
             onClick={() => {
               if (user && (user.status === 'SUSPENDED' || user.status === 'BANNED' || user.status === 'BLOCKED' || keywordViolationService.isUserSuspended(user.id))) {
                 setIsSuspendedModalOpen(true);
               }
             }}
-            title={user?.status === 'SUSPENDED' ? 'Tài khoản đang bị tạm khóa (Bấm để xem lý do & khiếu nại)' : 'Đăng bài'}
+            title={
+              postSpamStatus.isLocked
+                ? `Tài khoản đang bị tạm khóa đăng bài (~${postSpamStatus.minutesLeft} phút)`
+                : user?.status === 'SUSPENDED'
+                ? 'Tài khoản đang bị tạm khóa (Bấm để xem lý do & khiếu nại)'
+                : 'Đăng bài'
+            }
           >
-            {user?.status === 'SUSPENDED' ? '⏰ Tài khoản đang bị tạm khóa (Bấm xem)' : 'Đăng bài ngay'}
+            {postSpamStatus.isLocked
+              ? `⛔ Tạm khóa đăng bài (~${postSpamStatus.minutesLeft} phút)`
+              : user?.status === 'SUSPENDED'
+              ? '⏰ Tài khoản đang bị tạm khóa (Bấm xem)'
+              : 'Đăng bài ngay'}
           </BaseButton>
         </div>
       </form>
@@ -864,6 +949,8 @@ export const CreateListingPage: React.FC = () => {
                     <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
                       {pendingFormData.transactionType === 'GIVEAWAY'
                         ? 'Tặng miễn phí (0 đ)'
+                        : pendingFormData.transactionType === 'SWAP'
+                        ? `Đổi đồ: ${pendingFormData.swapTarget || 'Theo thỏa thuận'}`
                         : `${Number(pendingFormData.price).toLocaleString('vi-VN')} đ`}
                     </span>
                     <span className="text-slate-400">•</span>
@@ -901,6 +988,99 @@ export const CreateListingPage: React.FC = () => {
             >
               <Check className="w-4 h-4 mr-1.5 stroke-[2.5]" />
               Xác nhận đăng bài
+            </BaseButton>
+          </div>
+        </div>
+      </BaseModal>
+
+      {/* MODAL THÔNG BÁO BÀI ĐĂNG GỬI DUYỆT THÀNH CÔNG (HIỂN THỊ TRỰC TIẾP TRÊN TRANG, THAY CHO LOCALHOST SAY) */}
+      <BaseModal
+        isOpen={isSuccessModalOpen}
+        onClose={() => {
+          setIsSuccessModalOpen(false);
+          navigate('/my-listings');
+        }}
+        title="Gửi bài đăng thành công"
+        maxWidth="md"
+      >
+        <div className="space-y-4 text-center py-2">
+          <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center ring-8 ring-emerald-50 dark:ring-emerald-950/30">
+            <CheckCircle className="w-10 h-10 stroke-[2.5]" />
+          </div>
+
+          <div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 text-xs font-bold border border-amber-200 dark:border-amber-800">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Trạng thái: Đang chờ Quản trị viên duyệt</span>
+            </span>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white mt-2">
+              Bài viết của bạn đã được gửi thành công!
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+              Mọi bài đăng trên Chợ Sinh viên Phenikaa đều được Ban Quản trị kiểm duyệt trước để đảm bảo an toàn, bảo vệ sinh viên và chống hàng cấm/lừa đảo.
+            </p>
+          </div>
+
+          {/* Tóm tắt bài đăng vừa gửi */}
+          {createdListingData && (
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-left flex items-center gap-3">
+              {createdListingData.images?.[0]?.mediaUrl ? (
+                <img
+                  src={createdListingData.images[0].mediaUrl}
+                  alt={createdListingData.title}
+                  className="w-14 h-14 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                />
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/60">
+                  {createdListingData.categoryName || 'Danh mục sản phẩm'}
+                </span>
+                <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate mt-1">
+                  {createdListingData.title}
+                </h4>
+                <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {createdListingData.transactionType === 'GIVEAWAY'
+                    ? 'Tặng 0đ (Free)'
+                    : createdListingData.transactionType === 'SWAP'
+                    ? `Trao đổi: ${createdListingData.swapTarget || 'Tự do thỏa thuận'}`
+                    : `${Number(createdListingData.price).toLocaleString('vi-VN')} đ`}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Điểm hẹn an toàn: {createdListingData.safeMeetingPoint || 'Khuôn viên Phenikaa'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-[11px] text-blue-800 dark:text-blue-300 text-left flex items-start gap-2">
+            <span className="font-bold shrink-0">Thông báo:</span>
+            <span>
+              Hệ thống sẽ gửi thông báo đến chuông thông báo của bạn ngay khi bài viết được Ban Quản trị phê duyệt để hiển thị công khai trên sàn.
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <BaseButton
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsSuccessModalOpen(false);
+                navigate('/');
+              }}
+              className="w-full text-xs"
+            >
+              Về trang chủ
+            </BaseButton>
+            <BaseButton
+              type="button"
+              variant="primary"
+              onClick={() => {
+                setIsSuccessModalOpen(false);
+                navigate('/my-listings');
+              }}
+              className="w-full text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
+            >
+              Xem Kho đồ của tôi
             </BaseButton>
           </div>
         </div>

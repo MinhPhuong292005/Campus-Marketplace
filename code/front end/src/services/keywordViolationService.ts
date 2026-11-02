@@ -106,7 +106,8 @@ export const keywordViolationService = {
     const records = keywordViolationService.getRecords();
     let record = records.find((r) => r.userId === userId);
     const now = new Date();
-    const suspendedUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    // Khóa tài khoản đăng bài trong 1 tiếng (60 phút) theo quy định
+    const suspendedUntil = new Date(now.getTime() + 1 * 60 * 60 * 1000).toISOString();
     if (!record) {
       record = {
         userId,
@@ -136,14 +137,14 @@ export const keywordViolationService = {
     keywordViolationService.saveRecords(records);
     keywordViolationService.addAuditLog({
       adminEmail: 'minhphuong2925@gmail.com',
-      action: 'SPAM_SUSPEND_1_DAY',
+      action: 'SPAM_SUSPEND_1_HOUR',
       targetType: 'USER',
       targetId: userId,
-      details: `Hệ thống tự động cấm đăng bài 1 ngày (24 giờ) đối với sinh viên ${userName} (${userEmail}) do tiếp tục spam bài đăng.`,
+      details: `Hệ thống tự động tạm khóa đăng bài 1 tiếng (60 phút) đối với sinh viên ${userName} (${userEmail}) do tiếp tục spam bài đăng.`,
     });
 
     // Cập nhật trạng thái người dùng trong useAuthStore và localStorage
-    const reason = 'Tự động tạm khóa 1 ngày do spam bài đăng liên tục';
+    const reason = 'Tự động tạm khóa 1 tiếng do spam bài đăng liên tục';
     const authUser = useAuthStore.getState().user;
     if (authUser && (authUser.id === userId || String(authUser.id) === String(userId))) {
       useAuthStore.getState().updateUserStatus('SUSPENDED', reason, suspendedUntil);

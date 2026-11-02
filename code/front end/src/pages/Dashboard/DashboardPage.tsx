@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { SlidersHorizontal, PackageSearch, PlusCircle, X, ArrowLeftRight } from 'lucide-react';
+import { SlidersHorizontal, PackageSearch, PlusCircle, X, ArrowLeftRight, CheckCircle2 } from 'lucide-react';
 import { Listing } from '../../types';
 import { ListingCard } from '../../components/features/ListingCard';
 import { SearchBar } from '../../components/features/SearchBar';
@@ -15,6 +15,7 @@ export const DashboardPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showMobileFilter, setShowMobileFilter] = useState(false);
   const [selectedSwapListing, setSelectedSwapListing] = useState<Listing | null>(null);
+  const [swapSuccessToast, setSwapSuccessToast] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -341,9 +342,18 @@ export const DashboardPage: React.FC = () => {
           onClose={() => setSelectedSwapListing(null)}
           targetListing={selectedSwapListing}
           onSuccess={() => {
-            alert('Gửi đề xuất đổi đồ thành công! Người bán sẽ nhận được thông báo.');
+            setSwapSuccessToast(true);
+            setTimeout(() => setSwapSuccessToast(false), 4500);
           }}
         />
+      )}
+
+      {/* In-app Toast Thông báo gửi đề xuất đổi đồ thành công */}
+      {swapSuccessToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold animate-bounce">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>🎉 Gửi đề xuất đổi đồ thành công! Bạn có thể theo dõi tiến trình trong mục Tin nhắn.</span>
+        </div>
       )}
     </div>
   );
