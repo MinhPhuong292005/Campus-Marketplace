@@ -18,6 +18,7 @@ public class ListingDetailRes {
     private Long id;
     private Long userId;
     private String authorName;
+    private String authorAvatar;
     private Integer authorKarma;
     private String authorStatus;
     private String authorStudentCode;

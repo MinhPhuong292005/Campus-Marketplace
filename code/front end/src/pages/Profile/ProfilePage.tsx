@@ -400,8 +400,7 @@ export const ProfilePage: React.FC = () => {
                   <>
                     <img
                       src={
-                        user.avatarUrl ||
-                        `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email || 'student'}`
+                        user.avatarUrl || '/default-avatar.png'
                       }
                       alt={user.fullName}
                       className="w-full h-full object-cover group-hover:scale-105 transition"
@@ -895,8 +894,7 @@ export const ProfilePage: React.FC = () => {
                           <>
                             <img
                               src={
-                                user.avatarUrl ||
-                                `https://api.dicebear.com/7.x/bottts/svg?seed=${user.email || 'student'}`
+                                user.avatarUrl || '/default-avatar.png'
                               }
                               alt={user.fullName}
                               className="w-full h-full object-cover rounded-xl bg-white/30 group-hover:scale-105 transition"

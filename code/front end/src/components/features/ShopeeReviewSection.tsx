@@ -535,10 +535,7 @@ export const ShopeeReviewSection: React.FC<ShopeeReviewSectionProps> = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <img
-                      src={
-                        rev.reviewerAvatar ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${rev.reviewerName}`
-                      }
+                      src={rev.reviewerAvatar || '/default-avatar.png'}
                       alt={rev.reviewerName}
                       className="w-10 h-10 rounded-2xl object-cover border border-slate-200 dark:border-slate-700 bg-slate-100"
                     />

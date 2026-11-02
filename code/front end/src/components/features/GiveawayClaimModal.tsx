@@ -106,7 +106,7 @@ export const GiveawayClaimModal: React.FC<GiveawayClaimModalProps> = ({
             </div>
             <div className="flex items-center gap-3 pt-1">
               <img
-                src={user.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.fullName}`}
+                src={user.avatarUrl || '/default-avatar.png'}
                 alt={user.fullName}
                 className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
               />

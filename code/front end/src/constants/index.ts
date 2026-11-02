@@ -51,3 +51,5 @@ export const API_ROUTES = {
   ADMIN_REPORTS: '/admin/reports',
 } as const;
 
+export const DEFAULT_AVATAR = '/default-avatar.png';
+

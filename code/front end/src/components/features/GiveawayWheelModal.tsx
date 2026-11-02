@@ -244,10 +244,7 @@ export const GiveawayWheelModal: React.FC<GiveawayWheelModalProps> = ({
 
                 <div className="flex items-center gap-3">
                   <img
-                    src={
-                      winner.requesterAvatar ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${winner.requesterName}`
-                    }
+                    src={winner.requesterAvatar || '/default-avatar.png'}
                     alt={winner.requesterName}
                     className="w-12 h-12 rounded-xl object-cover border-2 border-emerald-400 shrink-0"
                   />

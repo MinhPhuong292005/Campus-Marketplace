@@ -194,6 +194,10 @@ public class ListingServiceImpl implements ListingService {
             if (price == null || price.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new CustomBusinessException(ErrorCodes.INVALID_LISTING_PRICE, HttpStatus.BAD_REQUEST);
             }
+        } else if ("SWAP".equalsIgnoreCase(listing.getTransactionType())) {
+            if (price == null || price.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new CustomBusinessException(ErrorCodes.INVALID_LISTING_PRICE, HttpStatus.BAD_REQUEST, "Vui lòng nhập giá trị ước tính của món đồ trao đổi");
+            }
         } else if ("GIVEAWAY".equalsIgnoreCase(listing.getTransactionType())) {
             price = BigDecimal.ZERO;
         }
@@ -210,6 +214,9 @@ public class ListingServiceImpl implements ListingService {
         listing.setRentalTerms(req.getRentalTerms());
         listing.setDepositAmount(req.getDepositAmount());
         listing.setSwapTarget(req.getSwapTarget());
+        if (req.getSafeMeetingPoint() != null && !req.getSafeMeetingPoint().isBlank()) {
+            listing.setSafeMeetingPoint(req.getSafeMeetingPoint());
+        }
 
         // Kiểm tra lại từ khóa cấm khi cập nhật
         String combinedContent = req.getTitle().trim() + " " + req.getDescription().trim();
@@ -341,6 +348,7 @@ public class ListingServiceImpl implements ListingService {
                 .id(listing.getId())
                 .userId(author != null ? author.getId() : null)
                 .authorName(author != null ? author.getFullName() : "Sinh viên")
+                .authorAvatar((author != null && author.getAvatarUrl() != null && !author.getAvatarUrl().isBlank()) ? author.getAvatarUrl() : "/default-avatar.png")
                 .authorKarma(author != null ? author.getKarmaScore() : 20)
                 .authorStatus(author != null ? author.getStatus() : "ACTIVE")
                 .authorStudentCode(author != null ? author.getStudentCode() : null)

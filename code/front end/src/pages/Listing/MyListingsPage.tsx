@@ -13,10 +13,12 @@ import {
   Check,
   X,
   FileText,
+  Pencil,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
 import { BaseModal } from '../../components/base/BaseModal';
 import { ReviewModal } from '../../components/features/ReviewModal';
+import { EditListingModal } from '../../components/features/EditListingModal';
 import { listingService } from '../../services/listingService';
 import { swapService, SwapProposal } from '../../services/swapService';
 import { studentNotificationService } from '../../services/studentNotificationService';
@@ -55,6 +57,9 @@ export const MyListingsPage: React.FC = () => {
     isOpen: false,
     listing: null,
   });
+
+  // Modal chỉnh sửa bài đăng
+  const [editingListing, setEditingListing] = useState<Listing | null>(null);
 
   // Review modal state
   const [reviewModalData, setReviewModalData] = useState<{
@@ -542,6 +547,18 @@ export const MyListingsPage: React.FC = () => {
                       </BaseButton>
                     </Link>
 
+                    {/* Nút sửa bài đăng */}
+                    <BaseButton
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingListing(item)}
+                      className="text-xs text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/60 hover:bg-blue-50 dark:hover:bg-blue-950/40 gap-1 font-semibold"
+                      title="Chỉnh sửa thông tin bài đăng"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Sửa bài đăng</span>
+                    </BaseButton>
+
                     {/* DÀNH CHO ĐỒ CHO THUÊ (RENT): KHÔNG PHẢI BÁN, VẪN LUÔN THUỘC VỀ CHỦ SỞ HỮU */}
                     {item.transactionType === 'RENT' ? (
                       <>
@@ -860,6 +877,18 @@ export const MyListingsPage: React.FC = () => {
         onSuccess={(awarded) => {
           setToastMessage(`🎉 Đã hoàn tất đánh giá và cộng +${awarded} điểm Campus Karma!`);
           setTimeout(() => setToastMessage(null), 4000);
+        }}
+      />
+
+      {/* Edit Listing Modal */}
+      <EditListingModal
+        isOpen={Boolean(editingListing)}
+        listing={editingListing}
+        onClose={() => setEditingListing(null)}
+        onSuccess={() => {
+          setToastMessage('✅ Cập nhật bài đăng thành công! Bài đăng sẽ được Quản trị viên duyệt lại.');
+          setTimeout(() => setToastMessage(null), 4000);
+          fetchListings();
         }}
       />
     </div>

@@ -662,7 +662,7 @@ public class AdminServiceImpl implements AdminService {
                 .email(u.getEmail())
                 .fullName(u.getFullName())
                 .phone(u.getPhone())
-                .avatarUrl(u.getAvatarUrl())
+                .avatarUrl((u.getAvatarUrl() != null && !u.getAvatarUrl().isBlank()) ? u.getAvatarUrl() : "/default-avatar.png")
                 .universityId(u.getUniversity() != null ? u.getUniversity().getId() : null)
                 .universityName(u.getUniversity() != null ? u.getUniversity().getName() : null)
                 .campusId(u.getCampus() != null ? u.getCampus().getId() : null)

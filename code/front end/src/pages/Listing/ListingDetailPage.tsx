@@ -20,6 +20,8 @@ import {
   Heart,
   ChevronRight,
   Layers,
+  Pencil,
+  ShieldCheck,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
 import { listingService } from '../../services/listingService';
@@ -34,6 +36,7 @@ import { ListingCard } from '../../components/features/ListingCard';
 import { ShopeeReviewSection } from '../../components/features/ShopeeReviewSection';
 import { GiveawayClaimModal } from '../../components/features/GiveawayClaimModal';
 import { GiveawayClaimsManager } from '../../components/features/GiveawayClaimsManager';
+import { EditListingModal } from '../../components/features/EditListingModal';
 import { DatePickerInput } from '../../components/base/DatePickerInput';
 import { rentalService } from '../../services/rentalService';
 import { spamProtectionService, SpamStatus } from '../../services/spamProtectionService';
@@ -94,6 +97,7 @@ export const ListingDetailPage: React.FC = () => {
   const [createdRentalId, setCreatedRentalId] = useState<number | null>(null);
 
   const [isOwnerModalOpen, setIsOwnerModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [addedToCartToast, setAddedToCartToast] = useState(false);
 
   // Modals state
@@ -704,10 +708,7 @@ export const ListingDetailPage: React.FC = () => {
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative">
                 <img
-                  src={
-                    listing.authorAvatar ||
-                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${listing.authorName || 'CampusStudent'}`
-                  }
+                  src={listing.authorAvatar || '/default-avatar.png'}
                   alt={listing.authorName}
                   className="w-12 h-12 rounded-2xl object-cover bg-slate-100 border border-slate-200 dark:border-slate-700"
                 />
@@ -750,28 +751,52 @@ export const ListingDetailPage: React.FC = () => {
 
           {/* Action Triggers */}
           <div className="space-y-3 pt-2">
-            {/* Primary Action: Chat */}
-            <BaseButton
-              onClick={() => {
-                if (user?.id === listing.userId) {
-                  setIsOwnerModalOpen(true);
-                  return;
-                }
-                navigate('/chat', {
-                  state: {
-                    sellerId: listing.userId,
-                    sellerName: listing.authorName,
-                    listingId: listing.id,
-                    listingTitle: listing.title,
-                  },
-                });
-              }}
-              variant="primary"
-              className="w-full py-3.5 rounded-2xl text-sm font-bold shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
-            >
-              <MessageCircle className="w-5 h-5" />
-              <span>Nhắn tin với {listing.authorName?.split(' ').pop() || 'Người bán'}</span>
-            </BaseButton>
+            {/* Primary Action: Chat or Owner Edit Actions */}
+            {user?.id === listing.userId ? (
+              <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 space-y-2.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-700 dark:text-blue-300">
+                  <ShieldCheck className="w-4 h-4 text-blue-600" />
+                  <span>Bạn là chủ sở hữu bài đăng này</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <BaseButton
+                    onClick={() => setIsEditModalOpen(true)}
+                    variant="primary"
+                    size="sm"
+                    className="w-full text-xs gap-1.5 font-bold bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Sửa bài đăng</span>
+                  </BaseButton>
+                  <BaseButton
+                    onClick={() => navigate('/profile?tab=listings')}
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs font-semibold"
+                  >
+                    Kho đồ của tôi
+                  </BaseButton>
+                </div>
+              </div>
+            ) : (
+              <BaseButton
+                onClick={() => {
+                  navigate('/chat', {
+                    state: {
+                      sellerId: listing.userId,
+                      sellerName: listing.authorName,
+                      listingId: listing.id,
+                      listingTitle: listing.title,
+                    },
+                  });
+                }}
+                variant="primary"
+                className="w-full py-3.5 rounded-2xl text-sm font-bold shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span>Nhắn tin với {listing.authorName?.split(' ').pop() || 'Người bán'}</span>
+              </BaseButton>
+            )}
 
             {/* Context-Specific Actions */}
             {listing.transactionType === 'RENT' && (
@@ -1191,26 +1216,41 @@ export const ListingDetailPage: React.FC = () => {
             </div>
             <div className="pt-2 flex flex-col sm:flex-row gap-2">
               <BaseButton
-                onClick={() => setIsOwnerModalOpen(false)}
-                variant="outline"
-                className="w-full text-xs"
+                onClick={() => {
+                  setIsOwnerModalOpen(false);
+                  setIsEditModalOpen(true);
+                }}
+                variant="primary"
+                className="w-full text-xs font-bold gap-1 bg-blue-600 hover:bg-blue-700 text-white"
               >
-                Đã hiểu
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Sửa bài đăng</span>
               </BaseButton>
               <BaseButton
                 onClick={() => {
                   setIsOwnerModalOpen(false);
                   navigate('/profile?tab=listings');
                 }}
-                variant="primary"
+                variant="outline"
                 className="w-full text-xs"
               >
-                Quản lý bài đăng của tôi
+                Kho đồ của tôi
               </BaseButton>
             </div>
           </div>
         </div>
       )}
+
+      {/* Edit Listing Modal */}
+      <EditListingModal
+        isOpen={isEditModalOpen}
+        listing={listing}
+        onClose={() => setIsEditModalOpen(false)}
+        onSuccess={(_updated) => {
+          fetchListing();
+          showNotice('✅ Cập nhật bài đăng thành công! Bài đăng sẽ được Quản trị viên duyệt lại.');
+        }}
+      />
     </div>
   );
 };

@@ -631,7 +631,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                     <img
                       src={
                         room.peerAvatar ||
-                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+                        '/default-avatar.png'
                       }
                       alt={room.peerName}
                       className="w-12 h-12 rounded-full object-cover border border-slate-200 dark:border-slate-700"
@@ -713,7 +713,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                 <img
                   src={
                     activeRoom.peerAvatar ||
-                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+                    '/default-avatar.png'
                   }
                   alt={activeRoom.peerName}
                   onClick={() => activeRoom.peerUserId && navigate(`/seller/${activeRoom.peerUserId}`)}
@@ -793,7 +793,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
               <img
                 src={
                   activeRoom.peerAvatar ||
-                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+                  '/default-avatar.png'
                 }
                 alt={activeRoom.peerName}
                 onClick={() => activeRoom.peerUserId && navigate(`/seller/${activeRoom.peerUserId}`)}
@@ -848,7 +848,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                       <img
                         src={
                           activeRoom.peerAvatar ||
-                          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+                          '/default-avatar.png'
                         }
                         alt="peer"
                         className="w-7 h-7 rounded-full object-cover mb-1 border border-slate-200 dark:border-slate-700 flex-shrink-0"
@@ -1142,7 +1142,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
               <img
                 src={
                   activeRoom.peerAvatar ||
-                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
+                  '/default-avatar.png'
                 }
                 alt={activeRoom.peerName}
                 onClick={() => activeRoom.peerUserId && navigate(`/seller/${activeRoom.peerUserId}`)}
@@ -1251,9 +1251,11 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                     className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0 uppercase">
-                        {contact.fullName ? contact.fullName.charAt(0) : 'U'}
-                      </div>
+                      <img
+                        src={contact.avatarUrl || '/default-avatar.png'}
+                        alt={contact.fullName || 'User'}
+                        className="w-10 h-10 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-700"
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">

@@ -69,10 +69,7 @@ export const SellerListingsModal: React.FC<SellerListingsModalProps> = ({
           <div className="flex items-center gap-3.5">
             <div className="relative">
               <img
-                src={
-                  sellerAvatar ||
-                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${sellerName || 'Student'}`
-                }
+                src={sellerAvatar || '/default-avatar.png'}
                 alt={sellerName}
                 className="w-14 h-14 rounded-2xl object-cover bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xs"
               />

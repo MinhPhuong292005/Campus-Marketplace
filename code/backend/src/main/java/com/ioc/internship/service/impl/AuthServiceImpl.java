@@ -260,7 +260,7 @@ public class AuthServiceImpl implements AuthService {
         return UserDetailRes.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
-                .avatarUrl(user.getAvatarUrl())
+                .avatarUrl((user.getAvatarUrl() != null && !user.getAvatarUrl().isBlank()) ? user.getAvatarUrl() : "/default-avatar.png")
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .studentCode(user.getStudentCode())
