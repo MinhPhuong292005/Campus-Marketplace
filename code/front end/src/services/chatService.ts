@@ -11,11 +11,16 @@ export interface ChatMessage {
   senderAvatar?: string;
   content?: string;
   text?: string;
-  messageType?: 'TEXT' | 'IMAGE' | 'OFFER_PRICE' | 'MEETING_POINT';
+  messageType?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'OFFER_PRICE' | 'MEETING_POINT';
   time?: string;
   createdAt?: string;
   isRead?: boolean;
   isWarning?: boolean;
+  replyTo?: {
+    id: number;
+    senderName: string;
+    text: string;
+  };
   meetingPointData?: {
     name: string;
     address: string;
@@ -26,6 +31,7 @@ export interface ChatMessage {
 export interface ChatRoom {
   id: number;
   listingId?: number;
+  sellerId?: number;
   listingTitle?: string;
   listingPrice?: number;
   listingImage?: string;
@@ -110,6 +116,27 @@ export const chatService = {
       // Local fallback object url if server storage unavailable
       const localUrl = URL.createObjectURL(file);
       return { success: true, data: { url: localUrl } };
+    }
+  },
+
+  uploadChatMedia: async (file: File): Promise<{ success: boolean; data?: { url: string; mediaType: 'IMAGE' | 'VIDEO' } }> => {
+    const isVideo = file.type.startsWith('video/');
+    const mediaType: 'IMAGE' | 'VIDEO' = isVideo ? 'VIDEO' : 'IMAGE';
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await apiClient.post<any>('/student/media/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      if (res && res.data && res.data.data?.url) {
+        return { success: true, data: { url: res.data.data.url, mediaType } };
+      }
+      return { success: false };
+    } catch (err) {
+      const localUrl = URL.createObjectURL(file);
+      return { success: true, data: { url: localUrl, mediaType } };
     }
   },
 

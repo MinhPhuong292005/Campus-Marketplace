@@ -13,19 +13,22 @@ import {
   CheckCheck,
   ChevronDown,
   ChevronRight,
-  User,
-  BellOff,
   AlertTriangle,
   ArrowLeft,
   Lock,
   PackageCheck,
   ShieldCheck,
   X,
+  Copy,
+  Reply,
+  Clock,
+  Calendar,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { PHENIKAA_SAFE_MEETING_POINTS } from '../../constants/phenikaaData';
 import { chatService, ChatRoom, ChatMessage, SafeMeetingPoint } from '../../services/chatService';
+import { listingService } from '../../services/listingService';
 import { ReportModal } from '../../components/features/ReportModal';
 import { SafeMeetingPointsModal } from '../../components/features/SafeMeetingPointsModal';
 import { KarmaBadge } from '../../components/features/KarmaBadge';
@@ -47,10 +50,20 @@ export const ChatPage: React.FC = () => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [fraudWarning, setFraudWarning] = useState<string | null>(null);
   const [selectedSafePointId, setSelectedSafePointId] = useState<number | null>(null);
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const [appointmentDate, setAppointmentDate] = useState(getTodayStr());
+  const [appointmentTime, setAppointmentTime] = useState('14:30');
+  const [replyingToMessage, setReplyingToMessage] = useState<{
+    id: number;
+    senderName: string;
+    text: string;
+  } | null>(null);
+  const [reportTargetMessage, setReportTargetMessage] = useState<ChatMessage | null>(null);
+  const [activeListingSellerId, setActiveListingSellerId] = useState<number | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const routeState = location.state as {
     sellerId?: number;
     sellerName?: string;
@@ -237,11 +250,17 @@ export const ChatPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [inputText]);
 
-  // Send message
+  // Send message with optional quoted reply
   const handleSendMessage = async (e?: React.FormEvent, customContent?: string) => {
     if (e) e.preventDefault();
-    const contentToSend = (customContent || inputText).trim();
-    if (!contentToSend || !activeRoomId) return;
+    const rawContent = (customContent || inputText).trim();
+    if (!rawContent || !activeRoomId) return;
+
+    let contentToSend = rawContent;
+    if (replyingToMessage) {
+      contentToSend = `┌ Trả lời ${replyingToMessage.senderName}: "${replyingToMessage.text.slice(0, 80)}${replyingToMessage.text.length > 80 ? '...' : ''}"\n└ ${rawContent}`;
+      setReplyingToMessage(null);
+    }
 
     // Optimistic UI update
     const tempMsg: ChatMessage = {
@@ -279,6 +298,34 @@ export const ChatPage: React.FC = () => {
     setIsSafePointModalOpen(false);
   };
 
+  // Send appointment with date, time (6h - 22h) and location
+  const handleSendAppointment = () => {
+    if (!activeRoomId) return;
+
+    if (appointmentTime) {
+      const [hStr] = appointmentTime.split(':');
+      const hour = parseInt(hStr, 10);
+      if (isNaN(hour) || hour < 6 || hour > 22) {
+        alert('Khung giờ hẹn gặp giao dịch an toàn tại trường khuyến nghị từ 06:00 đến 22:00!');
+        return;
+      }
+    }
+
+    const safePoint =
+      PHENIKAA_SAFE_MEETING_POINTS.find((p) => p.id === selectedSafePointId) ||
+      PHENIKAA_SAFE_MEETING_POINTS[0];
+    const dateFormatted = new Date(appointmentDate).toLocaleDateString('vi-VN');
+
+    const appointmentMsg = `📍 [HẸN GẶP GIAO DỊCH TẠI ĐH PHENIKAA]
+• Thời gian: ${appointmentTime || '14:30'} - Ngày ${dateFormatted}
+• Điểm hẹn: ${safePoint.name} (${safePoint.address})
+• Ghi chú: Khu vực an toàn có camera giám sát và bảo vệ trường trực 24/7.`;
+
+    handleSendMessage(undefined, appointmentMsg);
+    setToastNotice('Đã gửi lịch hẹn gặp giao dịch vào tin nhắn!');
+    setTimeout(() => setToastNotice(null), 3000);
+  };
+
   // Create room with second test user
   const handleStartChatWithPeer = async (peerId: number) => {
     if (peerId === 1) {
@@ -299,28 +346,41 @@ export const ChatPage: React.FC = () => {
 
   const [toastNotice, setToastNotice] = useState<string | null>(null);
 
-  // Xác nhận bán sản phẩm cho người đang chat và gửi thông báo giao hàng
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload ảnh hoặc video từ máy tính
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeRoomId) return;
 
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+
+    if (!isImage && !isVideo) {
+      alert('Vui lòng chỉ chọn tệp hình ảnh (PNG, JPG, WEBP, GIF) hoặc video (MP4, WEBM)!');
+      return;
+    }
+
+    if (file.size > 25 * 1024 * 1024) {
+      alert('Dung lượng tệp quá lớn (tối đa 25MB). Vui lòng chọn tệp nhỏ hơn!');
+      return;
+    }
+
     try {
-      setIsUploadingImage(true);
-      const res = await chatService.uploadChatImage(file);
+      setIsUploadingMedia(true);
+      const res = await chatService.uploadChatMedia(file);
       if (res.success && res.data?.url) {
-        const newMsgRes = await chatService.sendMessage(activeRoomId, res.data.url, 'IMAGE');
+        const msgType = res.data.mediaType;
+        const newMsgRes = await chatService.sendMessage(activeRoomId, res.data.url, msgType);
         if (newMsgRes && newMsgRes.data) {
           setMessages((prev) => [...prev, newMsgRes.data]);
           loadRooms();
         }
       }
     } catch (err) {
-      console.error('Failed to upload chat image:', err);
+      console.error('Failed to upload chat media:', err);
     } finally {
-      setIsUploadingImage(false);
-      if (imageInputRef.current) {
-        imageInputRef.current.value = '';
+      setIsUploadingMedia(false);
+      if (mediaInputRef.current) {
+        mediaInputRef.current.value = '';
       }
     }
   };
@@ -394,6 +454,31 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
 
   // Find active room object
   const activeRoom = rooms.find((r) => r.id === activeRoomId) || rooms[0];
+
+  // Fetch listing details to identify whether current user is the seller
+  useEffect(() => {
+    if (activeRoom?.listingId) {
+      listingService
+        .getListingById(activeRoom.listingId)
+        .then((res) => {
+          if (res.success && res.data) {
+            setActiveListingSellerId(res.data.userId);
+          }
+        })
+        .catch(() => {});
+    } else {
+      setActiveListingSellerId(null);
+    }
+  }, [activeRoom?.listingId]);
+
+  // Check if current user is the SELLER (Chỉ người bán mới thấy nút tạo chốt đơn)
+  const isCurrentUserSeller = Boolean(
+    user?.id && (
+      (activeRoom?.sellerId && activeRoom.sellerId === user.id) ||
+      (activeListingSellerId && activeListingSellerId === user.id) ||
+      (routeState?.sellerId && routeState.sellerId === user.id)
+    )
+  );
 
   // Filter rooms
   const filteredRooms = rooms.filter((r) => {
@@ -621,14 +706,20 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
                   }
                   alt={activeRoom.peerName}
-                  className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                  onClick={() => activeRoom.peerUserId && navigate(`/seller/${activeRoom.peerUserId}`)}
+                  className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700 cursor-pointer hover:opacity-90 transition"
+                  title="Xem trang cá nhân"
                 />
                 <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
               </div>
 
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white truncate">
+                  <h2
+                    onClick={() => activeRoom.peerUserId && navigate(`/seller/${activeRoom.peerUserId}`)}
+                    className="text-base font-bold text-slate-900 dark:text-white truncate cursor-pointer hover:text-blue-600 hover:underline transition"
+                    title="Xem trang cá nhân"
+                  >
                     {activeRoom.peerName}
                   </h2>
                   {activeRoom.peerStatus === 'SUSPENDED' && (
@@ -676,7 +767,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
 
           {/* Messages Stream Container */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#ffffff] dark:bg-[#0b141a]">
-            {/* Encryption & Profile Header inside chat stream (Messenger style) */}
+            {/* Profile Header inside chat stream (Messenger style) */}
             <div className="text-center py-6">
               <img
                 src={
@@ -684,17 +775,23 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
                 }
                 alt={activeRoom.peerName}
-                className="w-16 h-16 rounded-full mx-auto object-cover border-2 border-slate-200 dark:border-slate-700 shadow-sm"
+                onClick={() => activeRoom.peerUserId && navigate(`/seller/${activeRoom.peerUserId}`)}
+                className="w-16 h-16 rounded-full mx-auto object-cover border-2 border-slate-200 dark:border-slate-700 shadow-sm cursor-pointer hover:opacity-90 transition"
+                title="Xem trang cá nhân"
               />
-              <h3 className="font-bold text-base mt-2 text-slate-900 dark:text-white">
+              <h3
+                onClick={() => activeRoom.peerUserId && navigate(`/seller/${activeRoom.peerUserId}`)}
+                className="font-bold text-base mt-2 text-slate-900 dark:text-white cursor-pointer hover:text-blue-600 hover:underline transition"
+                title="Xem trang cá nhân"
+              >
                 {activeRoom.peerName}
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
                 Sinh viên {activeRoom.peerCampus || 'Trường Đại học Phenikaa'}
               </p>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-500 mt-2">
-                <Lock className="w-3 h-3 text-slate-400" />
-                <span>Đoạn chat được mã hóa đầu cuối</span>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold mt-2 shadow-2xs">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>{activeRoom.peerKarma || 20} Karma</span>
               </div>
             </div>
 
@@ -742,8 +839,17 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                         isMe ? 'items-end' : 'items-start'
                       }`}
                     >
-                      {/* Message Bubble (Text, Image, or Transaction Confirmation Card) */}
-                      {msg.messageType === 'IMAGE' || (msg.content && (msg.content.startsWith('http') || msg.content.startsWith('blob:') || msg.content.startsWith('data:image') || msg.content.startsWith('/')) && /\.(jpg|jpeg|png|webp|gif)/i.test(msg.content)) ? (
+                      {/* Message Bubble (Text, Image, Video, or Transaction Confirmation Card) */}
+                      {msg.messageType === 'VIDEO' || (msg.content && /\.(mp4|webm|mov|mkv)/i.test(msg.content)) ? (
+                        <div className="rounded-2xl overflow-hidden max-w-xs sm:max-w-sm border border-slate-200 dark:border-slate-700 bg-black shadow-xs">
+                          <video
+                            src={msg.content}
+                            controls
+                            className="w-full max-h-64 rounded-xl"
+                            preload="metadata"
+                          />
+                        </div>
+                      ) : msg.messageType === 'IMAGE' || (msg.content && (msg.content.startsWith('http') || msg.content.startsWith('blob:') || msg.content.startsWith('data:image') || msg.content.startsWith('/')) && /\.(jpg|jpeg|png|webp|gif)/i.test(msg.content)) ? (
                         <div className="rounded-2xl overflow-hidden max-w-xs border border-slate-200 dark:border-slate-700 bg-black/5 shadow-xs">
                           <img
                             src={msg.content}
@@ -781,7 +887,24 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                               : 'bg-[#f0f2f5] dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-xs'
                           }`}
                         >
-                          {msg.content || msg.text}
+                          {msg.content?.startsWith('┌ Trả lời') ? (
+                            <div className="space-y-1.5">
+                              <div
+                                className={`text-[11px] px-2.5 py-1 rounded-lg border-l-2 italic text-left ${
+                                  isMe
+                                    ? 'bg-blue-700/60 border-blue-200 text-blue-100'
+                                    : 'bg-slate-200 dark:bg-slate-700/60 border-blue-500 text-slate-600 dark:text-slate-300'
+                                }`}
+                              >
+                                {msg.content.split('\n└ ')[0].replace('┌ Trả lời ', 'Đang trả lời ')}
+                              </div>
+                              <div className="pt-0.5">
+                                {msg.content.split('\n└ ')[1] || msg.content}
+                              </div>
+                            </div>
+                          ) : (
+                            msg.content || msg.text
+                          )}
                         </div>
                       )}
 
@@ -792,6 +915,58 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                           <CheckCheck className="w-3.5 h-3.5 text-blue-500" />
                         )}
                       </div>
+                    </div>
+
+                    {/* Message Action Toolbar (Sao chép, Phản hồi, Báo cáo) */}
+                    <div
+                      className={`opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 px-1 py-0.5 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 self-center ${
+                        isMe ? 'order-first mr-1' : 'ml-1'
+                      }`}
+                    >
+                      {/* 1. Sao chép */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(msg.content || msg.text || '');
+                          setToastNotice('Đã sao chép nội dung tin nhắn!');
+                          setTimeout(() => setToastNotice(null), 2000);
+                        }}
+                        className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-800 dark:hover:text-white transition cursor-pointer"
+                        title="Sao chép nội dung"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* 2. Phản hồi */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReplyingToMessage({
+                            id: msg.id,
+                            senderName: isMe ? 'Chính bạn' : activeRoom.peerName,
+                            text: msg.content || msg.text || '',
+                          });
+                        }}
+                        className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                        title="Phản hồi tin nhắn này"
+                      >
+                        <Reply className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* 3. Báo cáo (Chỉ với tin nhắn của đối phương) */}
+                      {!isMe && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReportTargetMessage(msg);
+                            setIsReportModalOpen(true);
+                          }}
+                          className="p-1 rounded-full hover:bg-rose-50 dark:hover:bg-rose-950 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                          title="Báo cáo tin nhắn của đối phương"
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -831,94 +1006,164 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
             </div>
           ) : (
             <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-              {/* Ô chọn điểm hẹn giao dịch tại khuôn viên ĐH Phenikaa & Nút tạo chốt bán */}
-              <div className="mb-2.5 px-3 py-2 rounded-2xl bg-blue-50/80 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold shrink-0">
-                  <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span>Chọn điểm hẹn giao dịch:</span>
-                </div>
-                <div className="flex items-center gap-2 flex-1 min-w-[220px]">
-                  <select
-                    value={selectedSafePointId || ''}
-                    onChange={(e) => {
-                      const id = Number(e.target.value);
-                      setSelectedSafePointId(id || null);
-                      if (id) {
-                        const pt = PHENIKAA_SAFE_MEETING_POINTS.find((p) => p.id === id);
-                        if (pt) {
-                          setInputText(`📍 Mình hẹn gặp giao dịch tại: ${pt.name} (${pt.address}) nhé!`);
-                        }
-                      }
-                    }}
-                    className="flex-1 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
-                  >
-                    <option value="">-- Bấm để chọn điểm hẹn tại Trường ĐH Phenikaa --</option>
-                    {PHENIKAA_SAFE_MEETING_POINTS.map((pt) => (
-                      <option key={pt.id} value={pt.id}>
-                        {pt.name}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedSafePointId && (
+              {/* Thiết lập thời gian & Địa điểm hẹn gặp giao dịch an toàn tại ĐH Phenikaa */}
+              <div className="mb-2.5 p-3 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-slate-50/90 dark:from-slate-800/90 dark:to-slate-800/70 border border-blue-200/80 dark:border-slate-700 shadow-xs space-y-2.5 text-xs">
+                {/* Header row with Title & Seller-only Confirm Order button */}
+                <div className="flex items-center justify-between pb-1 border-b border-blue-100 dark:border-slate-700/60">
+                  <span className="font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5 text-xs">
+                    <Clock className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Lên lịch hẹn gặp giao dịch tại Phenikaa</span>
+                  </span>
+                  {isCurrentUserSeller && (
                     <button
                       type="button"
-                      onClick={() => {
-                        const pt = PHENIKAA_SAFE_MEETING_POINTS.find((p) => p.id === selectedSafePointId);
-                        if (pt) {
-                          handleSelectSafePoint(pt);
-                          setSelectedSafePointId(null);
-                        }
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shrink-0 shadow-xs transition"
-                      title="Gửi ngay tin nhắn điểm hẹn"
+                      onClick={openSaleModal}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition flex items-center gap-1 cursor-pointer"
+                      title="Mở form xác nhận chốt bán món đồ cho người này"
                     >
-                      Gửi điểm hẹn
+                      <PackageCheck className="w-3.5 h-3.5" />
+                      <span>Tạo chốt đơn bán</span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={openSaleModal}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 shadow-xs transition flex items-center gap-1.5"
-                    title="Mở form xác nhận chốt bán món đồ cho người này"
-                  >
-                    <PackageCheck className="w-4 h-4" />
-                    <span>Tạo chốt đơn bán</span>
-                  </button>
+                </div>
+
+                {/* 2 Sub-Sections (Thời gian vs Địa điểm) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+                  {/* Phần 1: Chọn thời gian hẹn (6h - 22h) */}
+                  <div className="space-y-1.5 bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-blue-100 dark:border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 text-[11px]">
+                        <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Thời gian hẹn (6h - 22h):</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={appointmentDate}
+                        min={getTodayStr()}
+                        onChange={(e) => setAppointmentDate(e.target.value)}
+                        className="px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="time"
+                        min="06:00"
+                        max="22:00"
+                        value={appointmentTime}
+                        onChange={(e) => setAppointmentTime(e.target.value)}
+                        className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 w-22 shrink-0"
+                      />
+                      {/* Khung giờ gợi ý đề xuất */}
+                      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none flex-1">
+                        {['09:00', '11:30', '14:30', '17:30', '19:30'].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setAppointmentTime(preset)}
+                            className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition shrink-0 cursor-pointer ${
+                              appointmentTime === preset
+                                ? 'bg-blue-600 text-white shadow-2xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600'
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Phần 2: Chọn địa điểm hẹn */}
+                  <div className="space-y-1.5 bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-blue-100 dark:border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 text-[11px]">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Điểm hẹn an toàn Phenikaa:</span>
+                      </label>
+                      {selectedSafePointId && (
+                        <span className="text-[10px] text-emerald-600 font-medium">Có Camera & Bảo vệ</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={selectedSafePointId || ''}
+                        onChange={(e) => setSelectedSafePointId(Number(e.target.value) || null)}
+                        className="flex-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
+                      >
+                        <option value="">-- Chọn điểm hẹn an toàn --</option>
+                        {PHENIKAA_SAFE_MEETING_POINTS.map((pt) => (
+                          <option key={pt.id} value={pt.id}>
+                            {pt.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleSendAppointment}
+                        className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shrink-0 shadow-xs transition cursor-pointer"
+                        title="Gửi tin nhắn chốt lịch hẹn gặp vào chat"
+                      >
+                        Gửi lịch hẹn
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {/* Replying quote preview bar */}
+              {replyingToMessage && (
+                <div className="flex items-center justify-between px-3.5 py-1.5 bg-blue-50 dark:bg-slate-800 border-l-4 border-blue-500 rounded-t-xl mb-1 text-xs">
+                  <div className="flex items-center gap-2 truncate">
+                    <Reply className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <div className="truncate">
+                      <span className="font-bold text-blue-600 dark:text-blue-400 block text-[11px]">
+                        Đang trả lời {replyingToMessage.senderName}:
+                      </span>
+                      <span className="text-slate-600 dark:text-slate-300 truncate block text-xs">
+                        {replyingToMessage.text}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReplyingToMessage(null)}
+                    className="p-1 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                 {/* Left Action Icons */}
                 <div className="flex items-center text-blue-600 dark:text-blue-400">
-                  <button
-                    type="button"
-                    onClick={openSaleModal}
-                    className="p-2 rounded-full hover:bg-emerald-50 dark:hover:bg-slate-800 transition text-emerald-600 dark:text-emerald-400"
-                    title="Tạo đơn chốt bán hàng"
-                  >
-                    <PackageCheck className="w-5 h-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsSafePointModalOpen(true)}
-                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                    title="Đề xuất điểm hẹn an toàn"
-                  >
-                    <MapPin className="w-5 h-5" />
-                  </button>
+                  {/* Chỉ hiện nút tạo chốt đơn nếu là người bán */}
+                  {isCurrentUserSeller && (
+                    <button
+                      type="button"
+                      onClick={openSaleModal}
+                      className="p-2 rounded-full hover:bg-emerald-50 dark:hover:bg-slate-800 transition text-emerald-600 dark:text-emerald-400 cursor-pointer"
+                      title="Tạo đơn chốt bán hàng"
+                    >
+                      <PackageCheck className="w-5 h-5" />
+                    </button>
+                  )}
+                  {/* Input gửi hình ảnh hoặc video từ máy tính */}
                   <input
                     type="file"
-                    ref={imageInputRef}
-                    accept="image/*"
+                    ref={mediaInputRef}
+                    accept="image/*,video/*"
                     className="hidden"
-                    onChange={handleImageUpload}
+                    onChange={handleMediaUpload}
                   />
                   <button
                     type="button"
-                    onClick={() => imageInputRef.current?.click()}
-                    disabled={isUploadingImage}
-                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition text-blue-600 disabled:opacity-50"
-                    title="Tải ảnh từ máy tính lên"
+                    onClick={() => mediaInputRef.current?.click()}
+                    disabled={isUploadingMedia}
+                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition text-blue-600 disabled:opacity-50 cursor-pointer"
+                    title="Gửi hình ảnh hoặc video từ máy tính"
                   >
                     <ImagePlus className="w-5 h-5" />
                   </button>
@@ -985,90 +1230,34 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80'
                 }
                 alt={activeRoom.peerName}
-                className="w-20 h-20 rounded-full object-cover mx-auto ring-4 ring-slate-100 dark:ring-slate-800"
+                onClick={() => activeRoom.peerUserId && navigate(`/seller/${activeRoom.peerUserId}`)}
+                className="w-20 h-20 rounded-full object-cover mx-auto ring-4 ring-slate-100 dark:ring-slate-800 cursor-pointer hover:opacity-90 transition"
+                title="Xem trang cá nhân của bạn học này"
               />
               <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900"></span>
             </div>
 
-            <h3 className="font-bold text-base text-slate-900 dark:text-white mt-3">
+            <h3
+              onClick={() => activeRoom.peerUserId && navigate(`/seller/${activeRoom.peerUserId}`)}
+              className="font-bold text-base text-slate-900 dark:text-white mt-3 cursor-pointer hover:text-blue-600 hover:underline transition"
+              title="Xem trang cá nhân của bạn học này"
+            >
               {activeRoom.peerName}
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
               {activeRoom.peerCampus || 'Trường Đại học Phenikaa'}
             </p>
 
-            <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300">
-              <Lock className="w-3 h-3 text-slate-500" />
-              <span>Được mã hóa đầu cuối</span>
-            </div>
-
-            {/* Quick Action Circle Buttons (Trang cá nhân, Tắt thông báo, Tìm kiếm) */}
-            <div className="flex items-center justify-center gap-6 mt-5">
-              <div
-                onClick={() => {
-                  if (activeRoom.peerUserId) {
-                    navigate(`/seller/${activeRoom.peerUserId}`);
-                  }
-                }}
-                className="flex flex-col items-center gap-1 cursor-pointer group"
-                title="Xem trang cá nhân & kho đồ của người này"
-              >
-                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-blue-50 group-hover:text-blue-600 transition">
-                  <User className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-blue-600" />
-                </div>
-                <span className="text-[10px] text-slate-500 group-hover:text-blue-600 font-medium">Trang cá nhân</span>
-              </div>
-              <div className="flex flex-col items-center gap-1 cursor-pointer group">
-                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-slate-200 transition">
-                  <BellOff className="w-4 h-4 text-slate-700 dark:text-slate-300" />
-                </div>
-                <span className="text-[10px] text-slate-500">Tắt thông báo</span>
-              </div>
-              <div className="flex flex-col items-center gap-1 cursor-pointer group">
-                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-slate-200 transition">
-                  <Search className="w-4 h-4 text-slate-700 dark:text-slate-300" />
-                </div>
-                <span className="text-[10px] text-slate-500">Tìm kiếm</span>
-              </div>
+            {/* Điểm karma thay thế đoạn mã hóa đầu cuối (không có sinh viên đã xác thực) */}
+            <div className="mt-2.5 inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold shadow-2xs">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>{activeRoom.peerKarma || 20} Karma</span>
             </div>
           </div>
 
           {/* Accordion Menu Sections */}
           <div className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-            {/* 1. Thông tin về đoạn chat */}
-            <div>
-              <button
-                onClick={() => toggleSection('chatInfo')}
-                className="w-full px-4 py-3 flex items-center justify-between font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40"
-              >
-                <span>Thông tin về đoạn chat</span>
-                {openSections.chatInfo ? (
-                  <ChevronDown className="w-4 h-4 text-slate-400" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
-                )}
-              </button>
-              {openSections.chatInfo && (
-                <div className="px-4 pb-3 space-y-2 text-xs text-slate-600 dark:text-slate-400">
-                  <div className="flex justify-between items-center py-1">
-                    <span>Trường đại học:</span>
-                    <span className="font-medium text-slate-900 dark:text-white">
-                      ĐH Phenikaa
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center py-1">
-                    <span>Điểm tín nhiệm:</span>
-                    <KarmaBadge score={activeRoom.peerKarma || 80} showText={true} />
-                  </div>
-                  <div className="flex justify-between items-center py-1">
-                    <span>Xác minh thẻ sinh viên:</span>
-                    <span className="text-emerald-600 font-semibold">Đã xác minh ✓</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 2. File phương tiện và file */}
+            {/* 1. File phương tiện và file */}
             <div>
               <button
                 onClick={() => toggleSection('media')}
@@ -1083,12 +1272,12 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
               </button>
               {openSections.media && (
                 <div className="px-4 pb-3 text-xs text-slate-400 italic">
-                  Chưa có hình ảnh hoặc file đính kèm nào được chia sẻ.
+                  Chưa có hình ảnh hoặc video nào được chia sẻ.
                 </div>
               )}
             </div>
 
-            {/* 3. Quyền riêng tư & Báo cáo */}
+            {/* 2. Quyền riêng tư & Báo cáo */}
             <div>
               <button
                 onClick={() => toggleSection('privacy')}
@@ -1104,15 +1293,8 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
               {openSections.privacy && (
                 <div className="px-4 pb-3 space-y-2">
                   <button
-                    onClick={() => setIsSafePointModalOpen(true)}
-                    className="w-full text-left py-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5"
-                  >
-                    <MapPin className="w-3.5 h-3.5" />
-                    Xem các điểm hẹn an toàn trong trường
-                  </button>
-                  <button
                     onClick={() => setIsReportModalOpen(true)}
-                    className="w-full text-left py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1.5"
+                    className="w-full text-left py-2 text-xs font-medium text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1.5 cursor-pointer"
                   >
                     <AlertTriangle className="w-3.5 h-3.5" />
                     Báo cáo tài khoản / Vi phạm hẹn gặp
@@ -1194,9 +1376,14 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
       {/* Modals */}
       <ReportModal
         isOpen={isReportModalOpen}
-        onClose={() => setIsReportModalOpen(false)}
-        targetUserId={activeRoom?.peerUserId}
-        targetUserName={activeRoom?.peerName}
+        onClose={() => {
+          setIsReportModalOpen(false);
+          setReportTargetMessage(null);
+        }}
+        targetUserId={reportTargetMessage?.senderId || activeRoom?.peerUserId}
+        targetUserName={reportTargetMessage ? activeRoom?.peerName : activeRoom?.peerName}
+        listingId={activeRoom?.listingId}
+        listingTitle={reportTargetMessage ? `Tin nhắn vi phạm: "${(reportTargetMessage.content || reportTargetMessage.text || '').slice(0, 60)}..."` : activeRoom?.listingTitle}
       />
 
       <SafeMeetingPointsModal

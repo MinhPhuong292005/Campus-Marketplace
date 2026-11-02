@@ -209,6 +209,7 @@ public class ChatServiceImpl implements ChatService {
         return ChatRoomRes.builder()
                 .id(room.getId())
                 .listingId(listing != null ? listing.getId() : null)
+                .sellerId(listing != null && listing.getUser() != null ? listing.getUser().getId() : null)
                 .listingTitle(listing != null ? listing.getTitle() : null)
                 .listingPrice(listing != null ? listing.getPrice() : null)
                 .listingImage(listingImg)

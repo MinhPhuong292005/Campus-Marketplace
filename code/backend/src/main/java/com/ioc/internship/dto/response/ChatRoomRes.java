@@ -17,6 +17,7 @@ public class ChatRoomRes {
 
     // Associated Listing
     private Long listingId;
+    private Long sellerId;
     private String listingTitle;
     private BigDecimal listingPrice;
     private String listingImage;
