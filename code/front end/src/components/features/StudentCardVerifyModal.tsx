@@ -1,41 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   CreditCard,
-  Upload,
-  CheckCircle2,
   AlertCircle,
-  FileText,
   ShieldCheck,
-  RefreshCw,
-  Eye,
   Sparkles,
-  Zap,
-  Check,
+  Camera,
+  Sun,
+  Maximize2,
+  Lock,
+  Clock,
+  Send,
+  RotateCcw,
 } from 'lucide-react';
 import { BaseButton } from '../base/BaseButton';
-import { ocrService } from '../../services/ocrService';
-import { OcrVerificationResult } from '../../types';
 import { useAuthStore } from '../../store/useAuthStore';
+import { studentCardService } from '../../services/studentCardService';
 
 interface StudentCardVerifyModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onVerifiedSuccess?: (res: OcrVerificationResult) => void;
+  onSubmittedSuccess?: () => void;
+  onVerifiedSuccess?: (res?: any) => void;
 }
 
 export const StudentCardVerifyModal: React.FC<StudentCardVerifyModalProps> = ({
   isOpen,
   onClose,
+  onSubmittedSuccess,
   onVerifiedSuccess,
 }) => {
-  const { user, updateKarma } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
   const [frontImage, setFrontImage] = useState<string | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanStep, setScanStep] = useState<number>(0);
-  const [result, setResult] = useState<OcrVerificationResult | null>(null);
+  const [backImage, setBackImage] = useState<string | null>(null);
+  const [notes, setNotes] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittedSuccess, setIsSubmittedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [showGuideModal, setShowGuideModal] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
+
+  // Load existing submission if user has pending card
+  useEffect(() => {
+    if (user?.id) {
+      const existing = studentCardService.getSubmission(user.id);
+      if (existing) {
+        setFrontImage(existing.frontImageUrl);
+        setBackImage(existing.backImageUrl);
+        if (user.studentCardStatus === 'PENDING') {
+          setIsSubmittedSuccess(true);
+        }
+      } else if (user.studentCardFrontUrl) {
+        setFrontImage(user.studentCardFrontUrl);
+        setBackImage(user.studentCardBackUrl || null);
+        if (user.studentCardStatus === 'PENDING') {
+          setIsSubmittedSuccess(true);
+        }
+      }
+    }
+  }, [user]);
 
   if (!isOpen) return null;
 
@@ -44,86 +66,100 @@ export const StudentCardVerifyModal: React.FC<StudentCardVerifyModalProps> = ({
     if (file) {
       setFrontImage(URL.createObjectURL(file));
       setErrorMsg(null);
-      setResult(null);
+    }
+  };
+
+  const handleSelectBack = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setBackImage(URL.createObjectURL(file));
+      setErrorMsg(null);
     }
   };
 
   const handleUsePhenikaaSample = () => {
     setFrontImage('/images/phenikaa_card_sample.jpg');
+    setBackImage('/images/phenikaa_card_guide.jpg');
     setErrorMsg(null);
-    setResult(null);
   };
 
-  const handleStartOcrScan = async () => {
-    if (!frontImage) {
-      setErrorMsg('Vui lòng tải lên ảnh chụp thẻ sinh viên Trường Đại học Phenikaa.');
+  const handleSubmitVerification = async () => {
+    if (!frontImage || !backImage) {
+      setErrorMsg('Vui lòng chụp và tải lên đầy đủ ảnh cả 2 mặt (mặt trước và mặt sau) của thẻ sinh viên.');
+      return;
+    }
+
+    if (!user) {
+      setErrorMsg('Vui lòng đăng nhập tài khoản sinh viên trước khi gửi xác thực.');
       return;
     }
 
     try {
-      setIsScanning(true);
+      setIsSubmitting(true);
       setErrorMsg(null);
-      setScanStep(1); // Cân chỉnh góc nghiêng
 
-      const t1 = setTimeout(() => setScanStep(2), 250); // Nhận diện dải cam & logo
-      const t2 = setTimeout(() => setScanStep(3), 500); // Bóc tách họ tên, MSSV, barcode
+      const res = await studentCardService.submitVerificationRequest({
+        user,
+        frontImageUrl: frontImage,
+        backImageUrl: backImage,
+        notes: notes.trim() || undefined,
+      });
 
-      const res = await ocrService.verifyStudentCard(frontImage);
-      clearTimeout(t1);
-      clearTimeout(t2);
-
-      if (res.success && res.data) {
-        setResult(res.data);
-        if (user && res.data.autoApproved) {
-          updateKarma(user.karmaScore + (res.data.karmaAwarded || 15));
+      if (res.success) {
+        setIsSubmittedSuccess(true);
+        updateUser({
+          studentCardStatus: 'PENDING',
+          studentCardFrontUrl: frontImage,
+          studentCardBackUrl: backImage,
+        });
+        if (onSubmittedSuccess) {
+          onSubmittedSuccess();
         }
         if (onVerifiedSuccess) {
-          onVerifiedSuccess(res.data);
+          onVerifiedSuccess({ status: 'PENDING' });
         }
       } else {
-        setErrorMsg(res.message || 'Không thể bóc tách thông tin thẻ sinh viên.');
+        setErrorMsg(res.message || 'Không thể gửi hồ sơ xác thực lúc này.');
       }
     } catch {
-      setErrorMsg('Mô hình AI OCR gặp sự cố khi xử lý ảnh thẻ. Vui lòng thử lại với ảnh rõ nét hơn.');
+      setErrorMsg('Đã có lỗi xảy ra khi gửi hồ sơ xác thực. Vui lòng thử lại sau.');
     } finally {
-      setIsScanning(false);
-      setScanStep(0);
+      setIsSubmitting(false);
     }
   };
 
-  const handleReset = () => {
-    setFrontImage(null);
-    setResult(null);
+  const handleResubmit = () => {
+    setIsSubmittedSuccess(false);
     setErrorMsg(null);
-    setScanStep(0);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-7 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-7 max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25">
+            <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0">
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                  AI OCR Quét Thẻ Sinh Viên Phenikaa
+                  Xác Thực Thẻ Sinh Viên Phenikaa
                 </h2>
-                <span className="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-[10px] font-extrabold flex items-center gap-1">
-                  <Zap className="w-3 h-3 fill-current" /> Fast &lt; 0.8s
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[10px] font-extrabold flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> Ban Quản Trị Duyệt
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Huấn luyện chuyên biệt nhận diện mẫu thẻ sinh viên Trường Đại học Phenikaa (+15 Karma)
+                Chụp ảnh 2 mặt thẻ sinh viên gửi Ban Quản Trị xét duyệt và cấp Tích Xanh chính chủ (+15 Karma)
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Đóng"
           >
             <X className="w-5 h-5" />
           </button>
@@ -136,288 +172,306 @@ export const StudentCardVerifyModal: React.FC<StudentCardVerifyModalProps> = ({
           </div>
         )}
 
-        {!result ? (
-          <div className="mt-5 space-y-5">
-            {/* Template Standard Guide Banner */}
-            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-xs">
-              <div className="flex items-center gap-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
-                <span className="text-slate-700 dark:text-slate-300 font-medium text-[11px] sm:text-xs">
-                  Mô hình đã được huấn luyện sẵn theo <strong>phôi thẻ chuẩn Phenikaa University</strong>
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowGuideModal(true)}
-                className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 shrink-0"
-              >
-                <Eye className="w-3.5 h-3.5" /> Xem quy chuẩn
-              </button>
-            </div>
-
-            {/* Upload or Sample Selection Area */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <CreditCard className="w-4 h-4 text-blue-600" />
-                  Ảnh mặt trước thẻ sinh viên (Đầy đủ dải cam &amp; logo) *
-                </label>
-                <button
-                  type="button"
-                  onClick={handleUsePhenikaaSample}
-                  className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1 cursor-pointer bg-blue-50 dark:bg-blue-950/60 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-900/50"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  Chọn ảnh mẫu thẻ Phenikaa chuẩn
-                </button>
-              </div>
-
-              {frontImage ? (
-                <div className="relative aspect-[16/10] max-h-72 w-full rounded-2xl overflow-hidden border-2 border-blue-500/50 shadow-lg group bg-slate-900 flex items-center justify-center">
-                  <img
-                    src={frontImage}
-                    alt="Mặt trước thẻ sinh viên Phenikaa"
-                    className="w-full h-full object-contain"
-                  />
-
-                  {/* AI Scanning Active HUD Effect */}
-                  {isScanning && (
-                    <div className="absolute inset-0 bg-blue-950/40 backdrop-blur-[1px] flex flex-col justify-between p-4 pointer-events-none">
-                      {/* Laser scanning beam */}
-                      <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_15px_#22d3ee] animate-bounce" />
-
-                      {/* Dynamic Bounding Boxes */}
-                      <div className="flex justify-between items-start">
-                        <div className="px-2 py-1 rounded bg-blue-600/90 text-white text-[10px] font-mono font-bold animate-pulse">
-                          [✓ PHENIKAA UNIVERSITY LOGO]
-                        </div>
-                        <div className="px-2 py-1 rounded bg-amber-500/90 text-white text-[10px] font-mono font-bold animate-pulse">
-                          [✓ PHENIKAA - UNI ★★★★]
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-end">
-                        <div className="px-2 py-1 rounded bg-emerald-600/90 text-white text-[10px] font-mono font-bold">
-                          [✓ MSSV &amp; BARCODE]
-                        </div>
-                        <div className="px-2 py-1 rounded bg-purple-600/90 text-white text-[10px] font-mono font-bold">
-                          [✓ VIETNAMESE OCR CRNN]
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {!isScanning && (
-                    <button
-                      onClick={() => setFrontImage(null)}
-                      className="absolute top-3 right-3 p-1.5 rounded-xl bg-black/70 text-white hover:bg-rose-600 transition shadow-md"
-                      title="Chọn lại ảnh"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <label className="aspect-[16/10] max-h-64 w-full rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 flex flex-col items-center justify-center cursor-pointer bg-slate-50 dark:bg-slate-800/40 p-6 text-center transition-all group">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <Upload className="w-7 h-7" />
-                  </div>
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                    Bấm để tải ảnh thẻ sinh viên hoặc kéo thả vào đây
-                  </span>
-                  <span className="text-xs text-slate-400 mt-1">
-                    Định dạng PNG, JPG, JPEG (Khuyên dùng ảnh chụp phẳng, không lóa)
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleSelectFront}
-                    className="hidden"
-                  />
-                </label>
-              )}
-            </div>
-
-            {/* Scanning Progress Status */}
-            {isScanning && (
-              <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900/60 space-y-2.5">
-                <div className="flex items-center justify-between text-xs font-bold text-blue-700 dark:text-blue-300">
-                  <span className="flex items-center gap-2">
-                    <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-                    {scanStep === 1 && 'AI đang căn chỉnh góc nghiêng và khử nhiễu...'}
-                    {scanStep === 2 && 'Đang nhận diện điểm mốc (Dải cam, Logo Phenikaa)...'}
-                    {scanStep === 3 && 'Mô hình CRNN đang bóc tách Họ tên, MSSV, Barcode...'}
-                    {scanStep === 0 && 'Đang hoàn tất phân tích thẻ sinh viên...'}
-                  </span>
-                  <span className="font-mono text-blue-600 font-extrabold">&lt; 0.8s</span>
-                </div>
-                <div className="w-full bg-blue-200 dark:bg-blue-900/60 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: scanStep === 1 ? '35%' : scanStep === 2 ? '70%' : '95%' }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex items-center justify-between pt-2">
-              <button
-                type="button"
-                onClick={handleUsePhenikaaSample}
-                className="text-xs font-bold text-slate-500 hover:text-blue-600 underline flex items-center gap-1"
-              >
-                <FileText className="w-3.5 h-3.5" /> Dùng thẻ mẫu Đặng Viết Giang (23012101)
-              </button>
-
-              <div className="flex items-center gap-3">
-                <BaseButton variant="outline" size="sm" onClick={onClose} disabled={isScanning}>
-                  Đóng
-                </BaseButton>
-                <BaseButton
-                  variant="primary"
-                  size="sm"
-                  onClick={handleStartOcrScan}
-                  isLoading={isScanning}
-                  disabled={!frontImage}
-                  className="gap-1.5 shadow-lg shadow-blue-500/25"
-                >
-                  <Zap className="w-4 h-4" />
-                  <span>Quét thẻ với AI OCR</span>
-                </BaseButton>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* Result Screen */
-          <div className="mt-5 space-y-5 animate-in zoom-in-95 duration-200">
-            {/* Big Success Banner */}
-            <div className="p-4 rounded-3xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/30">
-                <CheckCircle2 className="w-8 h-8" />
+        {/* MÀN HÌNH 1: ĐÃ GỬI DUYỆT THÀNH CÔNG / ĐANG CHỜ QUẢN TRỊ VIÊN DUYỆT */}
+        {isSubmittedSuccess || user?.studentCardStatus === 'PENDING' ? (
+          <div className="mt-5 space-y-5 animate-in zoom-in-95 duration-200 text-center sm:text-left">
+            <div className="p-5 rounded-3xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 flex flex-col sm:flex-row items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/30">
+                <Clock className="w-8 h-8 animate-pulse" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                  <h3 className="text-base font-black text-emerald-900 dark:text-emerald-200">
-                    Xác minh Thẻ Sinh Viên Phenikaa Thành Công!
+                  <h3 className="text-base font-black text-amber-950 dark:text-amber-200">
+                    Hồ Sơ Xác Thực Đang Chờ Ban Quản Trị Duyệt
                   </h3>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-200/60 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-extrabold flex items-center gap-1">
-                    <Check className="w-3 h-3 stroke-[3]" /> Khớp mẫu chuẩn 100%
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-200/60 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 text-[10px] font-extrabold">
+                    ⏳ Đang chờ kiểm duyệt
                   </span>
                 </div>
-                <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
-                  Độ tin cậy nhận diện AI: <strong>{result.confidenceScore}%</strong>. Tài khoản sinh viên đã được cấp
-                  <span className="font-black text-blue-600 dark:text-blue-400"> Tích Xanh Chính Chủ</span> và cộng thưởng{' '}
-                  <span className="font-extrabold text-emerald-600 dark:text-emerald-300">
-                    +{result.karmaAwarded} Campus Karma
-                  </span>!
+                <p className="text-xs text-amber-800 dark:text-amber-300 mt-1 leading-relaxed">
+                  Ảnh 2 mặt thẻ sinh viên của bạn đã được chuyển đến Ban Quản Trị Chợ Sinh Viên Phenikaa. Quản trị viên sẽ đối chiếu Họ tên, MSSV và kích hoạt{' '}
+                  <strong className="text-blue-600 dark:text-blue-400">Tích Xanh chính chủ (+15 Karma)</strong> cho bạn trong vòng 24 giờ.
                 </p>
               </div>
             </div>
 
-            {/* Detailed Parsed Attributes Grid */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 p-3 bg-slate-50/60 dark:bg-slate-800/40">
-                <span className="text-slate-500">Trường đại học:</span>
-                <span className="font-black text-blue-600 dark:text-blue-400">
-                  {result.universityName || 'TRƯỜNG ĐẠI HỌC PHENIKAA'}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 p-3">
-                <span className="text-slate-500">Họ và tên sinh viên:</span>
-                <span className="font-extrabold text-slate-900 dark:text-white uppercase tracking-wide">
-                  {result.fullName}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 p-3 bg-slate-50/60 dark:bg-slate-800/40">
-                <span className="text-slate-500">Mã số sinh viên (MSSV):</span>
-                <span className="font-mono font-black text-slate-900 dark:text-white text-sm">
-                  {result.studentCode}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 p-3">
-                <span className="text-slate-500">Ngày sinh (Date of birth):</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {result.dateOfBirth || '15/05/2005'}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 p-3 bg-slate-50/60 dark:bg-slate-800/40">
-                <span className="text-slate-500">Ngành học (Major):</span>
-                <span className="font-bold text-slate-900 dark:text-white">
-                  {result.major || 'QUẢN TRỊ KINH DOANH'}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 p-3">
-                <span className="text-slate-500">Khoa trực thuộc:</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {result.faculty || 'KHOA KINH TẾ VÀ KINH DOANH'}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 p-3 bg-slate-50/60 dark:bg-slate-800/40">
-                <span className="text-slate-500">Khóa học &amp; Niên khóa:</span>
-                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                  {result.cohort || 'ĐH_K17.40'} • ({result.academicYear || '2023-2027'})
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 p-3">
-                <span className="text-slate-500">Đối soát Barcode &amp; QR:</span>
-                <span className="font-bold text-emerald-600 flex items-center gap-1.5">
-                  <Check className="w-4 h-4 stroke-[3]" /> Trùng khớp 100% với MSSV ({result.studentCode})
-                </span>
+            {/* Xem lại 2 ảnh thẻ đã gửi */}
+            <div>
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                Ảnh 2 mặt thẻ sinh viên bạn đã gửi duyệt:
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {frontImage && (
+                  <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 space-y-2">
+                    <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                      Mặt trước thẻ sinh viên
+                    </span>
+                    <div className="relative aspect-[16/10] max-h-48 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 dark:border-slate-700">
+                      <img src={frontImage} alt="Mặt trước thẻ" className="w-full h-full object-contain" />
+                    </div>
+                  </div>
+                )}
+                {backImage && (
+                  <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 space-y-2">
+                    <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">
+                      Mặt sau thẻ sinh viên
+                    </span>
+                    <div className="relative aspect-[16/10] max-h-48 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 dark:border-slate-700">
+                      <img src={backImage} alt="Mặt sau thẻ" className="w-full h-full object-contain" />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Footer Buttons */}
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
-                onClick={handleReset}
-                className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline font-medium"
+                onClick={handleResubmit}
+                className="text-xs font-bold text-slate-500 hover:text-blue-600 underline flex items-center gap-1 cursor-pointer"
               >
-                Quét thẻ sinh viên khác
+                <RotateCcw className="w-3.5 h-3.5" /> Chụp lại hoặc tải ảnh thẻ khác
               </button>
               <BaseButton variant="primary" size="sm" onClick={onClose} className="px-6">
-                Hoàn tất &amp; Đóng
+                Đã hiểu &amp; Đóng
               </BaseButton>
+            </div>
+          </div>
+        ) : (
+          /* MÀN HÌNH 2: FORM TẢI ẢNH 2 MẶT & LƯU Ý */
+          <div className="mt-5 space-y-5">
+            {/* KHỐI LƯU Ý CHỤP ẢNH THẺ (ĐỦ SÁNG, RÕ RÀNG, ĐỦ 4 GÓC,...) */}
+            <div className="p-4 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 space-y-2.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-blue-900 dark:text-blue-200">
+                <Sun className="w-4 h-4 text-amber-500" />
+                <span>Lưu ý quan trọng để ảnh thẻ được Ban Quản Trị duyệt nhanh:</span>
+              </div>
+              <ul className="text-[11px] text-blue-950/80 dark:text-blue-300/90 space-y-1.5 pl-1 leading-relaxed">
+                <li className="flex items-start gap-2">
+                  <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <span><strong>Chụp ở nơi đủ ánh sáng:</strong> Không bị tối hay sấp bóng; tắt đèn flash điện thoại để tránh bị lóa sáng phản chiếu trên bề mặt thẻ nhựa.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <span><strong>Ảnh rõ nét, không mờ nhòe:</strong> Chụp vuông góc, chữ và số (Họ tên, Mã sinh viên, Niên khóa) phải đọc được rõ ràng.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <span><strong>Đầy đủ 4 góc viền:</strong> Đặt thẻ trên mặt phẳng bàn, chụp thấy trọn vẹn 4 góc thẻ, không dùng ngón tay che khuất thông tin.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="font-bold text-blue-600 shrink-0">•</span>
+                  <span><strong>Thẻ sinh viên chính chủ:</strong> Thông tin trên thẻ phải trùng khớp với Họ tên và Mã sinh viên của tài khoản đăng ký.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Quick Test Sample Button */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Tải lên 2 mặt thẻ sinh viên của bạn:
+              </span>
+              <button
+                type="button"
+                onClick={handleUsePhenikaaSample}
+                className="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1 cursor-pointer bg-blue-50 dark:bg-blue-950/60 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-blue-900/50 transition-colors"
+                title="Tự động chọn 2 mặt thẻ mẫu Phenikaa để kiểm thử nhanh"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                <span>Dùng ảnh mẫu thẻ Phenikaa chuẩn (2 mặt)</span>
+              </button>
+            </div>
+
+            {/* 2 VÙNG TẢI ẢNH: MẶT TRƯỚC VÀ MẶT SAU */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Mặt trước */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <CreditCard className="w-4 h-4 text-blue-600" />
+                    <span>1. Mặt trước thẻ *</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal">(Ảnh, Họ tên, MSSV, Logo)</span>
+                </label>
+
+                {frontImage ? (
+                  <div className="relative aspect-[16/10] max-h-52 w-full rounded-2xl overflow-hidden border-2 border-blue-500/60 shadow-md group bg-slate-900 flex items-center justify-center">
+                    <img
+                      src={frontImage}
+                      alt="Mặt trước thẻ sinh viên"
+                      className="w-full h-full object-contain"
+                    />
+                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-bold shadow-xs">
+                      Mặt trước
+                    </div>
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage({ url: frontImage, title: 'Mặt trước thẻ sinh viên' })}
+                        className="p-1.5 rounded-lg bg-black/70 text-white hover:bg-black/90 transition"
+                        title="Xem ảnh lớn"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFrontImage(null)}
+                        className="p-1.5 rounded-lg bg-black/70 text-white hover:bg-rose-600 transition"
+                        title="Chọn lại ảnh"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="aspect-[16/10] max-h-52 w-full rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 flex flex-col items-center justify-center cursor-pointer bg-slate-50 dark:bg-slate-800/40 p-4 text-center transition-all group">
+                    <div className="w-11 h-11 rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Tải ảnh mặt trước
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">
+                      Chụp rõ ảnh chân dung &amp; mã sinh viên
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleSelectFront}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Mặt sau */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <CreditCard className="w-4 h-4 text-purple-600" />
+                    <span>2. Mặt sau thẻ *</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal">(Dải từ, Mã vạch, Niên khóa)</span>
+                </label>
+
+                {backImage ? (
+                  <div className="relative aspect-[16/10] max-h-52 w-full rounded-2xl overflow-hidden border-2 border-purple-500/60 shadow-md group bg-slate-900 flex items-center justify-center">
+                    <img
+                      src={backImage}
+                      alt="Mặt sau thẻ sinh viên"
+                      className="w-full h-full object-contain"
+                    />
+                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-purple-600 text-white text-[10px] font-bold shadow-xs">
+                      Mặt sau
+                    </div>
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImage({ url: backImage, title: 'Mặt sau thẻ sinh viên' })}
+                        className="p-1.5 rounded-lg bg-black/70 text-white hover:bg-black/90 transition"
+                        title="Xem ảnh lớn"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBackImage(null)}
+                        className="p-1.5 rounded-lg bg-black/70 text-white hover:bg-rose-600 transition"
+                        title="Chọn lại ảnh"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="aspect-[16/10] max-h-52 w-full rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-purple-500 flex flex-col items-center justify-center cursor-pointer bg-slate-50 dark:bg-slate-800/40 p-4 text-center transition-all group">
+                    <div className="w-11 h-11 rounded-2xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Tải ảnh mặt sau
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">
+                      Chụp rõ mã vạch barcode &amp; thông tin thẻ
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleSelectBack}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* Ghi chú thêm (Tùy chọn) */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Ghi chú thêm gửi Quản trị viên (Không bắt buộc)
+              </label>
+              <input
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="vd: Thẻ mới cấp lại kỳ này, sinh viên K17 khoa CNTT..."
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                <Lock className="w-3.5 h-3.5" /> Dữ liệu được bảo mật cho mục đích xác thực nội bộ
+              </span>
+
+              <div className="flex items-center gap-2.5">
+                <BaseButton variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
+                  Hủy
+                </BaseButton>
+                <BaseButton
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSubmitVerification}
+                  isLoading={isSubmitting}
+                  disabled={!frontImage || !backImage}
+                  className="bg-blue-600 hover:bg-blue-500 text-white gap-1.5 shadow-lg shadow-blue-500/20"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Gửi Ban Quản Trị duyệt (+15 Karma)</span>
+                </BaseButton>
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Popover Guide Modal: Mẫu thẻ sinh viên Phenikaa chuẩn */}
-      {showGuideModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="relative w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-600" />
-                Mẫu Quy Chuẩn Thẻ Sinh Viên Phenikaa
-              </h3>
+      {/* Modal Phóng To Xem Chi Tiết Ảnh Thẻ */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative max-w-2xl w-full bg-slate-950 p-3 rounded-3xl border border-slate-800 space-y-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between text-white text-xs font-bold px-2">
+              <span>{previewImage.title}</span>
               <button
                 type="button"
-                onClick={() => setShowGuideModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
+                onClick={() => setPreviewImage(null)}
+                className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-
-            <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800">
+            <div className="rounded-2xl overflow-hidden bg-black flex items-center justify-center max-h-[70vh]">
               <img
-                src="/images/phenikaa_card_guide.jpg"
-                alt="Quy chuẩn thẻ sinh viên Phenikaa"
-                className="w-full h-auto object-contain max-h-[60vh]"
+                src={previewImage.url}
+                alt={previewImage.title}
+                className="w-full h-auto max-h-[68vh] object-contain"
               />
-            </div>
-
-            <p className="text-[11px] text-slate-500 text-center">
-              Hệ thống AI nhận diện theo đúng cấu trúc phôi thẻ sinh viên chuẩn chính quy Phenikaa University.
-            </p>
-
-            <div className="text-right">
-              <BaseButton variant="primary" size="sm" onClick={() => setShowGuideModal(false)}>
-                Đã hiểu
-              </BaseButton>
             </div>
           </div>
         </div>

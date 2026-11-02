@@ -63,7 +63,12 @@ export interface AdminUserItem {
   campusName?: string;
   dormitory?: string;
   studentCardVerified: boolean;
+  studentCardStatus?: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+  studentCardFrontUrl?: string;
+  studentCardBackUrl?: string;
   studentCardImageUrl?: string;
+  studentCardRejectReason?: string;
+  studentCardSubmittedAt?: string;
   karmaScore: number;
   role: string;
   status: string;
@@ -360,17 +365,56 @@ export const adminService = {
     }
 
     const users = getStoredUsers();
-    const updated = users.map((u) => {
+    const updated: AdminUserItem[] = users.map((u) => {
       if (u.id === id) {
+        const isApproved = payload.action === 'APPROVE';
+        const isRejected = payload.action === 'REJECT';
+        const cardStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' = isApproved
+          ? 'APPROVED'
+          : isRejected
+          ? 'REJECTED'
+          : 'NONE';
         return {
           ...u,
-          studentCardVerified: payload.action === 'APPROVE',
-          karmaScore: payload.karmaAward ? u.karmaScore + payload.karmaAward : u.karmaScore,
+          studentCardVerified: isApproved,
+          studentCardStatus: cardStatus,
+          studentCardRejectReason: isRejected
+            ? (payload.reason || 'Ảnh thẻ mờ, không rõ nét hoặc không trùng khớp thông tin')
+            : undefined,
+          karmaScore: isApproved && payload.karmaAward ? u.karmaScore + payload.karmaAward : u.karmaScore,
         };
       }
       return u;
     });
     saveStoredUsers(updated);
+
+    // Đồng bộ vào tài khoản nếu sinh viên đang đăng nhập
+    try {
+      const authRaw = localStorage.getItem('user_info');
+      if (authRaw) {
+        const authUser = JSON.parse(authRaw);
+        if (authUser?.id === id) {
+          const isApproved = payload.action === 'APPROVE';
+          const isRejected = payload.action === 'REJECT';
+          const cardStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' = isApproved
+            ? 'APPROVED'
+            : isRejected
+            ? 'REJECTED'
+            : 'NONE';
+          const nextUser = {
+            ...authUser,
+            studentCardVerified: isApproved,
+            studentCardStatus: cardStatus,
+            studentCardRejectReason: isRejected
+              ? (payload.reason || 'Ảnh thẻ mờ, không rõ nét hoặc không trùng khớp thông tin')
+              : undefined,
+            karmaScore: isApproved && payload.karmaAward ? authUser.karmaScore + payload.karmaAward : authUser.karmaScore,
+          };
+          localStorage.setItem('user_info', JSON.stringify(nextUser));
+          window.dispatchEvent(new CustomEvent('campus_user_updated', { detail: nextUser }));
+        }
+      }
+    } catch {}
 
     return {
       success: true,
@@ -510,4 +554,7 @@ export const adminService = {
       return { success: true, data: [] };
     }
   },
+
+  getStoredUsers,
+  saveStoredUsers,
 };

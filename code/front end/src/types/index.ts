@@ -24,6 +24,11 @@ export interface User {
   academicYear?: string;
   bio?: string;
   studentCardVerified: boolean;
+  studentCardStatus?: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+  studentCardFrontUrl?: string;
+  studentCardBackUrl?: string;
+  studentCardRejectReason?: string;
+  studentCardSubmittedAt?: string;
   karmaScore: number;
   role: UserRole;
   status: UserStatus;

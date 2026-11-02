@@ -930,15 +930,44 @@ export const ProfilePage: React.FC = () => {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <BaseButton
-                      variant="outline"
-                      size="sm"
-                      className="bg-emerald-500/20 border-emerald-300/40 text-white hover:bg-emerald-500/30 gap-1.5"
-                      onClick={() => setIsOcrModalOpen(true)}
-                    >
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>Xác minh thẻ SV (Thủ công)</span>
-                    </BaseButton>
+                    {user.studentCardVerified ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-300/40 text-white text-xs font-bold">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                        <span>Thẻ SV đã xác thực</span>
+                      </span>
+                    ) : user.studentCardStatus === 'PENDING' ? (
+                      <BaseButton
+                        variant="outline"
+                        size="sm"
+                        className="bg-amber-500/20 border-amber-300/40 text-amber-100 hover:bg-amber-500/30 gap-1.5"
+                        onClick={() => setIsOcrModalOpen(true)}
+                        title="Bấm để xem lại ảnh 2 mặt thẻ đã gửi"
+                      >
+                        <Clock className="w-4 h-4 animate-spin text-amber-300" />
+                        <span>⏳ Chờ BQT duyệt thẻ</span>
+                      </BaseButton>
+                    ) : user.studentCardStatus === 'REJECTED' ? (
+                      <BaseButton
+                        variant="outline"
+                        size="sm"
+                        className="bg-rose-500/20 border-rose-300/40 text-rose-100 hover:bg-rose-500/30 gap-1.5"
+                        onClick={() => setIsOcrModalOpen(true)}
+                        title="Thẻ bị từ chối, bấm để chụp lại ảnh 2 mặt rõ nét"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-rose-300" />
+                        <span>Chụp lại thẻ SV</span>
+                      </BaseButton>
+                    ) : (
+                      <BaseButton
+                        variant="outline"
+                        size="sm"
+                        className="bg-emerald-500/20 border-emerald-300/40 text-white hover:bg-emerald-500/30 gap-1.5"
+                        onClick={() => setIsOcrModalOpen(true)}
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Xác thực thẻ SV (+15 Karma)</span>
+                      </BaseButton>
+                    )}
                     <BaseButton
                       variant="outline"
                       size="sm"
@@ -1379,16 +1408,15 @@ export const ProfilePage: React.FC = () => {
         onUpdated={handleProfileUpdated}
       />
 
-      {/* Student Card OCR Modal */}
+      {/* Student Card Verification Modal (Chụp ảnh 2 mặt gửi BQT duyệt) */}
       <StudentCardVerifyModal
         isOpen={isOcrModalOpen}
         onClose={() => setIsOcrModalOpen(false)}
-        onVerifiedSuccess={(res) => {
+        onSubmittedSuccess={() => {
           if (user) {
             handleProfileUpdated({
               ...user,
-              studentCardVerified: true,
-              karmaScore: user.karmaScore + res.karmaAwarded,
+              studentCardStatus: 'PENDING',
             });
           }
         }}

@@ -2537,35 +2537,86 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Student Card Image Preview */}
+            {/* Student Card Image Preview (Ảnh 2 mặt thẻ sinh viên: Mặt trước & Mặt sau) */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="font-semibold text-slate-300 flex items-center gap-1.5">
+              <div className="flex items-center justify-between mb-2">
+                <label className="font-semibold text-slate-300 flex items-center gap-1.5 text-xs">
                   <CreditCard className="w-4 h-4 text-indigo-400" />
-                  Ảnh chụp Thẻ Sinh Viên thực tế để đối chiếu:
+                  Ảnh chụp 2 mặt Thẻ Sinh Viên thực tế để đối chiếu:
                 </label>
-                {selectedCardUser.studentCardImageUrl && (
-                  <a
-                    href={selectedCardUser.studentCardImageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-indigo-400 hover:text-indigo-300 text-[11px] flex items-center gap-1 font-medium"
-                  >
-                    <ExternalLink className="w-3 h-3" /> Mở ảnh gốc
-                  </a>
-                )}
+                <span className="text-[10px] text-slate-400 font-medium">
+                  (Mặt trước &amp; Mặt sau)
+                </span>
               </div>
 
-              {selectedCardUser.studentCardImageUrl ? (
-                <div className="relative group rounded-xl overflow-hidden border-2 border-indigo-500/30 bg-slate-950 flex items-center justify-center max-h-[340px]">
-                  <img
-                    src={selectedCardUser.studentCardImageUrl}
-                    alt={`Thẻ sinh viên của ${selectedCardUser.fullName}`}
-                    className="w-full h-auto max-h-[320px] object-contain rounded-lg transition-transform group-hover:scale-[1.02]"
-                  />
-                  <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-700 text-[10px] text-slate-300 flex items-center gap-1.5">
-                    <BadgeCheck className="w-3.5 h-3.5 text-blue-400" />
-                    Thẻ SV chính quy Phenikaa University
+              {selectedCardUser.studentCardFrontUrl || selectedCardUser.studentCardImageUrl || selectedCardUser.studentCardBackUrl ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Mặt trước */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-300">
+                      <span className="font-bold text-blue-400">1. Mặt trước thẻ</span>
+                      {(selectedCardUser.studentCardFrontUrl || selectedCardUser.studentCardImageUrl) && (
+                        <a
+                          href={selectedCardUser.studentCardFrontUrl || selectedCardUser.studentCardImageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-400 hover:text-indigo-300 text-[10px] flex items-center gap-1 font-medium"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Mở ảnh gốc
+                        </a>
+                      )}
+                    </div>
+                    {selectedCardUser.studentCardFrontUrl || selectedCardUser.studentCardImageUrl ? (
+                      <div className="relative group rounded-xl overflow-hidden border-2 border-blue-500/30 bg-slate-950 flex items-center justify-center max-h-[260px]">
+                        <img
+                          src={selectedCardUser.studentCardFrontUrl || selectedCardUser.studentCardImageUrl}
+                          alt={`Mặt trước thẻ của ${selectedCardUser.fullName}`}
+                          className="w-full h-auto max-h-[250px] object-contain rounded-lg transition-transform group-hover:scale-[1.02]"
+                        />
+                        <div className="absolute bottom-1.5 left-1.5 bg-slate-900/80 backdrop-blur-md px-2 py-0.5 rounded text-[9px] text-blue-300 flex items-center gap-1">
+                          <BadgeCheck className="w-3 h-3 text-blue-400" />
+                          Ảnh chân dung, Họ tên &amp; MSSV
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-6 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 text-center text-slate-500 text-xs">
+                        Chưa có ảnh mặt trước
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mặt sau */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-300">
+                      <span className="font-bold text-purple-400">2. Mặt sau thẻ</span>
+                      {selectedCardUser.studentCardBackUrl && (
+                        <a
+                          href={selectedCardUser.studentCardBackUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-400 hover:text-indigo-300 text-[10px] flex items-center gap-1 font-medium"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Mở ảnh gốc
+                        </a>
+                      )}
+                    </div>
+                    {selectedCardUser.studentCardBackUrl ? (
+                      <div className="relative group rounded-xl overflow-hidden border-2 border-purple-500/30 bg-slate-950 flex items-center justify-center max-h-[260px]">
+                        <img
+                          src={selectedCardUser.studentCardBackUrl}
+                          alt={`Mặt sau thẻ của ${selectedCardUser.fullName}`}
+                          className="w-full h-auto max-h-[250px] object-contain rounded-lg transition-transform group-hover:scale-[1.02]"
+                        />
+                        <div className="absolute bottom-1.5 left-1.5 bg-slate-900/80 backdrop-blur-md px-2 py-0.5 rounded text-[9px] text-purple-300 flex items-center gap-1">
+                          <BadgeCheck className="w-3 h-3 text-purple-400" />
+                          Dải từ &amp; Mã vạch Barcode
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-6 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 text-center text-slate-500 text-xs">
+                        Chưa có ảnh mặt sau
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -2609,25 +2660,48 @@ export const AdminDashboardPage: React.FC = () => {
                   Hủy xác thực thẻ SV
                 </BaseButton>
               ) : (
-                <BaseButton
-                  variant="primary"
-                  size="sm"
-                  onClick={() => {
-                    askConfirmation(
-                      'Duyệt tích xanh thẻ sinh viên',
-                      `Bạn có chắc chắn muốn DUYỆT thẻ sinh viên và cộng +15 điểm uy tín Karma cho "${selectedCardUser.fullName}"?\nSinh viên sẽ nhận được Tích Xanh chính chủ.`,
-                      async () => {
-                        await handleVerifyStudentCard(selectedCardUser.id, 'APPROVE');
-                        setStudentCardModal(false);
-                      },
-                      false,
-                      'Duyệt ngay (+15 Karma)'
-                    );
-                  }}
-                >
-                  <BadgeCheck className="w-3.5 h-3.5 mr-1 text-emerald-300" />
-                  Duyệt thẻ & Cấp tích xanh (+15 Karma)
-                </BaseButton>
+                <>
+                  <BaseButton
+                    variant="outline"
+                    size="sm"
+                    className="border-rose-500/50 text-rose-400 hover:bg-rose-950/40"
+                    onClick={() => {
+                      askConfirmation(
+                        'Từ chối thẻ sinh viên',
+                        `Từ chối thẻ sinh viên của "${selectedCardUser.fullName}" và yêu cầu chụp lại ảnh 2 mặt rõ nét, đủ ánh sáng?`,
+                        async () => {
+                          await handleVerifyStudentCard(selectedCardUser.id, 'REJECT');
+                          setStudentCardModal(false);
+                        },
+                        true,
+                        'Từ chối thẻ'
+                      );
+                    }}
+                  >
+                    <XCircle className="w-3.5 h-3.5 mr-1" />
+                    Từ chối (Yêu cầu chụp lại)
+                  </BaseButton>
+
+                  <BaseButton
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      askConfirmation(
+                        'Duyệt tích xanh thẻ sinh viên',
+                        `Bạn có chắc chắn muốn DUYỆT thẻ sinh viên 2 mặt và cộng +15 điểm uy tín Karma cho "${selectedCardUser.fullName}"?\nSinh viên sẽ nhận được Tích Xanh chính chủ.`,
+                        async () => {
+                          await handleVerifyStudentCard(selectedCardUser.id, 'APPROVE');
+                          setStudentCardModal(false);
+                        },
+                        false,
+                        'Duyệt ngay (+15 Karma)'
+                      );
+                    }}
+                  >
+                    <BadgeCheck className="w-3.5 h-3.5 mr-1 text-emerald-300" />
+                    Duyệt thẻ & Cấp tích xanh (+15 Karma)
+                  </BaseButton>
+                </>
               )}
             </div>
           </div>
