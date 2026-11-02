@@ -13,6 +13,7 @@ export interface PurchaseOrder {
   buyerId: number;
   buyerName: string;
   price: number;
+  deposit?: number;
   transactionType?: 'SELL' | 'RENT';
   quantity?: number;
   rentalDays?: number;
@@ -62,6 +63,7 @@ export const orderService = {
     buyerId: number;
     buyerName: string;
     price: number;
+    deposit?: number;
     transactionType?: 'SELL' | 'RENT';
     quantity?: number;
     rentalDays?: number;
@@ -81,6 +83,7 @@ export const orderService = {
       buyerId: payload.buyerId,
       buyerName: payload.buyerName,
       price: payload.price,
+      deposit: payload.deposit || 0,
       transactionType: payload.transactionType,
       quantity: payload.quantity,
       rentalDays: payload.rentalDays,

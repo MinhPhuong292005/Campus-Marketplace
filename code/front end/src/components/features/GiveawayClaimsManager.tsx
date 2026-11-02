@@ -7,10 +7,13 @@ import {
   MapPin,
   AlertTriangle,
   PackageCheck,
+  X,
+  CheckCheck,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { BaseButton } from '../base/BaseButton';
 import { giveawayService, GiveawayClaim } from '../../services/giveawayService';
+import { studentNotificationService } from '../../services/studentNotificationService';
 import { KarmaBadge } from './KarmaBadge';
 import { GiveawayWheelModal } from './GiveawayWheelModal';
 import { PHENIKAA_SAFE_MEETING_POINTS } from '../../constants/phenikaaData';
@@ -34,6 +37,26 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
   const [claims, setClaims] = useState<GiveawayClaim[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isWheelModalOpen, setIsWheelModalOpen] = useState(false);
+
+  // Modal xác nhận trao tặng (thay thế window.confirm / localhost:3000 says)
+  const [confirmingClaim, setConfirmingClaim] = useState<GiveawayClaim | null>(null);
+
+  // Modal xác nhận bàn giao nhận đồ
+  const [confirmingHandover, setConfirmingHandover] = useState(false);
+
+  // Modal hủy giao dịch tặng đồ
+  const [cancellingModalOpen, setCancellingModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+
+  // Toast thông báo nổi bật trong trang
+  const [toastNotice, setToastNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (toastNotice) {
+      const timer = setTimeout(() => setToastNotice(null), 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastNotice]);
 
   // Appointment states
   const [appointmentTime, setAppointmentTime] = useState('14:30 chiều nay');
@@ -66,21 +89,53 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
 
   if (!isOwner && claims.length === 0 && !isParticipantInTransaction) return null;
 
-  const handleAcceptClaim = async (claim: GiveawayClaim) => {
-    const confirmed = window.confirm(
-      `Bạn có chắc chắn muốn chốt tặng món đồ "${listingTitle}" cho bạn "${claim.requesterName}"?\n\nSau khi chốt:\n- Hệ thống sẽ gửi thông báo chúc mừng đến bạn ấy.\n- Hệ thống sẽ tự động thông báo đến tất cả các bạn khác rằng món đồ đã được trao tặng.\n- Bạn và người nhận sẽ tiến hành hẹn giờ và điểm gặp mặt để bàn giao đồ.`
-    );
-    if (!confirmed) return;
+  // Bước 1: Mở khung xác nhận trao tặng (thay thế hoàn toàn localhost:3000 says)
+  const handleAcceptClaim = (claim: GiveawayClaim) => {
+    setConfirmingClaim(claim);
+  };
 
+  // Bước 2: Thực hiện chốt tặng sau khi người dùng bấm xác nhận trên khung modal
+  const executeAcceptClaim = async (claim: GiveawayClaim) => {
     try {
       setIsProcessing(true);
       await giveawayService.acceptClaim(listingId, claim.id);
+
+      // Gửi thông báo chúc mừng RIÊNG đến người xin nhận (người trúng tuyển)
+      if (claim.requesterId && claim.requesterId !== user?.id) {
+        studentNotificationService.notifyGiveawayAwardedToRecipient({
+          recipientId: claim.requesterId,
+          listingTitle,
+          giverName: user?.fullName || 'Người tặng',
+          listingId,
+        });
+      }
+
+      // Gửi thông báo đến các bạn học khác không được chọn
+      const otherRequesters = claims
+        .filter((c) => c.id !== claim.id && c.requesterId && c.requesterId !== user?.id)
+        .map((c) => c.requesterId);
+
+      if (otherRequesters.length > 0) {
+        studentNotificationService.notifyGiveawayClosedToOtherRequesters({
+          requesterIds: otherRequesters,
+          listingTitle,
+          listingId,
+        });
+      }
+
+      setConfirmingClaim(null);
       setIsWheelModalOpen(false);
-      alert(`🎉 Đã chốt tặng thành công cho bạn ${claim.requesterName}! Hệ thống đã gửi thông báo đến các bạn học.`);
+      setToastNotice({
+        type: 'success',
+        message: `Đã chốt tặng thành công cho bạn ${claim.requesterName}! Thông báo đã được gửi riêng đến người xin nhận.`,
+      });
       await loadClaims();
       onListingUpdated?.();
     } catch (err: any) {
-      alert(err.message || 'Không thể chốt tặng lúc này. Vui lòng thử lại.');
+      setToastNotice({
+        type: 'error',
+        message: err.message || 'Không thể chốt tặng lúc này. Vui lòng thử lại.',
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -94,59 +149,77 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
         meetingTime: appointmentTime,
         meetingPoint: appointmentPoint,
       });
-      alert('Đã cập nhật lịch hẹn gặp bàn giao đồ tại Phenikaa!');
+      setToastNotice({
+        type: 'success',
+        message: 'Đã cập nhật lịch hẹn gặp bàn giao đồ tại Phenikaa!',
+      });
       setIsEditingAppointment(false);
       await loadClaims();
     } catch (err: any) {
-      alert(err.message || 'Không thể cập nhật lịch hẹn.');
+      setToastNotice({
+        type: 'error',
+        message: err.message || 'Không thể cập nhật lịch hẹn.',
+      });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleConfirmHandover = async () => {
+  const executeConfirmHandover = async () => {
     if (!acceptedClaim) return;
-    const confirmMsg = isGiver
-      ? 'Bạn xác nhận đã bàn giao món đồ tặng cho bạn học?'
-      : 'Bạn xác nhận đã gặp mặt và nhận được món đồ tặng từ chủ sở hữu?';
-    if (!window.confirm(confirmMsg)) return;
-
     try {
       setIsProcessing(true);
       const res = await giveawayService.confirmHandover(acceptedClaim.id);
+      setConfirmingHandover(false);
       if (res.data?.status === 'COMPLETED') {
-        alert('🎉 Giao dịch tặng đồ hoàn tất thành công! Cả hai bạn đều được cộng +5 điểm Campus Karma!');
+        setToastNotice({
+          type: 'success',
+          message: '🎉 Giao dịch tặng đồ hoàn tất thành công! Cả hai bạn đều được cộng +5 điểm Campus Karma!',
+        });
       } else {
-        alert('Đã ghi nhận xác nhận của bạn. Vui lòng chờ đối phương xác nhận để hoàn tất giao dịch!');
+        setToastNotice({
+          type: 'success',
+          message: 'Đã ghi nhận xác nhận của bạn. Vui lòng chờ đối phương xác nhận để hoàn tất giao dịch!',
+        });
       }
       await loadClaims();
       onListingUpdated?.();
     } catch (err: any) {
-      alert(err.message || 'Không thể xác nhận lúc này.');
+      setToastNotice({
+        type: 'error',
+        message: err.message || 'Không thể xác nhận lúc này.',
+      });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleCancelTransaction = async () => {
+  const executeCancelTransaction = async () => {
     if (!acceptedClaim) return;
-    const reason = window.prompt(
-      'Vui lòng nhập lý do hủy giao dịch tặng đồ (Lưu ý: Hủy giao dịch hoặc không đến điểm hẹn sẽ bị trừ 10 điểm Karma):'
-    );
-    if (reason === null) return;
-    if (!reason.trim()) {
-      alert('Vui lòng nhập lý do cụ thể!');
+    if (!cancelReason.trim()) {
+      setToastNotice({
+        type: 'error',
+        message: 'Vui lòng nhập lý do cụ thể!',
+      });
       return;
     }
 
     try {
       setIsProcessing(true);
-      await giveawayService.cancelTransaction(acceptedClaim.id, reason);
-      alert('Đã hủy giao dịch tặng đồ. Tài khoản báo hủy bị trừ 10 điểm Karma.');
+      await giveawayService.cancelTransaction(acceptedClaim.id, cancelReason.trim());
+      setCancellingModalOpen(false);
+      setCancelReason('');
+      setToastNotice({
+        type: 'success',
+        message: 'Đã hủy giao dịch tặng đồ. Bài đăng đã tự động khôi phục để sinh viên khác có thể xin nhận.',
+      });
       await loadClaims();
       onListingUpdated?.();
     } catch (err: any) {
-      alert(err.message || 'Không thể hủy giao dịch.');
+      setToastNotice({
+        type: 'error',
+        message: err.message || 'Không thể hủy giao dịch.',
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -390,7 +463,7 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
                 <button
                   type="button"
                   disabled={isProcessing}
-                  onClick={handleCancelTransaction}
+                  onClick={() => setCancellingModalOpen(true)}
                   className="px-3 py-1.5 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
@@ -400,7 +473,7 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
                 <button
                   type="button"
                   disabled={Boolean(isProcessing || (isGiver && acceptedClaim.giverConfirmed) || (isReceiver && acceptedClaim.receiverConfirmed))}
-                  onClick={handleConfirmHandover}
+                  onClick={() => setConfirmingHandover(true)}
                   className={`px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-md transition ${
                     (isGiver && acceptedClaim.giverConfirmed) || (isReceiver && acceptedClaim.receiverConfirmed)
                       ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed opacity-80'
@@ -540,9 +613,237 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
         onClose={() => setIsWheelModalOpen(false)}
         claims={claims}
         listingTitle={listingTitle}
-        onSelectWinner={handleAcceptClaim}
+        onSelectWinner={(winner) => {
+          setIsWheelModalOpen(false);
+          setConfirmingClaim(winner);
+        }}
         isProcessing={isProcessing}
       />
+
+      {/* Modal Khung Xác Nhận Trao Tặng (Thay thế hoàn toàn localhost:3000 says) */}
+      {confirmingClaim && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-left animate-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-pink-100 dark:bg-pink-950/60 text-pink-600 dark:text-pink-400 flex items-center justify-center shadow-xs">
+                  <Gift className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Xác nhận trao tặng món đồ
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Trao tặng miễn phí cho bạn học trường Phenikaa
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmingClaim(null)}
+                className="p-1 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Recipient Profile & Reason Card */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-pink-50/80 to-rose-50/50 dark:from-slate-800 dark:to-slate-800/80 border border-pink-100 dark:border-slate-700 space-y-2.5">
+              <div className="flex items-center gap-3">
+                <img
+                  src={
+                    confirmingClaim.requesterAvatar ||
+                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${confirmingClaim.requesterName}`
+                  }
+                  alt={confirmingClaim.requesterName}
+                  className="w-12 h-12 rounded-xl object-cover border border-pink-200 dark:border-pink-900"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                      {confirmingClaim.requesterName}
+                    </span>
+                    <KarmaBadge score={confirmingClaim.requesterKarma || 20} showText={false} />
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    MSSV: {confirmingClaim.requesterStudentCode || 'Chưa cập nhật'} • Sinh viên Phenikaa
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-xs bg-white/90 dark:bg-slate-900/90 p-2.5 rounded-xl border border-pink-100/70 dark:border-slate-700/60 text-slate-700 dark:text-slate-300">
+                <span className="font-bold text-slate-500 text-[10px] block mb-0.5 uppercase tracking-wider">
+                  Lý do bạn ấy xin nhận:
+                </span>
+                "{confirmingClaim.message}"
+              </div>
+            </div>
+
+            {/* Confirm Explanation Box */}
+            <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800">
+              <p className="font-bold text-slate-800 dark:text-slate-200">
+                Bạn có chắc chắn muốn chốt tặng món đồ "{listingTitle}" cho bạn "{confirmingClaim.requesterName}"?
+              </p>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 space-y-1 pt-1">
+                <p>• <b>Thông báo riêng:</b> Hệ thống sẽ gửi thông báo chúc mừng riêng đến bạn {confirmingClaim.requesterName}.</p>
+                <p>• <b>Thông báo các bạn khác:</b> Hệ thống sẽ tự động thông báo đến các bạn còn lại rằng món đồ đã được trao tặng.</p>
+                <p>• <b>Bàn giao tại trường:</b> Hai bạn sẽ trao đổi thời gian & điểm gặp mặt an toàn tại khuôn viên Phenikaa.</p>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmingClaim(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition text-xs"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={() => executeAcceptClaim(confirmingClaim)}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold shadow-md shadow-pink-500/25 transition flex items-center gap-1.5 text-xs disabled:opacity-50 cursor-pointer"
+              >
+                {isProcessing ? (
+                  <span>Đang xử lý...</span>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Xác nhận trao tặng</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Xác Nhận Đã Nhận / Bàn Giao (+5 Karma) */}
+      {confirmingHandover && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-left animate-in zoom-in-95">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <PackageCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Xác nhận bàn giao đồ
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Hoàn tất giao dịch tại khuôn viên trường
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              {isGiver
+                ? 'Bạn xác nhận đã gặp mặt và bàn giao món đồ tặng cho bạn học an toàn tại trường Phenikaa?'
+                : 'Bạn xác nhận đã gặp mặt và nhận được món đồ tặng từ chủ sở hữu an toàn tại trường Phenikaa?'}
+            </p>
+
+            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+              🎉 Sau khi cả hai bên xác nhận, mỗi bạn sẽ được tự động cộng <b>+5 điểm Campus Karma</b> vào tài khoản!
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmingHandover(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 text-xs"
+              >
+                Chưa gặp
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={executeConfirmHandover}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Xác nhận đã giao/nhận (+5 Karma)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Hủy Giao Dịch Tặng Đồ */}
+      {cancellingModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-800 space-y-3.5 text-left animate-in zoom-in-95">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Hủy giao dịch tặng đồ
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Lưu ý: Hủy sau khi chốt sẽ bị trừ 10 Karma
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Lý do hủy giao dịch *
+              </label>
+              <textarea
+                rows={3}
+                required
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="vd: Bạn không đến điểm hẹn, đã thay đổi kế hoạch..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <p className="text-[11px] text-rose-600 dark:text-rose-400 leading-relaxed font-medium">
+              * Bài đăng sẽ tự động được khôi phục lại để các bạn sinh viên khác có thể gửi yêu cầu nhận đồ.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setCancellingModalOpen(false)}
+                className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 text-xs"
+              >
+                Quay lại
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing || !cancelReason.trim()}
+                onClick={executeCancelTransaction}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span>Xác nhận hủy</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast thông báo nổi bật */}
+      {toastNotice && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 ${
+            toastNotice.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'
+          }`}
+        >
+          {toastNotice.type === 'success' ? (
+            <CheckCheck className="w-4 h-4 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+          )}
+          <span>{toastNotice.message}</span>
+        </div>
+      )}
     </div>
   );
 };

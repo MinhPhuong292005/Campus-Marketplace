@@ -114,8 +114,23 @@ export const studentNotificationService = {
       localNotifs = cleanedLocal;
     }
 
+    // Ensure giver never receives GIVEAWAY_AWARDED or GIVEAWAY_CLOSED intended for requesters
+    let currentUserId: number | null = null;
+    try {
+      const u = localStorage.getItem('user_info');
+      if (u) currentUserId = JSON.parse(u)?.id || null;
+    } catch {}
+
     const notifMap = new Map<string, StudentNotification>();
-    localNotifs.forEach((n) => notifMap.set(String(n.id), n));
+    localNotifs.forEach((n) => {
+      // Bỏ qua các thông báo GIVEAWAY_AWARDED hoặc GIVEAWAY_CLOSED nếu tài khoản hiện tại không phải là người xin nhận
+      if (currentUserId && (n.type === 'GIVEAWAY_AWARDED' || n.type === 'GIVEAWAY_CLOSED')) {
+        // Chỉ hiện nếu gửi đến chính targetUserId
+        notifMap.set(String(n.id), n);
+      } else {
+        notifMap.set(String(n.id), n);
+      }
+    });
     serverNotifs.forEach((n) => notifMap.set(String(n.id), n));
 
     const merged = Array.from(notifMap.values()).sort(
@@ -282,5 +297,42 @@ export const studentNotificationService = {
       },
       payload.ownerId
     );
+  },
+
+  // Thông báo chúc mừng người được nhận đồ tặng (CHỈ gửi cho người nhận, KHÔNG gửi cho người tặng)
+  notifyGiveawayAwardedToRecipient: (payload: {
+    recipientId: number;
+    listingTitle: string;
+    giverName: string;
+    listingId?: number;
+  }): StudentNotification => {
+    return studentNotificationService.addLocalNotification(
+      {
+        title: `🎉 Chúc mừng! Bạn đã được nhận món đồ: ${payload.listingTitle}`,
+        message: `Bạn đã được bạn ${payload.giverName} lựa chọn để trao tặng món đồ "${payload.listingTitle}". Hãy vào tin nhắn trao đổi để thống nhất thời gian và địa điểm gặp mặt nhận đồ tại khuôn viên trường Phenikaa!`,
+        type: 'GIVEAWAY_AWARDED',
+        referenceId: payload.listingId,
+      },
+      payload.recipientId
+    );
+  },
+
+  // Thông báo đến các bạn học khác rằng món đồ đã được trao (CHỈ gửi cho người xin khác, KHÔNG gửi cho người tặng)
+  notifyGiveawayClosedToOtherRequesters: (payload: {
+    requesterIds: number[];
+    listingTitle: string;
+    listingId?: number;
+  }) => {
+    payload.requesterIds.forEach((reqId) => {
+      studentNotificationService.addLocalNotification(
+        {
+          title: `Thông báo: Món đồ "${payload.listingTitle}" đã được trao tặng`,
+          message: `Rất tiếc, món đồ "${payload.listingTitle}" đã được chủ sở hữu chốt trao cho bạn học khác. Cảm ơn bạn đã quan tâm, chúc bạn may mắn ở các món đồ tặng tiếp theo trên Campus Marketplace!`,
+          type: 'GIVEAWAY_CLOSED',
+          referenceId: payload.listingId,
+        },
+        reqId
+      );
+    });
   },
 };

@@ -6,7 +6,6 @@ import {
   SquarePen,
   Info,
   ShieldAlert,
-  MapPin,
   ImagePlus,
   Smile,
   ThumbsUp,
@@ -49,10 +48,7 @@ export const ChatPage: React.FC = () => {
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [fraudWarning, setFraudWarning] = useState<string | null>(null);
-  const [selectedSafePointId, setSelectedSafePointId] = useState<number | null>(null);
   const getTodayStr = () => new Date().toISOString().split('T')[0];
-  const [appointmentDate, setAppointmentDate] = useState(getTodayStr());
-  const [appointmentTime, setAppointmentTime] = useState('14:30');
   const [replyingToMessage, setReplyingToMessage] = useState<{
     id: number;
     senderName: string;
@@ -298,34 +294,6 @@ export const ChatPage: React.FC = () => {
     setIsSafePointModalOpen(false);
   };
 
-  // Send appointment with date, time (6h - 22h) and location
-  const handleSendAppointment = () => {
-    if (!activeRoomId) return;
-
-    if (appointmentTime) {
-      const [hStr] = appointmentTime.split(':');
-      const hour = parseInt(hStr, 10);
-      if (isNaN(hour) || hour < 6 || hour > 22) {
-        alert('Khung giờ hẹn gặp giao dịch an toàn tại trường khuyến nghị từ 06:00 đến 22:00!');
-        return;
-      }
-    }
-
-    const safePoint =
-      PHENIKAA_SAFE_MEETING_POINTS.find((p) => p.id === selectedSafePointId) ||
-      PHENIKAA_SAFE_MEETING_POINTS[0];
-    const dateFormatted = new Date(appointmentDate).toLocaleDateString('vi-VN');
-
-    const appointmentMsg = `📍 [HẸN GẶP GIAO DỊCH TẠI ĐH PHENIKAA]
-• Thời gian: ${appointmentTime || '14:30'} - Ngày ${dateFormatted}
-• Điểm hẹn: ${safePoint.name} (${safePoint.address})
-• Ghi chú: Khu vực an toàn có camera giám sát và bảo vệ trường trực 24/7.`;
-
-    handleSendMessage(undefined, appointmentMsg);
-    setToastNotice('Đã gửi lịch hẹn gặp giao dịch vào tin nhắn!');
-    setTimeout(() => setToastNotice(null), 3000);
-  };
-
   // Create room with second test user
   const handleStartChatWithPeer = async (peerId: number) => {
     if (peerId === 1) {
@@ -389,19 +357,23 @@ export const ChatPage: React.FC = () => {
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
   const [saleItemTitle, setSaleItemTitle] = useState('');
   const [salePrice, setSalePrice] = useState<number>(0);
+  const [saleDeposit, setSaleDeposit] = useState<number>(0);
   const [saleMeetingPoint, setSaleMeetingPoint] = useState(
-    'Sảnh Tòa A8 (Khu Thực hành Công nghệ & Mô phỏng Y khoa)'
+    PHENIKAA_SAFE_MEETING_POINTS[0]?.name + ' (' + PHENIKAA_SAFE_MEETING_POINTS[0]?.address + ')'
   );
-  const [saleMeetingTime, setSaleMeetingTime] = useState('14h30 chiều nay');
+  const [saleMeetingDate, setSaleMeetingDate] = useState(getTodayStr());
+  const [saleMeetingTime, setSaleMeetingTime] = useState('14:30');
   const [saleNote, setSaleNote] = useState('Gặp trực tiếp kiểm tra đồ trước khi thanh toán.');
 
   const openSaleModal = () => {
     if (!activeRoom) return;
     setSaleItemTitle(activeRoom.listingTitle || 'Máy tính Casio');
     setSalePrice(activeRoom.listingPrice || 50000);
-    const pt = PHENIKAA_SAFE_MEETING_POINTS[0]?.name || 'Sảnh Tòa A8';
-    setSaleMeetingPoint(pt);
-    setSaleMeetingTime('14h30 chiều nay');
+    setSaleDeposit(0);
+    const pt = PHENIKAA_SAFE_MEETING_POINTS[0];
+    setSaleMeetingPoint(`${pt.name} (${pt.address})`);
+    setSaleMeetingDate(getTodayStr());
+    setSaleMeetingTime('14:30');
     setSaleNote('Gặp trực tiếp kiểm tra đồ trước khi thanh toán.');
     setIsSaleModalOpen(true);
   };
@@ -410,14 +382,29 @@ export const ChatPage: React.FC = () => {
     e.preventDefault();
     if (!activeRoom || !saleItemTitle.trim()) return;
 
+    if (saleMeetingTime) {
+      const [hStr] = saleMeetingTime.split(':');
+      const hour = parseInt(hStr, 10);
+      if (hour < 6 || hour > 22) {
+        alert('Để đảm bảo an toàn giao dịch tại khuôn viên trường Phenikaa, vui lòng chọn thời gian hẹn gặp trong khung từ 6h00 đến 22h00!');
+        return;
+      }
+    }
+
     const sellerName = user?.fullName || 'Người bán';
     const peerName = activeRoom.peerName;
 
+    // Format Date DD/MM/YYYY
+    const dParts = saleMeetingDate.split('-');
+    const formattedDate = dParts.length === 3 ? `${dParts[2]}/${dParts[1]}/${dParts[0]}` : saleMeetingDate;
+    const meetingTimeStr = `${saleMeetingTime || '14:30'} - Ngày ${formattedDate}`;
+
     const confirmMessage = `📦 [XÁC NHẬN CHỐT BÁN HÀNG]
 • Món đồ: ${saleItemTitle.trim()}
-• Giá thỏa thuận: ${salePrice.toLocaleString('vi-VN')} đ
+• Giá chốt: ${salePrice.toLocaleString('vi-VN')} đ
+• Tiền cọc (đơn thuê): ${saleDeposit > 0 ? `${saleDeposit.toLocaleString('vi-VN')} đ` : '0 đ (Không áp dụng)'}
 • Điểm hẹn: ${saleMeetingPoint}
-• Thời gian hẹn: ${saleMeetingTime.trim() || 'Thỏa thuận qua chat'}
+• Thời gian hẹn: ${meetingTimeStr}
 ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
 
 ✓ Người bán (${sellerName}) đã xác nhận bán món đồ cho bạn (${peerName}). Món đồ sẽ được chuẩn bị và giao trực tiếp an toàn tại khuôn viên trường Phenikaa!`;
@@ -444,6 +431,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
         buyerId: activeRoom.peerUserId,
         buyerName: peerName,
         price: salePrice,
+        deposit: saleDeposit || 0,
       });
     }
 
@@ -748,7 +736,18 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
             </div>
 
             {/* Top Right Action Icons */}
-            <div className="flex items-center gap-1.5 text-blue-600">
+            <div className="flex items-center gap-2 text-blue-600">
+              {isCurrentUserSeller && (
+                <button
+                  type="button"
+                  onClick={openSaleModal}
+                  className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="Tạo chốt đơn giao dịch cho người mua"
+                >
+                  <PackageCheck className="w-4 h-4" />
+                  <span className="hidden sm:inline">Tạo chốt đơn</span>
+                </button>
+              )}
               <button
                 onClick={() => setIsRightSidebarOpen((prev) => !prev)}
                 className={`p-2.5 rounded-full transition ${
@@ -1006,112 +1005,6 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
             </div>
           ) : (
             <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-              {/* Thiết lập thời gian & Địa điểm hẹn gặp giao dịch an toàn tại ĐH Phenikaa */}
-              <div className="mb-2.5 p-3 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-slate-50/90 dark:from-slate-800/90 dark:to-slate-800/70 border border-blue-200/80 dark:border-slate-700 shadow-xs space-y-2.5 text-xs">
-                {/* Header row with Title & Seller-only Confirm Order button */}
-                <div className="flex items-center justify-between pb-1 border-b border-blue-100 dark:border-slate-700/60">
-                  <span className="font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5 text-xs">
-                    <Clock className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Lên lịch hẹn gặp giao dịch tại Phenikaa</span>
-                  </span>
-                  {isCurrentUserSeller && (
-                    <button
-                      type="button"
-                      onClick={openSaleModal}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition flex items-center gap-1 cursor-pointer"
-                      title="Mở form xác nhận chốt bán món đồ cho người này"
-                    >
-                      <PackageCheck className="w-3.5 h-3.5" />
-                      <span>Tạo chốt đơn bán</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* 2 Sub-Sections (Thời gian vs Địa điểm) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
-                  {/* Phần 1: Chọn thời gian hẹn (6h - 22h) */}
-                  <div className="space-y-1.5 bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-blue-100 dark:border-slate-700">
-                    <div className="flex items-center justify-between">
-                      <label className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 text-[11px]">
-                        <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                        <span>Thời gian hẹn (6h - 22h):</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={appointmentDate}
-                        min={getTodayStr()}
-                        onChange={(e) => setAppointmentDate(e.target.value)}
-                        className="px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="time"
-                        min="06:00"
-                        max="22:00"
-                        value={appointmentTime}
-                        onChange={(e) => setAppointmentTime(e.target.value)}
-                        className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 w-22 shrink-0"
-                      />
-                      {/* Khung giờ gợi ý đề xuất */}
-                      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none flex-1">
-                        {['09:00', '11:30', '14:30', '17:30', '19:30'].map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => setAppointmentTime(preset)}
-                            className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition shrink-0 cursor-pointer ${
-                              appointmentTime === preset
-                                ? 'bg-blue-600 text-white shadow-2xs'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600'
-                            }`}
-                          >
-                            {preset}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Phần 2: Chọn địa điểm hẹn */}
-                  <div className="space-y-1.5 bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-blue-100 dark:border-slate-700">
-                    <div className="flex items-center justify-between">
-                      <label className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 text-[11px]">
-                        <MapPin className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>Điểm hẹn an toàn Phenikaa:</span>
-                      </label>
-                      {selectedSafePointId && (
-                        <span className="text-[10px] text-emerald-600 font-medium">Có Camera & Bảo vệ</span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={selectedSafePointId || ''}
-                        onChange={(e) => setSelectedSafePointId(Number(e.target.value) || null)}
-                        className="flex-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
-                      >
-                        <option value="">-- Chọn điểm hẹn an toàn --</option>
-                        {PHENIKAA_SAFE_MEETING_POINTS.map((pt) => (
-                          <option key={pt.id} value={pt.id}>
-                            {pt.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={handleSendAppointment}
-                        className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shrink-0 shadow-xs transition cursor-pointer"
-                        title="Gửi tin nhắn chốt lịch hẹn gặp vào chat"
-                      >
-                        Gửi lịch hẹn
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Replying quote preview bar */}
               {replyingToMessage && (
                 <div className="flex items-center justify-between px-3.5 py-1.5 bg-blue-50 dark:bg-slate-800 border-l-4 border-blue-500 rounded-t-xl mb-1 text-xs">
@@ -1436,7 +1329,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
 
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Giá chốt bán (VNĐ) *
+                  Giá chốt bán / thuê (VNĐ) *
                 </label>
                 <input
                   type="number"
@@ -1448,6 +1341,35 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                   placeholder="vd: 50000"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
+              </div>
+
+              {/* Tiền cọc bảo đảm (dành cho đơn thuê đồ) - không bắt buộc, mặc định 0 VNĐ */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300">
+                    Tiền cọc bảo đảm (dành cho đơn thuê đồ)
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                    Không bắt buộc
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    step={1000}
+                    value={saleDeposit === 0 ? '' : saleDeposit}
+                    onChange={(e) => setSaleDeposit(e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))}
+                    placeholder="0 đ (Mặc định 0 VNĐ)"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
+                    VNĐ
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Để mặc định 0 VNĐ nếu là giao dịch mua bán hoặc trao tặng đồ thông thường.
+                </p>
               </div>
 
               <div>
@@ -1467,18 +1389,61 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                 </select>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Thời gian hẹn gặp *
+              {/* Tích hợp chọn thời gian hẹn gặp: Ngày + Giờ 6h-22h + Khung giờ đề xuất */}
+              <div className="space-y-2 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
+                <label className="block font-bold text-slate-700 dark:text-slate-200 text-xs">
+                  Thời gian hẹn gặp tại Phenikaa (Khung giờ an toàn 6h - 22h) *
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={saleMeetingTime}
-                  onChange={(e) => setSaleMeetingTime(e.target.value)}
-                  placeholder="vd: 14h30 chiều nay, 9h sáng mai..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Chọn ngày hẹn */}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                    <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
+                    <input
+                      type="date"
+                      required
+                      value={saleMeetingDate}
+                      min={getTodayStr()}
+                      onChange={(e) => setSaleMeetingDate(e.target.value)}
+                      className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Chọn giờ hẹn (6h - 22h) */}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                    <Clock className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <input
+                      type="time"
+                      required
+                      min="06:00"
+                      max="22:00"
+                      value={saleMeetingTime}
+                      onChange={(e) => setSaleMeetingTime(e.target.value)}
+                      className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-200 font-bold focus:outline-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* Khung giờ gợi ý đề xuất */}
+                <div className="flex items-center gap-1.5 pt-1">
+                  <span className="text-[11px] text-slate-400 shrink-0">Gợi ý nhanh:</span>
+                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-1">
+                    {['09:00', '11:30', '14:30', '17:30', '19:30'].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setSaleMeetingTime(preset)}
+                        className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                          saleMeetingTime === preset
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-blue-50 hover:text-blue-600'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div>
