@@ -73,6 +73,11 @@ public class PublicController extends BaseController {
         return success(reviewService.getReviewsForListing(id));
     }
 
+    @GetMapping("/users/{userId}/reviews")
+    public ResponseEntity<ApiResponse<List<ReviewRes>>> getUserReviews(@PathVariable Long userId) {
+        return success(reviewService.getReviewsForUser(userId));
+    }
+
     @GetMapping("/profile/{userId}")
     public ResponseEntity<ApiResponse<PublicProfileRes>> getPublicProfile(@PathVariable Long userId) {
         // Decree 13/2023/ND-CP compliance

@@ -25,15 +25,39 @@ export interface ReviewRes {
   createdAt: string;
 }
 
+const LOCAL_REVIEWS_KEY = 'campus_reviews_local_v1';
+
+const getLocalReviews = (): ReviewRes[] => {
+  try {
+    const raw = localStorage.getItem(LOCAL_REVIEWS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalReview = (rev: ReviewRes) => {
+  try {
+    const current = getLocalReviews();
+    const filtered = current.filter((r) => r.id !== rev.id);
+    localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify([rev, ...filtered]));
+  } catch {}
+};
+
 export const reviewService = {
   createReview: async (req: ReviewReq): Promise<{ success: boolean; data: ReviewRes }> => {
+    let result: ReviewRes;
     try {
       const response = await api.post<ReviewRes>('/student/reviews', req);
-      return response;
+      if (response && response.data) {
+        result = response.data;
+      } else {
+        throw new Error('No data');
+      }
     } catch {
       // Mock calculation based on rules: 5 stars = +5 karma
       const karmaBonus = req.rating === 5 ? 5 : req.rating === 4 ? 3 : 1;
-      const res: ReviewRes = {
+      result = {
         id: Date.now(),
         reviewerId: 1,
         reviewerName: 'Bạn (Sinh viên)',
@@ -47,49 +71,58 @@ export const reviewService = {
         newTargetKarma: 50 + karmaBonus,
         createdAt: new Date().toISOString(),
       };
-      return { success: true, data: res };
     }
+    saveLocalReview(result);
+    return { success: true, data: result };
   },
 
   getReviewsForListing: async (listingId: number): Promise<{ success: boolean; data: ReviewRes[] }> => {
+    let list: ReviewRes[] = [];
     try {
       const response = await api.get<ReviewRes[]>(`/public/listings/${listingId}/reviews`);
-      if (response && response.data) return response;
+      if (response && response.data && Array.isArray(response.data)) {
+        list = response.data;
+      }
     } catch {
-      // Fallback to local or demo reviews
+      // Fallback
+    }
+    const local = getLocalReviews().filter((r) => r.listingId === listingId);
+    // Combine unique by id
+    const ids = new Set(list.map((r) => r.id));
+    for (const r of local) {
+      if (!ids.has(r.id)) {
+        list.push(r);
+        ids.add(r.id);
+      }
     }
     return {
       success: true,
-      data: [
-        {
-          id: 101,
-          reviewerId: 201,
-          reviewerName: 'Trần Minh Quang',
-          reviewerAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80',
-          targetUserId: 1,
-          targetUserName: 'Người bán Phenikaa',
-          listingId: listingId,
-          rating: 5,
-          comment: 'Đã nhận đồ trực tiếp tại Safe Meeting Point Sảnh A. Sách còn mới 95%, đúng như ảnh và mô tả. Bạn bán rất nhiệt tình và đúng hẹn!',
-          tags: ['Đúng như mô tả', 'Giao dịch nhanh chóng', 'Nhiệt tình'],
-          karmaAwarded: 5,
-          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-        {
-          id: 102,
-          reviewerId: 202,
-          reviewerName: 'Nguyễn Thảo My (K17)',
-          reviewerAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&q=80',
-          targetUserId: 1,
-          targetUserName: 'Người bán Phenikaa',
-          listingId: listingId,
-          rating: 5,
-          comment: 'Rất ưng ý! Bạn bán tặng thêm cả tài liệu cương ôn thi. 5 sao cho bạn sinh viên uy tín.',
-          tags: ['Rất đáng tiền', 'Thân thiện', 'Chuẩn sinh viên Phenikaa'],
-          karmaAwarded: 5,
-          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        },
-      ],
+      data: list,
+    };
+  },
+
+  getReviewsForUser: async (userId: number): Promise<{ success: boolean; data: ReviewRes[] }> => {
+    let list: ReviewRes[] = [];
+    try {
+      const response = await api.get<ReviewRes[]>(`/public/users/${userId}/reviews`);
+      if (response && response.data && Array.isArray(response.data)) {
+        list = response.data;
+      }
+    } catch {
+      // Fallback
+    }
+    const local = getLocalReviews().filter((r) => r.targetUserId === userId);
+    // Combine unique by id
+    const ids = new Set(list.map((r) => r.id));
+    for (const r of local) {
+      if (!ids.has(r.id)) {
+        list.push(r);
+        ids.add(r.id);
+      }
+    }
+    return {
+      success: true,
+      data: list,
     };
   },
 
@@ -105,6 +138,7 @@ export const reviewService = {
       reason: string;
     };
   }> => {
+    const localAlreadyReviewed = getLocalReviews().some((r) => r.listingId === listingId);
     try {
       const response = await api.get<{
         canReview: boolean;
@@ -113,7 +147,20 @@ export const reviewService = {
         alreadyReviewed: boolean;
         reason: string;
       }>(`/student/reviews/listing/${listingId}/eligibility`);
-      if (response && response.data) return response;
+      if (response && response.data) {
+        if (localAlreadyReviewed) {
+          return {
+            success: true,
+            data: {
+              ...response.data,
+              alreadyReviewed: true,
+              canReview: false,
+              reason: 'Bạn đã gửi đánh giá cho sản phẩm này rồi.',
+            },
+          };
+        }
+        return response;
+      }
     } catch {
       // Return fallback
     }
@@ -123,8 +170,10 @@ export const reviewService = {
         canReview: false,
         isBuyer: false,
         isOwner: false,
-        alreadyReviewed: false,
-        reason: 'Chỉ người đã từng mua hoặc thuê sản phẩm này mới có thể để lại bình luận và đánh giá sao.',
+        alreadyReviewed: localAlreadyReviewed,
+        reason: localAlreadyReviewed
+          ? 'Bạn đã gửi đánh giá cho sản phẩm này rồi.'
+          : 'Chỉ người đã từng mua hoặc thuê sản phẩm này mới có thể để lại bình luận và đánh giá sao.',
       },
     };
   },

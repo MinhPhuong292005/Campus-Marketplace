@@ -5,8 +5,6 @@ import {
   Phone,
   Hash,
   School,
-  MapPin,
-  Building,
   GraduationCap,
   Calendar,
   ShieldCheck,
@@ -18,9 +16,12 @@ import {
   Repeat,
   ArrowLeft,
   CheckCircle2,
+  Star,
+  MessageSquare,
 } from 'lucide-react';
 import { profileService } from '../../services/profileService';
 import { listingService } from '../../services/listingService';
+import { reviewService, ReviewRes } from '../../services/reviewService';
 import { PublicProfile, Listing } from '../../types';
 import { KarmaBadge } from '../../components/features/KarmaBadge';
 import { ListingCard } from '../../components/features/ListingCard';
@@ -35,6 +36,7 @@ export const SellerProfilePage: React.FC = () => {
 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
+  const [reviews, setReviews] = useState<ReviewRes[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('ALL');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -45,9 +47,10 @@ export const SellerProfilePage: React.FC = () => {
     const fetchSellerData = async () => {
       setIsLoading(true);
       try {
-        const [profileRes, listingsRes] = await Promise.all([
+        const [profileRes, listingsRes, reviewsRes] = await Promise.all([
           profileService.getPublicProfile(Number(id)),
           listingService.getUserPublicListings(Number(id)),
+          reviewService.getReviewsForUser(Number(id)),
         ]);
 
         if (profileRes.success && profileRes.data) {
@@ -55,6 +58,9 @@ export const SellerProfilePage: React.FC = () => {
         }
         if (listingsRes.success && listingsRes.data?.content) {
           setListings(listingsRes.data.content);
+        }
+        if (reviewsRes.success && reviewsRes.data) {
+          setReviews(reviewsRes.data);
         }
       } catch (err) {
         console.error('Failed to load seller profile:', err);
@@ -95,6 +101,17 @@ export const SellerProfilePage: React.FC = () => {
     if (activeTab === 'ALL') return true;
     return item.transactionType === activeTab;
   });
+
+  const totalReviews = reviews.length;
+  const avgRating =
+    totalReviews > 0
+      ? reviews.reduce((acc, curr) => acc + (curr.rating || 5), 0) / totalReviews
+      : 0;
+
+  const ratingDisplayText =
+    totalReviews === 0
+      ? '0 sao'
+      : `${avgRating % 1 === 0 ? avgRating.toFixed(0) : avgRating.toFixed(1)}/5 sao`;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-16 text-left">
@@ -189,8 +206,21 @@ export const SellerProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Detailed Info Grid (Tên, SĐT, MSV, Ngành học, Niên khóa, Cơ sở) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 text-xs">
+        {/* Detailed Info Grid (Điểm đánh giá, MSV, SĐT, Ngành học, Niên khóa) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 text-xs">
+          {/* Điểm đánh giá (Dựa chính xác từ người mua) */}
+          <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 space-y-1">
+            <span className="text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1">
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" /> Điểm đánh giá
+            </span>
+            <p className="font-extrabold text-amber-600 dark:text-amber-400 text-xs flex items-center gap-1.5">
+              <span>{ratingDisplayText}</span>
+              {totalReviews > 0 && (
+                <span className="text-[10px] text-slate-400 font-normal">({totalReviews} lượt)</span>
+              )}
+            </p>
+          </div>
+
           {/* MSV */}
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-1">
             <span className="text-slate-400 font-medium flex items-center gap-1">
@@ -228,26 +258,6 @@ export const SellerProfilePage: React.FC = () => {
             </span>
             <p className="font-bold text-slate-900 dark:text-white">
               {profile.academicYear || 'K16 (2022 - 2026)'}
-            </p>
-          </div>
-
-          {/* Cơ sở */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-1 sm:col-span-2">
-            <span className="text-slate-400 font-medium flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-rose-500" /> Cơ sở trường
-            </span>
-            <p className="font-bold text-slate-900 dark:text-white truncate">
-              {profile.campusName || 'Cơ sở Yên Nghĩa (Trụ sở chính)'}
-            </p>
-          </div>
-
-          {/* Ký túc xá / Nơi ở */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-1 sm:col-span-2">
-            <span className="text-slate-400 font-medium flex items-center gap-1">
-              <Building className="w-3.5 h-3.5 text-indigo-500" /> Ký túc xá / Phòng trọ
-            </span>
-            <p className="font-bold text-slate-900 dark:text-white truncate">
-              {profile.dormitory || 'Khu KTX Phenikaa'}
             </p>
           </div>
         </div>
@@ -310,6 +320,102 @@ export const SellerProfilePage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {filteredListings.map((item) => (
               <ListingCard key={item.id} listing={item} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Buyer Reviews Section */}
+      <div className="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Star className="w-5 h-5 fill-amber-400 text-amber-500" />
+              <span>Đánh Giá Từ Người Mua ({reviews.length})</span>
+            </h2>
+            <p className="text-xs text-slate-500">
+              Nhận xét thực tế từ các sinh viên đã hoàn tất giao dịch mua hoặc thuê đồ với {profile.fullName}
+            </p>
+          </div>
+          {totalReviews > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40 text-xs font-bold">
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+              <span>{ratingDisplayText}</span>
+            </div>
+          )}
+        </div>
+
+        {reviews.length === 0 ? (
+          <div className="p-8 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-2">
+            <MessageSquare className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Chưa có lượt đánh giá nào
+            </h4>
+            <p className="text-[11px] text-slate-400">
+              Người bán này hiện tại chưa nhận được đánh giá từ giao dịch hoàn tất nào (0 sao).
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {reviews.map((rev) => (
+              <div
+                key={rev.id}
+                className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-2 text-left"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <img
+                      src={rev.reviewerAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${rev.reviewerName || 'Student'}`}
+                      alt={rev.reviewerName}
+                      className="w-9 h-9 rounded-full object-cover bg-slate-100 border border-slate-200 dark:border-slate-700"
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 dark:text-white">
+                        {rev.reviewerName}
+                      </p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-3 h-3 ${
+                              star <= rev.rating
+                                ? 'fill-amber-400 text-amber-500'
+                                : 'text-slate-200 dark:text-slate-700'
+                            }`}
+                          />
+                        ))}
+                        <span className="text-[10px] text-slate-400 ml-1">
+                          {formatDate(rev.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {rev.listingTitle && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 max-w-[200px] truncate">
+                      {rev.listingTitle}
+                    </span>
+                  )}
+                </div>
+
+                {rev.comment && (
+                  <p className="text-xs text-slate-700 dark:text-slate-300 pl-11">
+                    {rev.comment}
+                  </p>
+                )}
+
+                {rev.tags && rev.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pl-11 pt-1">
+                    {rev.tags.map((t, idx) => (
+                      <span
+                        key={idx}
+                        className="text-[10px] px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30 font-medium"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}

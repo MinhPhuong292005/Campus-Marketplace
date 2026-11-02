@@ -40,6 +40,7 @@ export const ShopeeReviewSection: React.FC<ShopeeReviewSectionProps> = ({
   const [eligibilityReason, setEligibilityReason] = useState('');
 
   // New review form
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -175,6 +176,7 @@ export const ShopeeReviewSection: React.FC<ShopeeReviewSectionProps> = ({
         setSuccessMsg('Đăng đánh giá thành công! Bạn nhận được +2 điểm Campus Karma.');
         setAlreadyReviewed(true);
         setCanReview(false);
+        setIsFormOpen(false);
         
 
         // Prepend new review to list
@@ -360,6 +362,35 @@ export const ShopeeReviewSection: React.FC<ShopeeReviewSectionProps> = ({
               </p>
             </div>
           </div>
+        ) : !isFormOpen ? (
+          <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <span>Bạn đã hoàn tất giao dịch món đồ này</span>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 rounded-full">
+                    Người mua đã xác thực
+                  </span>
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Hãy chia sẻ trải nghiệm thực tế để giúp cộng đồng sinh viên Phenikaa và nhận ngay +2 điểm Karma.
+                </p>
+              </div>
+            </div>
+            <BaseButton
+              type="button"
+              onClick={() => setIsFormOpen(true)}
+              variant="primary"
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold shrink-0 shadow-md shadow-amber-600/20 flex items-center gap-1.5"
+            >
+              <Star className="w-4 h-4 fill-amber-300 text-amber-200" />
+              <span>Viết đánh giá sản phẩm</span>
+            </BaseButton>
+          </div>
         ) : (
           /* Interactive Review Creation Form for Verified Buyer */
           <form onSubmit={handleSubmitReview} className="space-y-4">
@@ -370,9 +401,18 @@ export const ShopeeReviewSection: React.FC<ShopeeReviewSectionProps> = ({
                   Xác nhận Người Mua Đã Giao Dịch • Viết Đánh Giá
                 </span>
               </div>
-              <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20 flex items-center gap-1">
-                <Award className="w-3.5 h-3.5" /> +2 Karma cho đánh giá hữu ích
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20 flex items-center gap-1">
+                  <Award className="w-3.5 h-3.5" /> +2 Karma cho đánh giá hữu ích
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsFormOpen(false)}
+                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-medium px-2 py-0.5"
+                >
+                  Đóng lại
+                </button>
+              </div>
             </div>
 
             {errorMsg && (
