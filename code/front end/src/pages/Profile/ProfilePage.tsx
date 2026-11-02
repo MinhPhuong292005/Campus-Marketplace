@@ -29,6 +29,7 @@ import {
   MessageCircle,
   Camera,
   Loader2,
+  Heart,
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -36,9 +37,11 @@ import { KarmaBadge } from '../../components/features/KarmaBadge';
 import { BaseButton } from '../../components/base/BaseButton';
 import { EditProfileModal } from '../../components/features/EditProfileModal';
 import { StudentCardVerifyModal } from '../../components/features/StudentCardVerifyModal';
+import { ListingCard } from '../../components/features/ListingCard';
 import { profileService } from '../../services/profileService';
 import { listingService } from '../../services/listingService';
-import { User as UserType } from '../../types';
+import { favoriteService } from '../../services/favoriteService';
+import { User as UserType, Listing } from '../../types';
 import { MyListingsPage } from '../Listing/MyListingsPage';
 import { RentalListPage } from '../Rental/RentalListPage';
 import { orderService, PurchaseOrder } from '../../services/orderService';
@@ -47,7 +50,7 @@ import { ShopeeDisputeModal } from '../../components/features/ShopeeDisputeModal
 import { studentNotificationService, StudentNotification } from '../../services/studentNotificationService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
-type PortalTab = 'orders' | 'listings' | 'rentals' | 'account' | 'notifications';
+type PortalTab = 'account' | 'orders' | 'listings' | 'rentals' | 'notifications' | 'favorites';
 
 type OrderSubTab =
   | 'ALL'
@@ -60,13 +63,24 @@ export const ProfilePage: React.FC = () => {
   const { user: storeUser, login, token } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Active main tab from URL param or default to 'orders'
+  // Active main tab from URL param or default to 'account' (Hồ sơ & bảo mật trên cùng)
   const tabParam = searchParams.get('tab') as PortalTab | null;
   const [activeTab, setActiveTab] = useState<PortalTab>(
-    tabParam && ['orders', 'listings', 'rentals', 'account', 'notifications'].includes(tabParam)
+    tabParam && ['account', 'orders', 'listings', 'rentals', 'notifications', 'favorites'].includes(tabParam)
       ? tabParam
-      : 'orders'
+      : 'account'
   );
+
+  const [savedListings, setSavedListings] = useState<Listing[]>(() => favoriteService.getFavorites());
+
+  useEffect(() => {
+    const updateFavorites = () => {
+      setSavedListings(favoriteService.getFavorites());
+    };
+    updateFavorites();
+    window.addEventListener('campus_favorites_updated', updateFavorites);
+    return () => window.removeEventListener('campus_favorites_updated', updateFavorites);
+  }, []);
 
   const [user, setUser] = useState<UserType | null>(storeUser);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -202,7 +216,7 @@ export const ProfilePage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (tabParam && ['orders', 'listings', 'rentals', 'account', 'notifications'].includes(tabParam)) {
+    if (tabParam && ['account', 'orders', 'listings', 'rentals', 'notifications', 'favorites'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
@@ -417,10 +431,23 @@ export const ProfilePage: React.FC = () => {
 
           {/* Navigation Menu */}
           <nav className="p-2 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-1">
-            {/* 1. Đơn Mua & Đồ Nhận */}
+            {/* 1. Hồ Sơ & Bảo Mật (Lên đầu tiên theo yêu cầu) */}
+            <button
+              onClick={() => handleSelectTab('account')}
+              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center gap-3 transition-all cursor-pointer ${
+                activeTab === 'account'
+                  ? 'bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 shadow-xs'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              <User className={`w-4 h-4 ${activeTab === 'account' ? 'text-orange-600 dark:text-orange-400' : 'text-slate-400'}`} />
+              <span>Hồ Sơ & Bảo Mật</span>
+            </button>
+
+            {/* 2. Đơn Mua & Đồ Nhận */}
             <button
               onClick={() => handleSelectTab('orders')}
-              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all ${
+              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
                 activeTab === 'orders'
                   ? 'bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 shadow-xs'
                   : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
@@ -435,10 +462,10 @@ export const ProfilePage: React.FC = () => {
               </span>
             </button>
 
-            {/* 2. Kho Đồ Sinh Viên */}
+            {/* 3. Kho Đồ Sinh Viên */}
             <button
               onClick={() => handleSelectTab('listings')}
-              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all ${
+              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
                 activeTab === 'listings'
                   ? 'bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 shadow-xs'
                   : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
@@ -450,10 +477,10 @@ export const ProfilePage: React.FC = () => {
               </div>
             </button>
 
-            {/* 3. Hợp Đồng Thuê */}
+            {/* 4. Hợp Đồng Thuê */}
             <button
               onClick={() => handleSelectTab('rentals')}
-              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all ${
+              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
                 activeTab === 'rentals'
                   ? 'bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 shadow-xs'
                   : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
@@ -465,23 +492,10 @@ export const ProfilePage: React.FC = () => {
               </div>
             </button>
 
-            {/* 4. Hồ Sơ & Bảo Mật */}
-            <button
-              onClick={() => handleSelectTab('account')}
-              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center gap-3 transition-all ${
-                activeTab === 'account'
-                  ? 'bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 shadow-xs'
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              <User className={`w-4 h-4 ${activeTab === 'account' ? 'text-orange-600 dark:text-orange-400' : 'text-slate-400'}`} />
-              <span>Hồ Sơ & Bảo Mật</span>
-            </button>
-
             {/* 5. Thông Báo */}
             <button
               onClick={() => handleSelectTab('notifications')}
-              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all ${
+              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
                 activeTab === 'notifications'
                   ? 'bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 shadow-xs'
                   : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
@@ -494,6 +508,26 @@ export const ProfilePage: React.FC = () => {
               {unreadNotifsCount > 0 && (
                 <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-600 text-white">
                   {unreadNotifsCount}
+                </span>
+              )}
+            </button>
+
+            {/* 6. Món Đã Thả Tim / Đã Lưu (Thêm dưới thông báo theo yêu cầu) */}
+            <button
+              onClick={() => handleSelectTab('favorites')}
+              className={`w-full px-3.5 py-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                activeTab === 'favorites'
+                  ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 shadow-xs'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Heart className={`w-4 h-4 ${activeTab === 'favorites' ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
+                <span>Món đã thả tim</span>
+              </div>
+              {savedListings.length > 0 && (
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-100 text-rose-600 dark:bg-rose-900/60 dark:text-rose-300">
+                  {savedListings.length}
                 </span>
               )}
             </button>
@@ -1267,6 +1301,59 @@ export const ProfilePage: React.FC = () => {
                   ))
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAB 6: MÓN ĐÃ THẢ TIM / ĐÃ LƯU */}
+          {activeTab === 'favorites' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
+                    <span>Món Đồ Đã Thả Tim ({savedListings.length})</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Danh sách các món đồ bạn đã lưu lại để theo dõi, trao đổi, mua hoặc thuê khi cần.
+                  </p>
+                </div>
+                {savedListings.length > 0 && (
+                  <Link to="/">
+                    <BaseButton variant="outline" size="sm" className="gap-1.5 text-xs">
+                      <span>Tiếp tục khám phá chợ</span>
+                    </BaseButton>
+                  </Link>
+                )}
+              </div>
+
+              {savedListings.length === 0 ? (
+                <div className="p-12 text-center rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+                  <div className="w-16 h-16 rounded-3xl bg-rose-50 dark:bg-rose-950/40 text-rose-500 flex items-center justify-center mx-auto shadow-inner">
+                    <Heart className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Chưa có món đồ nào được thả tim
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                      Khi lướt chợ sinh viên Phenikaa, bạn hãy bấm vào biểu tượng trái tim ❤️ ở bất kỳ sản phẩm nào để lưu lại và xem lại nhanh chóng tại đây!
+                    </p>
+                  </div>
+                  <Link to="/">
+                    <BaseButton variant="primary" size="sm" className="mt-2 text-xs font-semibold px-5 py-2.5 rounded-xl">
+                      Khám phá chợ đồ sinh viên
+                    </BaseButton>
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {savedListings.map((item) => (
+                    <div key={item.id} className="relative group">
+                      <ListingCard listing={item} />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

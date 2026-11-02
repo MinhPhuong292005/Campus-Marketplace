@@ -109,15 +109,17 @@ export const DashboardPage: React.FC = () => {
     if (filters.transactionType !== 'ALL' && item.transactionType !== filters.transactionType) {
       return false;
     }
-    // Category filtering: strictly match by categoryId or resolved ID
+    // Category filtering: strictly match by categoryId or resolved ID / name
     if (filters.category !== 'ALL') {
       const targetCatId = Number(filters.category);
-      if (!isNaN(targetCatId) && targetCatId > 0) {
-        if (item.categoryId !== targetCatId) return false;
-      } else {
-        const catName = (item.categoryName || '').toLowerCase();
-        if (!catName.includes(filters.category.toLowerCase())) return false;
-      }
+      const activeCat = APP_CATEGORIES.find((c) => c.id === filters.category);
+      const matchId = !isNaN(targetCatId) && targetCatId > 0 && item.categoryId === targetCatId;
+      const matchName =
+        activeCat &&
+        (item.categoryName || '')
+          .toLowerCase()
+          .includes(activeCat.label.toLowerCase().split('&')[0].trim());
+      if (!matchId && !matchName) return false;
     }
     // Condition
     if (filters.condition !== 'ALL' && item.conditionStatus !== filters.condition) {

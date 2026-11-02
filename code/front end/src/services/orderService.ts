@@ -15,7 +15,7 @@ export interface PurchaseOrder {
   transactionType?: 'SELL' | 'RENT';
   quantity?: number;
   rentalDays?: number;
-  paymentMethod?: 'CASH' | 'VIETQR';
+  paymentMethod?: 'CASH' | 'BANK_TRANSFER' | 'VIETQR';
   paymentStatus?: 'PAID' | 'PENDING';
   meetingPoint?: string;
   orderDate: string;
@@ -64,7 +64,7 @@ export const orderService = {
     transactionType?: 'SELL' | 'RENT';
     quantity?: number;
     rentalDays?: number;
-    paymentMethod?: 'CASH' | 'VIETQR';
+    paymentMethod?: 'CASH' | 'BANK_TRANSFER' | 'VIETQR';
     paymentStatus?: 'PAID' | 'PENDING';
     meetingPoint?: string;
   }): PurchaseOrder => {

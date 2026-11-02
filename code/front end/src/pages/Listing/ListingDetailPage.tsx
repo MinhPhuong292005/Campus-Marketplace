@@ -35,6 +35,8 @@ import { GiveawayClaimModal } from '../../components/features/GiveawayClaimModal
 import { DatePickerInput } from '../../components/base/DatePickerInput';
 import { rentalService } from '../../services/rentalService';
 import { giveawayService, GiveawayClaim } from '../../services/giveawayService';
+import { favoriteService } from '../../services/favoriteService';
+import { resolveCategoryId } from '../../constants/categories';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export const ListingDetailPage: React.FC = () => {
@@ -48,6 +50,19 @@ export const ListingDetailPage: React.FC = () => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isSaved, setIsSaved] = useState(false);
   const [showCopiedToast, setShowCopiedToast] = useState(false);
+
+  useEffect(() => {
+    if (listing?.id) {
+      setIsSaved(favoriteService.isFavorited(listing.id));
+    }
+    const handleFavUpdated = (e: any) => {
+      if (listing?.id && (!e.detail || e.detail.listingId === listing.id)) {
+        setIsSaved(favoriteService.isFavorited(listing.id));
+      }
+    };
+    window.addEventListener('campus_favorites_updated', handleFavUpdated);
+    return () => window.removeEventListener('campus_favorites_updated', handleFavUpdated);
+  }, [listing?.id]);
   const [giveawayToast, setGiveawayToast] = useState<string | null>(null);
 
   // Giveaway state
@@ -373,9 +388,13 @@ export const ListingDetailPage: React.FC = () => {
             <span>Trang chủ</span>
           </Link>
           <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="text-slate-600 dark:text-slate-300 shrink-0">
+          <Link
+            to={`/?categoryId=${listing.categoryId || resolveCategoryId(listing.categoryName)}`}
+            className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:underline shrink-0 font-medium transition-colors cursor-pointer"
+            title={`Xem tất cả sản phẩm thuộc danh mục ${listing.categoryName || 'Sản phẩm'}`}
+          >
             {listing.categoryName || 'Sản phẩm'}
-          </span>
+          </Link>
           <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           <span className="text-slate-900 dark:text-slate-100 font-semibold truncate max-w-[200px] sm:max-w-sm">
             {listing.title}
@@ -384,13 +403,18 @@ export const ListingDetailPage: React.FC = () => {
 
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => setIsSaved(!isSaved)}
-            className={`p-2 rounded-xl border text-xs font-medium transition-all flex items-center gap-1.5 ${
+            onClick={() => {
+              if (listing) {
+                const nextState = favoriteService.toggleFavorite(listing);
+                setIsSaved(nextState);
+              }
+            }}
+            className={`p-2 rounded-xl border text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
               isSaved
                 ? 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/40 dark:border-rose-800'
                 : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
             }`}
-            title="Lưu tin"
+            title={isSaved ? 'Bỏ lưu tin' : 'Lưu tin / Thả tim'}
           >
             <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : ''}`} />
             <span className="hidden sm:inline">{isSaved ? 'Đã lưu' : 'Lưu tin'}</span>

@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Tag, MapPin, Repeat, Clock, Gift, ShoppingBag } from 'lucide-react';
+import { Tag, MapPin, Repeat, Clock, Gift, ShoppingBag, Heart } from 'lucide-react';
 import { Listing } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 import { TRANSACTION_TYPE_LABELS, CONDITION_LABELS } from '../../constants';
 import { KarmaBadge } from './KarmaBadge';
+import { favoriteService } from '../../services/favoriteService';
 
 interface ListingCardProps {
   listing: Listing;
@@ -13,6 +14,18 @@ interface ListingCardProps {
 
 export const ListingCard: React.FC<ListingCardProps> = ({ listing, onClick }) => {
   const navigate = useNavigate();
+  const [isFav, setIsFav] = useState(() => favoriteService.isFavorited(listing.id));
+
+  useEffect(() => {
+    setIsFav(favoriteService.isFavorited(listing.id));
+    const handleUpdate = (e: any) => {
+      if (!e.detail || e.detail.listingId === listing.id) {
+        setIsFav(favoriteService.isFavorited(listing.id));
+      }
+    };
+    window.addEventListener('campus_favorites_updated', handleUpdate);
+    return () => window.removeEventListener('campus_favorites_updated', handleUpdate);
+  }, [listing.id]);
 
   const handleClick = () => {
     if (onClick) {
@@ -70,6 +83,24 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onClick }) =>
             {badgeConfig.icon}
             {TRANSACTION_TYPE_LABELS[listing.transactionType]}
           </span>
+        </div>
+        <div className="absolute top-2.5 right-2.5 z-10">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const nextStatus = favoriteService.toggleFavorite(listing);
+              setIsFav(nextStatus);
+            }}
+            className={`p-1.5 rounded-full backdrop-blur-md transition-all shadow-xs cursor-pointer ${
+              isFav
+                ? 'bg-rose-500 text-white hover:bg-rose-600 scale-105'
+                : 'bg-white/85 dark:bg-slate-900/85 text-slate-500 hover:text-rose-500 hover:bg-white dark:hover:bg-slate-800'
+            }`}
+            title={isFav ? 'Bỏ lưu tin' : 'Thả tim / Lưu tin'}
+          >
+            <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-white text-white' : ''}`} />
+          </button>
         </div>
       </div>
 

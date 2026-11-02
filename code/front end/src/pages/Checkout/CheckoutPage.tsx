@@ -5,7 +5,6 @@ import {
   MapPin,
   CreditCard,
   Banknote,
-  QrCode,
   CheckCircle2,
   Store,
   MessageCircle,
@@ -71,7 +70,7 @@ export const CheckoutPage: React.FC = () => {
   const selectedMeetingPoint =
     checkoutItems[0]?.safeMeetingPoint || 'Sảnh Tòa A2 (Khu Giảng đường Phenikaa)';
 
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'VIETQR'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successOrder, setSuccessOrder] = useState<{
@@ -79,7 +78,7 @@ export const CheckoutPage: React.FC = () => {
     sellerId: number;
     sellerName: string;
     totalAmount: number;
-    paymentMethod: 'CASH' | 'VIETQR';
+    paymentMethod: 'CASH' | 'BANK_TRANSFER';
     listingTitle: string;
   } | null>(null);
 
@@ -149,7 +148,7 @@ export const CheckoutPage: React.FC = () => {
           quantity: item.quantity,
           rentalDays: item.transactionType === 'RENT' ? item.quantity : undefined,
           paymentMethod: paymentMethod,
-          paymentStatus: paymentMethod === 'VIETQR' ? 'PAID' : 'PENDING',
+          paymentStatus: 'PENDING',
           meetingPoint: selectedMeetingPoint,
         });
         lastCreatedOrderId = order.id;
@@ -287,7 +286,7 @@ export const CheckoutPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. Payment Methods (Tiền mặt vs Chuyển khoản QR Code) */}
+      {/* 3. Payment Methods (Tiền mặt trực tiếp vs Chuyển khoản ngân hàng - Hoàn toàn không dùng QR) */}
       <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
         <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
           <CreditCard className="w-4 h-4 text-emerald-600" />
@@ -323,64 +322,50 @@ export const CheckoutPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Method 2: VietQR */}
+          {/* Method 2: Direct Bank Transfer (NO QR) */}
           <div
-            onClick={() => setPaymentMethod('VIETQR')}
+            onClick={() => setPaymentMethod('BANK_TRANSFER')}
             className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3 ${
-              paymentMethod === 'VIETQR'
+              paymentMethod === 'BANK_TRANSFER'
                 ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-950/20 shadow-xs'
                 : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
             }`}
           >
             <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 shrink-0">
-              <QrCode className="w-5 h-5" />
+              <CreditCard className="w-5 h-5" />
             </div>
             <div className="space-y-1">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  Chuyển khoản VietQR Code
+                  Chuyển khoản trực tiếp (Số tài khoản)
                 </span>
-                {paymentMethod === 'VIETQR' && (
+                {paymentMethod === 'BANK_TRANSFER' && (
                   <CheckCircle2 className="w-3.5 h-3.5 text-orange-500" />
                 )}
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Quét mã QR qua app ngân hàng bất kỳ (MB, Vietcombank, Techcombank, MoMo...). Tiền về tài khoản ngay lập tức.
+                Chuyển tiền trực tiếp vào tài khoản ngân hàng của sinh viên khi giao nhận hàng (nhập số tài khoản, không dùng mã QR).
               </p>
             </div>
           </div>
         </div>
 
-        {/* VietQR Interactive Frame when selected */}
-        {paymentMethod === 'VIETQR' && (
+        {/* Bank Details Frame when selected (NO QR) */}
+        {paymentMethod === 'BANK_TRANSFER' && (
           <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/60 to-indigo-50/40 dark:from-slate-800/80 dark:to-slate-800/40 border border-blue-200/80 dark:border-blue-900/40 space-y-4 animate-in fade-in duration-200">
             <div className="flex items-center justify-between text-xs pb-2 border-b border-blue-200/50 dark:border-blue-800/40">
               <span className="font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
-                <QrCode className="w-4 h-4 text-blue-600" />
-                <span>Mã VietQR Thanh Toán Cho Người Bán</span>
+                <CreditCard className="w-4 h-4 text-blue-600" />
+                <span>Thông Tin Tài Khoản Nhận Tiền Của Người Bán</span>
               </span>
               <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
-                Miễn phí chuyển khoản 24/7
+                Chuyển khoản 24/7
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-              {/* QR Image */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm text-center max-w-[210px] mx-auto">
-                <img
-                  src={`https://img.vietqr.io/image/MB-0382888999-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(
-                    bankInfo.transferContent
-                  )}&accountName=${encodeURIComponent(bankInfo.accountName)}`}
-                  alt="VietQR Chuyển Khoản"
-                  className="w-full h-auto rounded-xl mx-auto"
-                />
-                <p className="text-[10px] text-slate-400 mt-2 font-medium">
-                  Mở App Ngân hàng bất kỳ để quét mã
-                </p>
-              </div>
-
-              {/* Bank Details with Copy Buttons */}
-              <div className="space-y-2.5 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Bank Info */}
+              <div className="space-y-3 text-xs bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
                 <div>
                   <span className="text-slate-400 block text-[11px]">Ngân hàng thụ hưởng:</span>
                   <span className="font-bold text-slate-900 dark:text-white">{bankInfo.bankName}</span>
@@ -391,7 +376,7 @@ export const CheckoutPage: React.FC = () => {
                   <span className="font-bold text-slate-900 dark:text-white">{bankInfo.accountName}</span>
                 </div>
 
-                <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                   <div>
                     <span className="text-slate-400 block text-[10px]">Số tài khoản:</span>
                     <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">
@@ -401,36 +386,43 @@ export const CheckoutPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleCopy(bankInfo.accountNumber, 'accNum')}
-                    className="p-1.5 rounded-lg bg-blue-50 dark:bg-slate-800 text-blue-600 hover:bg-blue-100 transition flex items-center gap-1 text-[11px]"
+                    className="p-1.5 rounded-lg bg-blue-50 dark:bg-slate-700 text-blue-600 hover:bg-blue-100 transition flex items-center gap-1 text-[11px] cursor-pointer"
                   >
                     {copiedField === 'accNum' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedField === 'accNum' ? 'Đã chép' : 'Sao chép'}</span>
                   </button>
                 </div>
+              </div>
 
-                <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+              {/* Amount & Transfer Message */}
+              <div className="space-y-3 text-xs bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Số tiền cần chuyển:</span>
+                  <span className="font-bold text-base text-orange-600 dark:text-orange-400">
+                    {formatCurrency(totalAmount)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                   <div>
                     <span className="text-slate-400 block text-[10px]">Nội dung chuyển khoản:</span>
-                    <span className="font-mono font-bold text-orange-600 text-xs truncate max-w-[170px] block">
+                    <span className="font-mono font-bold text-slate-900 dark:text-white text-xs truncate max-w-[180px] block">
                       {bankInfo.transferContent}
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleCopy(bankInfo.transferContent, 'content')}
-                    className="p-1.5 rounded-lg bg-blue-50 dark:bg-slate-800 text-blue-600 hover:bg-blue-100 transition flex items-center gap-1 text-[11px]"
+                    className="p-1.5 rounded-lg bg-blue-50 dark:bg-slate-700 text-blue-600 hover:bg-blue-100 transition flex items-center gap-1 text-[11px] cursor-pointer"
                   >
                     {copiedField === 'content' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copiedField === 'content' ? 'Đã chép' : 'Sao chép'}</span>
                   </button>
                 </div>
 
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Số tiền cần thanh toán:</span>
-                  <span className="font-bold text-base text-orange-600 dark:text-orange-400">
-                    {formatCurrency(totalAmount)}
-                  </span>
-                </div>
+                <p className="text-[10px] text-slate-500 italic">
+                  * Mở app ngân hàng của bạn, chuyển tiền theo đúng STK và nội dung trên khi gặp mặt kiểm tra đồ.
+                </p>
               </div>
             </div>
           </div>
@@ -457,7 +449,7 @@ export const CheckoutPage: React.FC = () => {
           <div className="flex justify-between text-slate-600 dark:text-slate-300">
             <span>Phương thức thanh toán đã chọn:</span>
             <span className="font-bold text-slate-900 dark:text-white">
-              {paymentMethod === 'CASH' ? '💵 Tiền mặt khi gặp mặt' : '📲 Chuyển khoản VietQR'}
+              {paymentMethod === 'CASH' ? '💵 Tiền mặt khi gặp mặt' : '🏦 Chuyển khoản ngân hàng trực tiếp'}
             </span>
           </div>
         </div>
@@ -508,7 +500,7 @@ export const CheckoutPage: React.FC = () => {
               <div className="flex justify-between">
                 <span className="text-slate-500">Hình thức:</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {successOrder.paymentMethod === 'CASH' ? '💵 Tiền mặt khi gặp mặt' : '📲 Chuyển khoản VietQR'}
+                  {successOrder.paymentMethod === 'CASH' ? '💵 Tiền mặt khi gặp mặt' : '🏦 Chuyển khoản ngân hàng trực tiếp'}
                 </span>
               </div>
               <div className="flex justify-between">
