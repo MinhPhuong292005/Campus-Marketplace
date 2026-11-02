@@ -708,7 +708,10 @@ export const ListingDetailPage: React.FC = () => {
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative">
                 <img
-                  src={listing.authorAvatar || '/default-avatar.png'}
+                  src={
+                    listing.authorAvatar ||
+                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${listing.authorName || 'CampusStudent'}`
+                  }
                   alt={listing.authorName}
                   className="w-12 h-12 rounded-2xl object-cover bg-slate-100 border border-slate-200 dark:border-slate-700"
                 />

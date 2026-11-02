@@ -191,6 +191,16 @@ public class AdminServiceImpl implements AdminService {
                 listing.setModerationReason(finalReason != null ? finalReason : "Gỡ/Ẩn bởi Quản trị viên");
                 listing.setModeratedAt(LocalDateTime.now());
                 break;
+            case "DELETE":
+                listing.setStatus("DELETED");
+                listing.setModerationReason(finalReason != null ? finalReason : "Đã xóa bởi Quản trị viên");
+                listing.setModeratedAt(LocalDateTime.now());
+                break;
+            case "DELETE_PERMANENT":
+                listingRepository.delete(listing);
+                recordAudit(adminId, adminEmail, "DELETE_PERMANENT_LISTING", "LISTING", listingId,
+                        "Xóa vĩnh viễn bài đăng khỏi hệ thống");
+                return ListingDetailRes.builder().id(listingId).status("DELETED").build();
             default:
                 throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST);
         }

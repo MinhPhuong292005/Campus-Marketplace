@@ -20,7 +20,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
   className = '',
 }) => {
   const [previewUrl, setPreviewUrl] = useState<string>(
-    currentAvatarUrl || '/default-avatar.png'
+    currentAvatarUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`
   );
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -31,7 +31,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fallbackDefault = '/default-avatar.png';
+  const fallbackDefault = `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`;
 
   const validateAndProcessFile = async (file?: File | null) => {
     if (!file) return;

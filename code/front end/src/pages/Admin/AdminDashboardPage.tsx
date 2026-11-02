@@ -1295,52 +1295,72 @@ export const AdminDashboardPage: React.FC = () => {
                                   <span className="hidden sm:inline">Chi tiết</span>
                                 </button>
 
-                                {item.status !== 'ACTIVE' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDirectApproveListing(item);
-                                    }}
-                                    title="Duyệt bài đăng ngay lập tức"
-                                    className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center gap-1 text-xs px-2.5 font-semibold transition cursor-pointer"
-                                  >
-                                    <CheckCircle className="w-4 h-4" />
-                                    <span className="hidden sm:inline">Duyệt</span>
-                                  </button>
-                                )}
-
-                                {item.status !== 'REJECTED' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedListing(item);
-                                      setRejectReasonModal(true);
-                                    }}
-                                    title="Từ chối / Cấm bài viết kèm lý do"
-                                    className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 flex items-center gap-1 text-xs px-2 font-medium cursor-pointer"
-                                  >
-                                    <XCircle className="w-4 h-4" />
-                                    <span className="hidden sm:inline">Từ chối</span>
-                                  </button>
-                                )}
-
-                                {item.status !== 'DELETED' && item.status !== 'ARCHIVED' && (
+                                {/* Những bài đăng đã bị xóa hoặc ẩn: chỉ hiện Chi tiết và Thùng rác */}
+                                {item.status === 'DELETED' || item.status === 'ARCHIVED' ? (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       askConfirmation(
-                                        'Xác nhận gỡ / ẩn bài đăng',
-                                        `Bạn có chắc chắn muốn GỠ / ẨN bài đăng #${item.id} ("${item.title}") khỏi sàn giao dịch?`,
-                                        () => handleModerateListing(item.id, 'HIDE'),
+                                        'Xóa vĩnh viễn bài đăng',
+                                        `Bạn có chắc chắn muốn XÓA VĨNH VIỄN bài đăng #${item.id} ("${item.title}") khỏi hệ thống lưu trữ?`,
+                                        () => handleModerateListing(item.id, 'DELETE_PERMANENT'),
                                         true,
-                                        'Gỡ bài đăng'
+                                        'Xóa vĩnh viễn'
                                       );
                                     }}
-                                    title="Gỡ/Ẩn bài đăng"
-                                    className="p-1.5 rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 border border-slate-600 cursor-pointer"
+                                    title="Thùng rác: Xóa vĩnh viễn bài đăng khỏi hệ thống"
+                                    className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 cursor-pointer transition"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
+                                ) : (
+                                  <>
+                                    {item.status !== 'ACTIVE' && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDirectApproveListing(item);
+                                        }}
+                                        title="Duyệt bài đăng ngay lập tức"
+                                        className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center gap-1 text-xs px-2.5 font-semibold transition cursor-pointer"
+                                      >
+                                        <CheckCircle className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Duyệt</span>
+                                      </button>
+                                    )}
+
+                                    {item.status !== 'REJECTED' && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedListing(item);
+                                          setRejectReasonModal(true);
+                                        }}
+                                        title="Từ chối / Cấm bài viết kèm lý do"
+                                        className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 flex items-center gap-1 text-xs px-2 font-medium cursor-pointer"
+                                      >
+                                        <XCircle className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Từ chối</span>
+                                      </button>
+                                    )}
+
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        askConfirmation(
+                                          'Xác nhận gỡ / ẩn bài đăng',
+                                          `Bạn có chắc chắn muốn GỠ / ẨN bài đăng #${item.id} ("${item.title}") khỏi sàn giao dịch?`,
+                                          () => handleModerateListing(item.id, 'HIDE'),
+                                          true,
+                                          'Gỡ bài đăng'
+                                        );
+                                      }}
+                                      title="Gỡ/Ẩn bài đăng"
+                                      className="p-1.5 rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 border border-slate-600 cursor-pointer transition"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </td>
@@ -2615,53 +2635,73 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2">
-                {detailModalListing.status !== 'ACTIVE' && (
-                  <button
-                    onClick={() => {
-                      const item = detailModalListing;
-                      setDetailModalListing(null);
-                      handleDirectApproveListing(item);
-                    }}
-                    className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl transition shadow-md shadow-emerald-950/50 cursor-pointer"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Duyệt bài đăng</span>
-                  </button>
-                )}
-
-                {detailModalListing.status !== 'REJECTED' && (
-                  <button
-                    onClick={() => {
-                      const item = detailModalListing;
-                      setDetailModalListing(null);
-                      setSelectedListing(item);
-                      setRejectReasonModal(true);
-                    }}
-                    className="flex items-center gap-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl transition shadow-md shadow-rose-950/50 cursor-pointer"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    <span>Từ chối / Cấm bài</span>
-                  </button>
-                )}
-
-                {detailModalListing.status !== 'DELETED' && detailModalListing.status !== 'ARCHIVED' && (
+                {detailModalListing.status === 'DELETED' || detailModalListing.status === 'ARCHIVED' ? (
                   <button
                     onClick={() => {
                       const item = detailModalListing;
                       setDetailModalListing(null);
                       askConfirmation(
-                        'Xác nhận gỡ / ẩn bài đăng',
-                        `Bạn có chắc chắn muốn GỠ / ẨN bài đăng #${item.id} ("${item.title}") khỏi sàn giao dịch?`,
-                        () => handleModerateListing(item.id, 'HIDE'),
+                        'Xóa vĩnh viễn bài đăng',
+                        `Bạn có chắc chắn muốn XÓA VĨNH VIỄN bài đăng #${item.id} ("${item.title}") khỏi hệ thống lưu trữ?`,
+                        () => handleModerateListing(item.id, 'DELETE_PERMANENT'),
                         true,
-                        'Gỡ bài đăng'
+                        'Xóa vĩnh viễn'
                       );
                     }}
-                    className="flex items-center gap-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl border border-slate-700 transition cursor-pointer"
+                    className="flex items-center gap-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl transition shadow-md shadow-rose-950/50 cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Xóa / Ẩn bài</span>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Xóa khỏi thùng rác</span>
                   </button>
+                ) : (
+                  <>
+                    {detailModalListing.status !== 'ACTIVE' && (
+                      <button
+                        onClick={() => {
+                          const item = detailModalListing;
+                          setDetailModalListing(null);
+                          handleDirectApproveListing(item);
+                        }}
+                        className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl transition shadow-md shadow-emerald-950/50 cursor-pointer"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Duyệt bài đăng</span>
+                      </button>
+                    )}
+
+                    {detailModalListing.status !== 'REJECTED' && (
+                      <button
+                        onClick={() => {
+                          const item = detailModalListing;
+                          setDetailModalListing(null);
+                          setSelectedListing(item);
+                          setRejectReasonModal(true);
+                        }}
+                        className="flex items-center gap-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl transition shadow-md shadow-rose-950/50 cursor-pointer"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        <span>Từ chối / Cấm bài</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        const item = detailModalListing;
+                        setDetailModalListing(null);
+                        askConfirmation(
+                          'Xác nhận gỡ / ẩn bài đăng',
+                          `Bạn có chắc chắn muốn GỠ / ẨN bài đăng #${item.id} ("${item.title}") khỏi sàn giao dịch?`,
+                          () => handleModerateListing(item.id, 'HIDE'),
+                          true,
+                          'Gỡ bài đăng'
+                        );
+                      }}
+                      className="flex items-center gap-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl border border-slate-700 transition cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Xóa / Ẩn bài</span>
+                    </button>
+                  </>
                 )}
 
                 <button

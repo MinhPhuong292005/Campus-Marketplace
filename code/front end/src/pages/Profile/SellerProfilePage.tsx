@@ -139,7 +139,10 @@ export const SellerProfilePage: React.FC = () => {
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 min-w-0">
             <div className="relative shrink-0">
               <img
-                src={profile.avatarUrl || '/default-avatar.png'}
+                src={
+                  profile.avatarUrl ||
+                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.fullName || 'Student'}`
+                }
                 alt={profile.fullName}
                 className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover bg-slate-100 border-2 border-white dark:border-slate-800 shadow-md"
               />
@@ -362,7 +365,7 @@ export const SellerProfilePage: React.FC = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2.5">
                     <img
-                      src={rev.reviewerAvatar || '/default-avatar.png'}
+                      src={rev.reviewerAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${rev.reviewerName || 'Student'}`}
                       alt={rev.reviewerName}
                       className="w-9 h-9 rounded-full object-cover bg-slate-100 border border-slate-200 dark:border-slate-700"
                     />
