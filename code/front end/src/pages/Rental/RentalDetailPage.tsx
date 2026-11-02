@@ -29,6 +29,7 @@ import { RentalContract } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { ReportModal } from '../../components/features/ReportModal';
 import { ReviewModal } from '../../components/features/ReviewModal';
+import { RentalRejectCancelModal } from '../../components/features/RentalRejectCancelModal';
 import { useAuthStore } from '../../store/useAuthStore';
 import { PHENIKAA_SAFE_MEETING_POINTS } from '../../constants/phenikaaData';
 
@@ -42,6 +43,8 @@ export const RentalDetailPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isRejectCancelModalOpen, setIsRejectCancelModalOpen] = useState(false);
+  const [rejectCancelType, setRejectCancelType] = useState<'REJECT' | 'CANCEL'>('REJECT');
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -104,6 +107,32 @@ export const RentalDetailPage: React.FC = () => {
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Không thể xác nhận cho thuê.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRejectCancelSubmit = async (reason: string) => {
+    if (!contract) return;
+    try {
+      setIsSubmitting(true);
+      setErrorMsg(null);
+      if (rejectCancelType === 'REJECT') {
+        const res = await rentalService.rejectRental(contract.id, reason);
+        if (res.success && res.data) {
+          setSuccessMsg('Đã từ chối yêu cầu cho thuê. Bài đăng đã tự động mở lại cho bạn khác thuê.');
+          setContract(res.data);
+        }
+      } else {
+        const res = await rentalService.cancelRental(contract.id, reason, 'renter');
+        if (res.success && res.data) {
+          setSuccessMsg('Đã hủy yêu cầu thuê thiết bị thành công.');
+          setContract(res.data);
+        }
+      }
+      setIsRejectCancelModalOpen(false);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Lỗi khi thực hiện thao tác.');
     } finally {
       setIsSubmitting(false);
     }
@@ -451,16 +480,43 @@ export const RentalDetailPage: React.FC = () => {
             {/* Actions Step 1 */}
             {!isStep1Done && (
               <div className="flex items-center gap-2 shrink-0">
-                {isOwner && (
+                {isOwner ? (
+                  <>
+                    <BaseButton
+                      variant="primary"
+                      size="sm"
+                      isLoading={isSubmitting}
+                      onClick={handleApproveContract}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Xác nhận cho thuê</span>
+                    </BaseButton>
+                    <BaseButton
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setRejectCancelType('REJECT');
+                        setIsRejectCancelModalOpen(true);
+                      }}
+                      className="text-xs font-bold text-rose-600 border-rose-200 hover:bg-rose-50 gap-1.5"
+                    >
+                      <X className="w-4 h-4" />
+                      <span>Từ chối</span>
+                    </BaseButton>
+                  </>
+                ) : (
                   <BaseButton
-                    variant="primary"
+                    variant="outline"
                     size="sm"
-                    isLoading={isSubmitting}
-                    onClick={handleApproveContract}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5"
+                    onClick={() => {
+                      setRejectCancelType('CANCEL');
+                      setIsRejectCancelModalOpen(true);
+                    }}
+                    className="text-xs font-bold text-rose-600 border-rose-200 hover:bg-rose-50 gap-1.5"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Xác nhận cho thuê</span>
+                    <X className="w-4 h-4" />
+                    <span>Hủy yêu cầu</span>
                   </BaseButton>
                 )}
                 <BaseButton
@@ -1033,6 +1089,17 @@ export const RentalDetailPage: React.FC = () => {
           setContract((prev) => (prev ? { ...prev, status: 'DISPUTED' } : null));
           setSuccessMsg('Đã gửi báo cáo khiếu nại cọc tới Ban Quản Trị!');
         }}
+      />
+
+      {/* Reject / Cancel Reason Modal */}
+      <RentalRejectCancelModal
+        isOpen={isRejectCancelModalOpen}
+        onClose={() => setIsRejectCancelModalOpen(false)}
+        onSubmit={handleRejectCancelSubmit}
+        type={rejectCancelType}
+        listingTitle={contract.listingTitle}
+        peerName={isOwner ? contract.renterName : contract.ownerName}
+        isLoading={isSubmitting}
       />
     </div>
   );

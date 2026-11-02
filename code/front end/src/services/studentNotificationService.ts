@@ -245,4 +245,42 @@ export const studentNotificationService = {
       payload.buyerId
     );
   },
+
+  notifyRenterRentalRejected: (payload: {
+    renterId: number;
+    ownerName: string;
+    listingTitle: string;
+    reason: string;
+    contractId?: number;
+  }): StudentNotification => {
+    return studentNotificationService.addLocalNotification(
+      {
+        title: `[Thuê đồ] Yêu cầu thuê bị từ chối`,
+        message: `Chủ đồ ${payload.ownerName} đã từ chối yêu cầu thuê món đồ "${payload.listingTitle}". Lý do: ${payload.reason}`,
+        type: 'WARNING',
+        referenceId: payload.contractId,
+        reason: payload.reason,
+      },
+      payload.renterId
+    );
+  },
+
+  notifyOwnerRentalCancelled: (payload: {
+    ownerId: number;
+    renterName: string;
+    listingTitle: string;
+    reason: string;
+    contractId?: number;
+  }): StudentNotification => {
+    return studentNotificationService.addLocalNotification(
+      {
+        title: `[Thuê đồ] Yêu cầu thuê đã bị người thuê hủy`,
+        message: `Bạn ${payload.renterName} đã hủy yêu cầu thuê món đồ "${payload.listingTitle}". Lý do: ${payload.reason}. Bài đăng đã tự động sẵn sàng cho người khác thuê.`,
+        type: 'WARNING',
+        referenceId: payload.contractId,
+        reason: payload.reason,
+      },
+      payload.ownerId
+    );
+  },
 };

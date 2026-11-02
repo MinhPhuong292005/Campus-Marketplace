@@ -281,34 +281,81 @@ public class RentalContractServiceImpl implements RentalContractService {
     @Transactional
     public RentalContractRes cancelRentalContract(Long userId, Long contractId, String reason) {
         RentalContractEntity contract = getAuthorizedContract(userId, contractId);
-        contract.setStatus("CANCELLED");
-        contract.setDisputeReason(reason);
+        String oldStatus = contract.getStatus();
+        boolean isOwner = userId.equals(contract.getOwner().getId());
+        String newStatus = isOwner ? "REJECTED" : "CANCELLED";
+        contract.setStatus(newStatus);
+        contract.setDisputeReason(reason != null ? reason : (isOwner ? "Chủ đồ từ chối cho thuê" : "Người thuê hủy yêu cầu"));
 
         // TỰ ĐỘNG HỒI PHỤC LẠI BÀI ĐĂNG THUÊ VỀ ACTIVE
         ListingEntity listing = contract.getListing();
         if (listing != null && !"DELETED".equalsIgnoreCase(listing.getStatus())) {
             listing.setStatus("ACTIVE");
             listingRepository.save(listing);
-            log.info("Listing #{} automatically RESTORED to ACTIVE after cancelled rental contract #{}", listing.getId(), contractId);
+            log.info("Listing #{} automatically RESTORED to ACTIVE after cancelled/rejected rental contract #{}", listing.getId(), contractId);
         }
 
-        // Áp dụng trừ 10 điểm Karma cho bên báo hủy / hủy hẹn
-        UserEntity canceller = userId.equals(contract.getRenter().getId()) ? contract.getRenter() : contract.getOwner();
-        UserEntity otherUser = userId.equals(contract.getRenter().getId()) ? contract.getOwner() : contract.getRenter();
-        karmaService.adjustKarma(canceller, -10, "Hủy giao dịch thuê đồ: " + (reason != null ? reason : "Hủy hợp đồng thuê"));
+        UserEntity canceller = isOwner ? contract.getOwner() : contract.getRenter();
+        UserEntity otherUser = isOwner ? contract.getRenter() : contract.getOwner();
+
+        // Chỉ áp dụng trừ 10 điểm Karma nếu đã duyệt (APPROVED) hoặc đang trong hợp đồng (ACTIVE) mà đơn phương hủy
+        if ("APPROVED".equalsIgnoreCase(oldStatus) || "ACTIVE".equalsIgnoreCase(oldStatus)) {
+            karmaService.adjustKarma(canceller, -10, "Hủy giao dịch thuê đồ sau khi đã duyệt: " + contract.getDisputeReason());
+        }
 
         try {
             NotificationEntity cancelNotif = NotificationEntity.builder()
                     .user(otherUser)
-                    .title("Hợp đồng thuê đồ đã bị hủy")
-                    .message("Hợp đồng thuê món đồ \"" + contract.getListing().getTitle() + "\" đã bị hủy bởi " + canceller.getFullName() + ". Lý do: " + (reason != null ? reason : "Hủy giao dịch") + ". Bài đăng đã được tự động mở lại trạng thái hoạt động.")
-                    .type("RENTAL_CANCELLED")
+                    .title(isOwner ? "Yêu cầu thuê đồ đã bị từ chối" : "Hợp đồng thuê đồ đã bị hủy")
+                    .message((isOwner ? "Chủ đồ " : "Người thuê ") + canceller.getFullName() + 
+                            (isOwner ? " đã từ chối yêu cầu thuê món đồ \"" : " đã hủy yêu cầu thuê món đồ \"") + 
+                            (listing != null ? listing.getTitle() : "món đồ") + "\". Lý do: " + 
+                            contract.getDisputeReason() + ". Bài đăng đã được tự động mở lại trạng thái hoạt động.")
+                    .type(isOwner ? "RENTAL_REJECTED" : "RENTAL_CANCELLED")
                     .referenceId(contract.getId())
                     .isRead(false)
                     .build();
             notificationRepository.save(cancelNotif);
         } catch (Exception e) {
             log.warn("Failed to notify on rental cancellation", e);
+        }
+
+        RentalContractEntity updated = rentalContractRepository.save(contract);
+        return mapToRes(updated);
+    }
+
+    @Override
+    @Transactional
+    public RentalContractRes rejectRentalContract(Long userId, Long contractId, String reason) {
+        RentalContractEntity contract = getAuthorizedContract(userId, contractId);
+        if (!userId.equals(contract.getOwner().getId())) {
+            throw new CustomBusinessException(ErrorCodes.FORBIDDEN, HttpStatus.FORBIDDEN, "Chỉ chủ thiết bị mới có quyền từ chối yêu cầu thuê.");
+        }
+        contract.setStatus("REJECTED");
+        contract.setDisputeReason(reason != null ? reason : "Hôm đó tôi đã có lịch thuê / bận");
+
+        // TỰ ĐỘNG HỒI PHỤC LẠI BÀI ĐĂNG THUÊ VỀ ACTIVE
+        ListingEntity listing = contract.getListing();
+        if (listing != null && !"DELETED".equalsIgnoreCase(listing.getStatus())) {
+            listing.setStatus("ACTIVE");
+            listingRepository.save(listing);
+            log.info("Listing #{} automatically RESTORED to ACTIVE after rejected rental contract #{}", listing.getId(), contractId);
+        }
+
+        // Thông báo cho người đi thuê
+        try {
+            NotificationEntity notif = NotificationEntity.builder()
+                    .user(contract.getRenter())
+                    .title("Yêu cầu thuê đồ bị từ chối")
+                    .message("Chủ đồ " + contract.getOwner().getFullName() + " đã từ chối yêu cầu thuê món đồ \"" + 
+                            (listing != null ? listing.getTitle() : "Thiết bị") + "\". Lý do: " + contract.getDisputeReason())
+                    .type("RENTAL_REJECTED")
+                    .referenceId(contract.getId())
+                    .isRead(false)
+                    .build();
+            notificationRepository.save(notif);
+        } catch (Exception e) {
+            log.warn("Failed to notify on rental rejection", e);
         }
 
         RentalContractEntity updated = rentalContractRepository.save(contract);

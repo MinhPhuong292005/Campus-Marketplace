@@ -12,6 +12,7 @@ import {
   FileText,
   Share2,
   AlertTriangle,
+  ShieldAlert,
   CheckCircle2,
   Calendar,
   Building2,
@@ -35,6 +36,7 @@ import { GiveawayClaimModal } from '../../components/features/GiveawayClaimModal
 import { GiveawayClaimsManager } from '../../components/features/GiveawayClaimsManager';
 import { DatePickerInput } from '../../components/base/DatePickerInput';
 import { rentalService } from '../../services/rentalService';
+import { spamProtectionService, SpamStatus } from '../../services/spamProtectionService';
 import { giveawayService, GiveawayClaim } from '../../services/giveawayService';
 import { favoriteService } from '../../services/favoriteService';
 import { resolveCategoryId } from '../../constants/categories';
@@ -97,6 +99,30 @@ export const ListingDetailPage: React.FC = () => {
   // Modals state
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
+
+  // Renter Spam Protection
+  const [spamStatus, setSpamStatus] = useState<SpamStatus>({
+    userId: user?.id || 0,
+    count: 0,
+    isWarning: false,
+    isLocked: false,
+    lockoutUntil: null,
+    minutesLeft: 0,
+    lastActionTime: null,
+  });
+
+  useEffect(() => {
+    if (user?.id) {
+      setSpamStatus(spamProtectionService.checkRenterSpamStatus(user.id));
+    }
+    const handleSpam = () => {
+      if (user?.id) {
+        setSpamStatus(spamProtectionService.checkRenterSpamStatus(user.id));
+      }
+    };
+    window.addEventListener('campus_spam_status_updated', handleSpam);
+    return () => window.removeEventListener('campus_spam_status_updated', handleSpam);
+  }, [user?.id]);
 
   const fetchListing = async () => {
     if (!id) return;
@@ -226,6 +252,12 @@ export const ListingDetailPage: React.FC = () => {
     }
     if (user.status === 'SUSPENDED') {
       alert('⚠️ Tài khoản của bạn đang bị tạm khóa 1 tuần do vi phạm quy chế.');
+      return;
+    }
+    if (spamStatus.isLocked) {
+      alert(
+        `⛔ Tài khoản của bạn đang bị tạm khóa tính năng thuê đồ trong 1 giờ do liên tục spam thao tác. Vui lòng quay lại sau ${spamStatus.minutesLeft} phút.`
+      );
       return;
     }
 
@@ -735,12 +767,35 @@ export const ListingDetailPage: React.FC = () => {
 
             {/* Context-Specific Actions */}
             {listing.transactionType === 'RENT' && (
-              <div className="space-y-2">
+              <div className="space-y-3">
+                {/* Red Spam Warning or Lockout Banner */}
+                {spamStatus.isLocked ? (
+                  <div className="p-3.5 rounded-2xl bg-rose-600 text-white shadow-md flex items-center gap-2.5 text-xs border border-rose-300">
+                    <ShieldAlert className="w-5 h-5 shrink-0" />
+                    <div>
+                      <p className="font-black">⛔ TẠM KHÓA THUÊ ĐỒ TRONG 1 GIỜ</p>
+                      <p className="text-[11px] opacity-90 mt-0.5">
+                        Bạn đã spam thao tác thuê đồ quá nhiều lần. Mở lại sau ~{spamStatus.minutesLeft} phút.
+                      </p>
+                    </div>
+                  </div>
+                ) : spamStatus.isWarning ? (
+                  <div className="p-3 rounded-2xl bg-rose-600 text-white shadow-md flex items-center gap-2.5 text-xs border border-rose-300 animate-pulse">
+                    <AlertTriangle className="w-5 h-5 shrink-0" />
+                    <div>
+                      <p className="font-black">🚨 CẢNH BÁO SPAM ({spamStatus.count} LẦN LIÊN TIẾP)</p>
+                      <p className="text-[11px] opacity-90 mt-0.5">
+                        Nếu còn tiếp tục spam gửi hoặc hủy yêu cầu, tài khoản sẽ bị tạm khóa trong vòng 1 giờ!
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="grid grid-cols-2 gap-2">
                   <BaseButton
                     onClick={handleAddToCart}
                     variant="outline"
-                    disabled={user?.status === 'SUSPENDED' || listing.authorStatus === 'SUSPENDED'}
+                    disabled={user?.status === 'SUSPENDED' || listing.authorStatus === 'SUSPENDED' || spamStatus.isLocked}
                     className="py-3 rounded-2xl text-xs font-bold border-purple-300 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center justify-center gap-1.5"
                   >
                     <ShoppingCart className="w-4 h-4 text-purple-600" />
@@ -751,11 +806,13 @@ export const ListingDetailPage: React.FC = () => {
                     onClick={handleSendRentalRequest}
                     variant="primary"
                     isLoading={isSubmittingRental}
-                    disabled={user?.status === 'SUSPENDED' || listing.authorStatus === 'SUSPENDED'}
+                    disabled={user?.status === 'SUSPENDED' || listing.authorStatus === 'SUSPENDED' || spamStatus.isLocked}
                     className="py-3 rounded-2xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 flex items-center justify-center gap-1.5"
                   >
                     <Clock className="w-4 h-4" />
-                    <span>Thuê ngay ({rentalDays} ngày)</span>
+                    <span>
+                      {spamStatus.isLocked ? `Tạm khóa (~${spamStatus.minutesLeft}p)` : `Thuê ngay (${rentalDays} ngày)`}
+                    </span>
                   </BaseButton>
                 </div>
 

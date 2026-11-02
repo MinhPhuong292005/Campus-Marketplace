@@ -3,6 +3,7 @@ import { RentalContract, ApiResponse, PaginatedResult } from '../types';
 import { API_ROUTES } from '../constants';
 import { studentNotificationService } from './studentNotificationService';
 import { listingService } from './listingService';
+import { spamProtectionService } from './spamProtectionService';
 
 export interface CreateRentalContractPayload {
   listingId: number;
@@ -109,6 +110,14 @@ export const rentalService = {
   },
 
   createRentalContract: async (payload: CreateRentalContractPayload): Promise<ApiResponse<RentalContract>> => {
+    // Check spam lockout
+    const spamCheck = spamProtectionService.checkRenterSpamStatus(payload.renterId);
+    if (spamCheck.isLocked) {
+      throw new Error(
+        `Tài khoản của bạn đang bị tạm khóa tính năng thuê trong 1 giờ do liên tục spam thao tác. Vui lòng quay lại sau ${spamCheck.minutesLeft} phút.`
+      );
+    }
+
     const formattedPayload = {
       ...payload,
       startDate: payload.startDate.includes('T') ? payload.startDate : `${payload.startDate}T00:00:00`,
@@ -149,6 +158,11 @@ export const rentalService = {
     // Always ensure it is saved locally too
     const all = [createdContract, ...getStoredRentals().filter((r) => r.id !== createdContract.id)];
     saveStoredRentals(all);
+
+    // Track renter spam action
+    if (payload.renterId) {
+      spamProtectionService.recordRenterAction(payload.renterId, 'REQUEST', payload.listingTitle);
+    }
 
     // Notify the owner so they get the bell notification
     studentNotificationService.notifyOwnerRentalRequested({
@@ -364,10 +378,12 @@ export const rentalService = {
     };
   },
 
-  cancelRental: async (contractId: number, reason: string): Promise<ApiResponse<RentalContract>> => {
+  rejectRental: async (contractId: number, reason: string): Promise<ApiResponse<RentalContract>> => {
     let updated: RentalContract | null = null;
     try {
-      const res = await postRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/cancel?reason=${encodeURIComponent(reason)}`);
+      const res = await postRequest<RentalContract>(
+        `${API_ROUTES.RENTALS}/${contractId}/reject?reason=${encodeURIComponent(reason)}`
+      );
       if (res?.data) updated = res.data;
     } catch {}
 
@@ -375,7 +391,7 @@ export const rentalService = {
       if (r.id === contractId) {
         const item: RentalContract = {
           ...r,
-          status: 'CANCELLED' as any,
+          status: 'REJECTED' as any,
           disputeReason: reason,
           updatedAt: new Date().toISOString(),
         };
@@ -385,16 +401,96 @@ export const rentalService = {
       return r;
     });
     saveStoredRentals(all);
+    if (!updated) {
+      updated = all.find((r) => r.id === contractId)!;
+    }
 
-    // Tự động khôi phục bài đăng về ACTIVE khi giao dịch thuê không thành công
     if (updated?.listingId) {
       listingService.updateListingStatus(updated.listingId, 'ACTIVE').catch(() => {});
+    }
+
+    if (updated) {
+      studentNotificationService.notifyRenterRentalRejected({
+        renterId: updated.renterId,
+        ownerName: updated.ownerName || 'Chủ thiết bị',
+        listingTitle: updated.listingTitle || 'Thiết bị học tập',
+        reason: reason,
+        contractId: updated.id,
+      });
     }
 
     return {
       success: true,
       data: updated!,
-      message: 'Đã hủy hợp đồng thuê đồ và tự động khôi phục lại bài đăng hoạt động.',
+      message: 'Đã từ chối yêu cầu thuê. Bài đăng đã được tự động mở lại cho sinh viên khác thuê.',
+    };
+  },
+
+  cancelRental: async (
+    contractId: number,
+    reason: string,
+    cancelledBy: 'renter' | 'owner' = 'renter'
+  ): Promise<ApiResponse<RentalContract>> => {
+    let updated: RentalContract | null = null;
+    try {
+      const res = await postRequest<RentalContract>(
+        `${API_ROUTES.RENTALS}/${contractId}/cancel?reason=${encodeURIComponent(reason)}`
+      );
+      if (res?.data) updated = res.data;
+    } catch {}
+
+    const all = getStoredRentals().map((r) => {
+      if (r.id === contractId) {
+        const isOwner = cancelledBy === 'owner';
+        const item: RentalContract = {
+          ...r,
+          status: (isOwner ? 'REJECTED' : 'CANCELLED') as any,
+          disputeReason: reason,
+          updatedAt: new Date().toISOString(),
+        };
+        updated = item;
+        return item;
+      }
+      return r;
+    });
+    saveStoredRentals(all);
+    if (!updated) {
+      updated = all.find((r) => r.id === contractId)!;
+    }
+
+    if (updated?.listingId) {
+      listingService.updateListingStatus(updated.listingId, 'ACTIVE').catch(() => {});
+    }
+
+    if (updated) {
+      if (cancelledBy === 'renter') {
+        spamProtectionService.recordRenterAction(updated.renterId, 'CANCEL', reason);
+
+        studentNotificationService.notifyOwnerRentalCancelled({
+          ownerId: updated.ownerId,
+          renterName: updated.renterName || 'Bạn Sinh Viên',
+          listingTitle: updated.listingTitle || 'Thiết bị học tập',
+          reason: reason,
+          contractId: updated.id,
+        });
+      } else {
+        studentNotificationService.notifyRenterRentalRejected({
+          renterId: updated.renterId,
+          ownerName: updated.ownerName || 'Chủ thiết bị',
+          listingTitle: updated.listingTitle || 'Thiết bị học tập',
+          reason: reason,
+          contractId: updated.id,
+        });
+      }
+    }
+
+    return {
+      success: true,
+      data: updated!,
+      message:
+        cancelledBy === 'owner'
+          ? 'Đã từ chối yêu cầu thuê và mở lại bài đăng cho sinh viên khác.'
+          : 'Đã hủy yêu cầu thuê đồ và tự động khôi phục lại bài đăng hoạt động.',
     };
   },
 };

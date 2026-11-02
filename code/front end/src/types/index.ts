@@ -131,7 +131,7 @@ export interface PaginatedResult<T> {
 
 // ======================== SPRINT 3 TYPES ========================
 
-export type RentalStatus = 'PENDING' | 'APPROVED' | 'ACTIVE' | 'RETURNED' | 'DISPUTED' | 'CANCELLED';
+export type RentalStatus = 'PENDING' | 'APPROVED' | 'ACTIVE' | 'RETURNED' | 'DISPUTED' | 'CANCELLED' | 'REJECTED';
 
 export interface RentalContract {
   id: number;

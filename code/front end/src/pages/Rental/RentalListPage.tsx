@@ -10,9 +10,15 @@ import {
   CheckCircle,
   CheckCircle2,
   MessageCircle,
+  XCircle,
+  AlertCircle,
+  AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
 import { rentalService } from '../../services/rentalService';
+import { spamProtectionService, SpamStatus } from '../../services/spamProtectionService';
+import { RentalRejectCancelModal } from '../../components/features/RentalRejectCancelModal';
 import { RentalContract, RentalStatus } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -26,6 +32,22 @@ export const RentalListPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isProcessingId, setIsProcessingId] = useState<number | null>(null);
+
+  // Modal từ chối / hủy yêu cầu
+  const [modalContract, setModalContract] = useState<RentalContract | null>(null);
+  const [modalType, setModalType] = useState<'REJECT' | 'CANCEL'>('REJECT');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Spam status for renter
+  const [spamStatus, setSpamStatus] = useState<SpamStatus>({
+    userId: user?.id || 0,
+    count: 0,
+    isWarning: false,
+    isLocked: false,
+    lockoutUntil: null,
+    minutesLeft: 0,
+    lastActionTime: null,
+  });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -51,6 +73,19 @@ export const RentalListPage: React.FC = () => {
     return () => window.removeEventListener('campus_rentals_updated', handleUpdate);
   }, [activeTab]);
 
+  useEffect(() => {
+    if (user?.id) {
+      setSpamStatus(spamProtectionService.checkRenterSpamStatus(user.id));
+    }
+    const handleSpamUpdate = () => {
+      if (user?.id) {
+        setSpamStatus(spamProtectionService.checkRenterSpamStatus(user.id));
+      }
+    };
+    window.addEventListener('campus_spam_status_updated', handleSpamUpdate);
+    return () => window.removeEventListener('campus_spam_status_updated', handleSpamUpdate);
+  }, [user?.id]);
+
   const handleApprove = async (contract: RentalContract) => {
     try {
       setIsProcessingId(contract.id);
@@ -61,6 +96,37 @@ export const RentalListPage: React.FC = () => {
       }
     } catch (err: any) {
       alert(err.message || 'Lỗi khi duyệt hợp đồng thuê.');
+    } finally {
+      setIsProcessingId(null);
+    }
+  };
+
+  const openRejectOrCancelModal = (contract: RentalContract, type: 'REJECT' | 'CANCEL') => {
+    setModalContract(contract);
+    setModalType(type);
+    setIsModalOpen(true);
+  };
+
+  const handleModalSubmit = async (reason: string) => {
+    if (!modalContract) return;
+    try {
+      setIsProcessingId(modalContract.id);
+      if (modalType === 'REJECT') {
+        const res = await rentalService.rejectRental(modalContract.id, reason);
+        if (res.success) {
+          showToast(`Đã từ chối cho thuê "${modalContract.listingTitle}". Bài đăng đã sẵn sàng cho bạn khác thuê.`);
+        }
+      } else {
+        const res = await rentalService.cancelRental(modalContract.id, reason, 'renter');
+        if (res.success) {
+          showToast(`Đã hủy yêu cầu thuê "${modalContract.listingTitle}".`);
+        }
+      }
+      setIsModalOpen(false);
+      setModalContract(null);
+      fetchRentals();
+    } catch (err: any) {
+      alert(err.message || 'Lỗi khi xử lý thao tác.');
     } finally {
       setIsProcessingId(null);
     }
@@ -106,6 +172,7 @@ export const RentalListPage: React.FC = () => {
     { key: 'ACTIVE', label: 'Đang thuê' },
     { key: 'RETURNED', label: 'Đã hoàn tất & Hoàn cọc' },
     { key: 'DISPUTED', label: 'Khiếu nại cọc' },
+    { key: 'REJECTED', label: 'Đã từ chối / Hủy' },
   ];
 
   return (
@@ -141,6 +208,43 @@ export const RentalListPage: React.FC = () => {
           <span>Bảo Đảm Tiền Cọc Sinh Viên</span>
         </div>
       </div>
+
+      {/* RED SPAM BANNER NOTIFICATION */}
+      {spamStatus.isLocked ? (
+        <div className="p-4 sm:p-5 rounded-3xl bg-rose-600 text-white shadow-xl shadow-rose-600/30 flex items-center gap-4 border-2 border-rose-400 animate-in fade-in duration-300">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+            <ShieldAlert className="w-7 h-7 text-white" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h4 className="text-sm font-black tracking-wide uppercase">
+                ⛔ Tài Khoản Đang Bị Tạm Khóa Thuê Đồ Trong 1 Giờ
+              </h4>
+              <span className="text-[10px] bg-white/25 px-2.5 py-0.5 rounded-full font-mono font-bold">
+                Còn lại ~{spamStatus.minutesLeft} phút
+              </span>
+            </div>
+            <p className="text-xs text-rose-100 leading-relaxed">
+              Do bạn liên tục gửi hoặc hủy yêu cầu thuê đồ quá nhiều lần sau khi đã được cảnh báo, hệ thống tạm khóa tính năng tạo yêu cầu thuê mới trong 1 giờ để đảm bảo văn minh giao dịch trong trường Phenikaa.
+            </p>
+          </div>
+        </div>
+      ) : spamStatus.isWarning ? (
+        <div className="p-4 sm:p-5 rounded-3xl bg-rose-600 text-white shadow-xl shadow-rose-600/25 flex items-center gap-4 border-2 border-rose-300 animate-pulse duration-700">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-7 h-7 text-white" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-sm font-black tracking-wide uppercase">
+              🚨 CẢNH BÁO SPAM THAO TÁC THUÊ ĐỒ ({spamStatus.count} LẦN LIÊN TIẾP)
+            </h4>
+            <p className="text-xs text-rose-100 leading-relaxed">
+              Bạn đã thực hiện gửi hoặc hủy yêu cầu thuê liên tiếp <strong>3 lần trong thời gian ngắn</strong>. 
+              <strong> Nếu còn tiếp tục spam gửi hoặc hủy yêu cầu, tài khoản của bạn sẽ bị tạm khóa trong vòng 1 giờ!</strong>
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {/* Tabs */}
       <div className="flex items-center gap-1.5 p-1.5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto shadow-sm">
@@ -208,6 +312,10 @@ export const RentalListPage: React.FC = () => {
                           ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                           : contract.status === 'RETURNED'
                           ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                          : contract.status === 'REJECTED'
+                          ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                          : contract.status === 'CANCELLED'
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
                           : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
                       }`}
                     >
@@ -219,6 +327,10 @@ export const RentalListPage: React.FC = () => {
                         ? '⏳ Chờ người cho thuê duyệt'
                         : contract.status === 'RETURNED'
                         ? '✓ Đã hoàn tất & Hoàn cọc (+5 Karma)'
+                        : contract.status === 'REJECTED'
+                        ? '❌ Đã từ chối cho thuê'
+                        : contract.status === 'CANCELLED'
+                        ? '⛔ Đã hủy yêu cầu thuê'
                         : '⚠️ Tranh chấp cọc (QTV xem xét)'}
                     </span>
 
@@ -286,6 +398,19 @@ export const RentalListPage: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Rejection / Cancellation Reason display */}
+                  {(contract.status === 'REJECTED' || contract.status === 'CANCELLED') && contract.disputeReason && (
+                    <div className="p-3 rounded-2xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">
+                          {contract.status === 'REJECTED' ? 'Lý do từ chối cho thuê: ' : 'Lý do hủy yêu cầu: '}
+                        </span>
+                        <span className="font-medium">{contract.disputeReason}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Proof images indicator */}
                   <div className="flex items-center gap-2 pt-1 text-[11px] text-slate-500">
                     <Camera className="w-3.5 h-3.5 text-blue-500" />
@@ -301,15 +426,37 @@ export const RentalListPage: React.FC = () => {
                 {/* Card Action Buttons */}
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Owner approval action */}
+                    {/* Owner approval & reject action */}
                     {contract.status === 'PENDING' && isOwner && (
+                      <>
+                        <button
+                          onClick={() => handleApprove(contract)}
+                          disabled={isProcessingId === contract.id}
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Xác nhận cho thuê</span>
+                        </button>
+                        <button
+                          onClick={() => openRejectOrCancelModal(contract, 'REJECT')}
+                          disabled={isProcessingId === contract.id}
+                          className="px-3.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-bold text-xs shadow-xs transition flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          <span>Từ chối</span>
+                        </button>
+                      </>
+                    )}
+
+                    {/* Renter cancel request action */}
+                    {contract.status === 'PENDING' && !isOwner && (
                       <button
-                        onClick={() => handleApprove(contract)}
+                        onClick={() => openRejectOrCancelModal(contract, 'CANCEL')}
                         disabled={isProcessingId === contract.id}
-                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 disabled:opacity-50"
+                        className="px-3.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-bold text-xs shadow-xs transition flex items-center gap-1.5 disabled:opacity-50"
                       >
-                        <CheckCircle className="w-4 h-4" />
-                        <span>Xác nhận cho thuê</span>
+                        <XCircle className="w-4 h-4" />
+                        <span>Hủy yêu cầu</span>
                       </button>
                     )}
 
@@ -361,6 +508,22 @@ export const RentalListPage: React.FC = () => {
             );
           })}
         </div>
+      )}
+
+      {/* Reject / Cancel Reason Modal */}
+      {modalContract && (
+        <RentalRejectCancelModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setModalContract(null);
+          }}
+          onSubmit={handleModalSubmit}
+          type={modalType}
+          listingTitle={modalContract.listingTitle}
+          peerName={modalContract.ownerId === user?.id ? modalContract.renterName : modalContract.ownerName}
+          isLoading={isProcessingId === modalContract.id}
+        />
       )}
     </div>
   );

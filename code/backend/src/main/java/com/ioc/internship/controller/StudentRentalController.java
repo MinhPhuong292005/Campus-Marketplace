@@ -98,4 +98,13 @@ public class StudentRentalController extends BaseController {
         RentalContractRes contract = rentalContractService.cancelRentalContract(principal.getUserId(), id, reason);
         return success(contract, "Đã hủy hợp đồng thuê. Bài đăng đã được tự động hồi phục về trạng thái hoạt động.");
     }
+
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<ApiResponse<RentalContractRes>> rejectRentalContract(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id,
+            @RequestParam(required = false, defaultValue = "Hôm đó tôi đã có lịch thuê / bận") String reason) {
+        RentalContractRes contract = rentalContractService.rejectRentalContract(principal.getUserId(), id, reason);
+        return success(contract, "Đã từ chối yêu cầu thuê. Bài đăng đã được tự động mở lại cho người khác thuê.");
+    }
 }
