@@ -130,10 +130,10 @@ export interface AuditLogItem {
   createdAt: string;
 }
 
-const LOCAL_STORAGE_USERS_KEY = 'campus_admin_users_fresh_v10';
+const LOCAL_STORAGE_USERS_KEY = 'campus_admin_users_fresh_v11';
 
 try {
-  ['campus_admin_users', 'campus_admin_users_v2', 'campus_admin_users_v3', 'campus_admin_users_v4', 'campus_admin_users_v5', 'campus_admin_users_phenikaa_v6', 'campus_admin_users_phenikaa_v7', 'campus_admin_users_phenikaa_v8', 'campus_admin_users_phenikaa_v9'].forEach((k) => {
+  ['campus_admin_users', 'campus_admin_users_v2', 'campus_admin_users_v3', 'campus_admin_users_v4', 'campus_admin_users_v5', 'campus_admin_users_phenikaa_v6', 'campus_admin_users_phenikaa_v7', 'campus_admin_users_phenikaa_v8', 'campus_admin_users_phenikaa_v9', 'campus_admin_users_fresh_v10'].forEach((k) => {
     localStorage.removeItem(k);
   });
 } catch {}

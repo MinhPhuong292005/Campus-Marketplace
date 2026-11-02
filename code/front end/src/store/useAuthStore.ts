@@ -19,7 +19,20 @@ interface AuthState {
 const getInitialUser = (): User | null => {
   try {
     const raw = localStorage.getItem('user_info');
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Yêu cầu: Xóa dữ liệu thẻ sinh viên cũ đi chưa có ai nhập thẻ sinh viên vào
+    if (!localStorage.getItem('campus_student_card_reset_v1')) {
+      parsed.studentCardVerified = false;
+      parsed.studentCardImageUrl = undefined;
+      parsed.studentCardFrontUrl = undefined;
+      parsed.studentCardBackUrl = undefined;
+      parsed.studentCardStatus = 'NONE';
+      parsed.dormitory = undefined;
+      localStorage.setItem('user_info', JSON.stringify(parsed));
+      localStorage.setItem('campus_student_card_reset_v1', 'true');
+    }
+    return parsed;
   } catch {
     return null;
   }

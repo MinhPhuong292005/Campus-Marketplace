@@ -308,10 +308,7 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40">
             <div className="flex items-center gap-3">
               <img
-                src={
-                  acceptedClaim.requesterAvatar ||
-                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${acceptedClaim.requesterName}`
-                }
+                src={acceptedClaim.requesterAvatar || '/default-avatar.png'}
                 alt={acceptedClaim.requesterName}
                 className="w-11 h-11 rounded-xl object-cover border border-emerald-300 shrink-0"
               />
@@ -533,10 +530,7 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       <img
-                        src={
-                          claim.requesterAvatar ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${claim.requesterName}`
-                        }
+                        src={claim.requesterAvatar || '/default-avatar.png'}
                         alt={claim.requesterName}
                         className="w-11 h-11 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0"
                       />
@@ -664,10 +658,7 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
             <div className="p-3.5 rounded-2xl bg-gradient-to-br from-pink-50/80 to-rose-50/50 dark:from-slate-800 dark:to-slate-800/80 border border-pink-100 dark:border-slate-700 space-y-2.5">
               <div className="flex items-center gap-3">
                 <img
-                  src={
-                    confirmingClaim.requesterAvatar ||
-                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${confirmingClaim.requesterName}`
-                  }
+                  src={confirmingClaim.requesterAvatar || '/default-avatar.png'}
                   alt={confirmingClaim.requesterName}
                   className="w-12 h-12 rounded-xl object-cover border border-pink-200 dark:border-pink-900"
                 />

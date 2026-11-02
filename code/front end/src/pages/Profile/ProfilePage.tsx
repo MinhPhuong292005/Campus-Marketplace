@@ -1084,13 +1084,6 @@ export const ProfilePage: React.FC = () => {
 
                       <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
                         <span className="text-slate-500 flex items-center gap-1.5">
-                          <Building className="w-3.5 h-3.5" /> Ký túc xá / Nơi ở
-                        </span>
-                        <span className="font-semibold text-slate-900 dark:text-white">{user.dormitory || 'Chưa thiết lập'}</span>
-                      </div>
-
-                      <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                        <span className="text-slate-500 flex items-center gap-1.5">
                           <GraduationCap className="w-3.5 h-3.5" /> Khoa / Viện
                         </span>
                         <span className="font-semibold text-slate-900 dark:text-white">{user.major || 'Chưa cập nhật'}</span>

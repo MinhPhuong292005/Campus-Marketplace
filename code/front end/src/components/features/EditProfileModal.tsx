@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { User, School, MapPin, Building, GraduationCap, Calendar, FileText, Phone, Lock } from 'lucide-react';
+import { User, School, MapPin, GraduationCap, Calendar, FileText, Phone, Lock } from 'lucide-react';
 import { BaseModal } from '../base/BaseModal';
 import { BaseInput } from '../base/BaseInput';
 import { BaseButton } from '../base/BaseButton';
@@ -199,18 +199,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <BaseInput
-            label="Ký túc xá / Nơi ở"
-            placeholder="vd: KTX Nhà A P.302 / Trọ Yên Nghĩa"
-            leftIcon={<Building className="w-4 h-4" />}
-            {...register('dormitory')}
-          />
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
               <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
-              Ngành học (Phenikaa)
+              Ngành học
             </label>
             <select
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white"
@@ -245,12 +238,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-slate-400" />
-              Mã số sinh viên (MSSV)
-            </span>
-            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">🔒 Cố định theo tài khoản trường</span>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-slate-400" />
+            Mã số sinh viên (MSSV)
           </label>
           <input
             type="text"
