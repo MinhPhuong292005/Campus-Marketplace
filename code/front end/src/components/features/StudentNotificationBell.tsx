@@ -569,19 +569,7 @@ export const StudentNotificationBell: React.FC = () => {
               </p>
             </div>
 
-            {/* Gợi ý tương tác thông minh cho người nhận quà tặng */}
-            {selectedNotif.type === 'GIVEAWAY_AWARDED' && (
-              <div className="p-3 bg-pink-50/70 dark:bg-pink-950/30 border border-pink-200 dark:border-pink-900/50 rounded-xl text-pink-900 dark:text-pink-200 text-xs leading-relaxed">
-                🎁 <strong>Hướng dẫn nhận đồ:</strong> Bấm nút <b>"Nhắn tin hẹn gặp nhận đồ"</b> bên dưới, hệ thống sẽ tự động soạn sẵn lời chào lịch sự gửi tới chủ món đồ để hai bạn tiện hẹn giờ & điểm gặp mặt tại trường Phenikaa.
-              </div>
-            )}
 
-            {/* Guidance for Student on rejection */}
-            {selectedNotif.type === 'LISTING_REJECTED' && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-amber-800 dark:text-amber-300 text-[11px] leading-relaxed">
-                💡 <strong>Hướng dẫn sinh viên:</strong> Bạn vui lòng vào <em>Kho đồ của tôi</em>, xem lại bài viết và điều chỉnh hình ảnh hoặc tiêu đề/giá niêm yết theo đúng lý do từ chối trên để được phê duyệt nhanh chóng.
-              </div>
-            )}
 
             {/* Modal actions */}
             <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">

@@ -231,10 +231,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
           </div>
 
-          {/* Policy Note */}
-          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
-            Hệ thống Quản trị viên Phenikaa Campus sẽ tự động đối soát nội dung bài đăng và tiến hành gỡ bỏ ngay lập tức nếu vi phạm chính sách học đường.
-          </div>
+
 
           <div className="flex items-center justify-end gap-3 pt-2">
             <BaseButton

@@ -2994,12 +2994,7 @@ export const AdminDashboardPage: React.FC = () => {
               )}
             </div>
 
-            {/* Note & Action Buttons */}
-            <p className="text-[11px] text-slate-400 italic">
-              💡 {selectedCardUser.studentCardVerified 
-                ? 'Quản trị viên có thể kiểm tra lại thông tin trên thẻ SV có khớp với hồ sơ hay không. Nếu phát hiện thẻ giả hoặc không chính xác, có thể HỦY tích xanh ngay lập tức.' 
-                : 'Đối chiếu Họ tên và Mã sinh viên trên ảnh thẻ với hồ sơ trước khi duyệt. Khi duyệt thành công, sinh viên sẽ được cấp Tích xanh uy tín và cộng +15 điểm Karma.'}
-            </p>
+
 
             <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-700/60">
               <BaseButton variant="secondary" size="sm" onClick={() => setStudentCardModal(false)}>

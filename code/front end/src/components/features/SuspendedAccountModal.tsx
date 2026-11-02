@@ -257,7 +257,7 @@ export const SuspendedAccountModal: React.FC<SuspendedAccountModalProps> = ({
                   <span>Quy chế 3 - Quy định chống Spam bài đăng:</span>
                 </p>
                 <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
-                  Nghiêm cấm gửi bài đăng liên tục trong thời gian ngắn (dưới 15 giây). Hệ thống sẽ cảnh báo ở lần đầu và <strong>tự động cấm đăng bài trong 1 ngày (24 giờ)</strong> nếu tiếp tục spam.
+                  Nghiêm cấm gửi bài đăng liên tục trong thời gian ngắn (dưới 15 giây). Hệ thống sẽ cảnh báo ở lần đầu và <strong>tạm khóa đăng bài trong 1 tiếng (60 phút)</strong> nếu tiếp tục spam.
                 </p>
               </div>
             </div>

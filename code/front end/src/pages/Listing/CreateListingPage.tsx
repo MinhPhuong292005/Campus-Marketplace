@@ -1052,12 +1052,7 @@ export const CreateListingPage: React.FC = () => {
             </div>
           )}
 
-          <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-[11px] text-blue-800 dark:text-blue-300 text-left flex items-start gap-2">
-            <span className="font-bold shrink-0">Thông báo:</span>
-            <span>
-              Hệ thống sẽ gửi thông báo đến chuông thông báo của bạn ngay khi bài viết được Ban Quản trị phê duyệt để hiển thị công khai trên sàn.
-            </span>
-          </div>
+
 
           <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
             <BaseButton

@@ -149,16 +149,7 @@ export const RentalRejectCancelModal: React.FC<RentalRejectCancelModalProps> = (
           />
         </div>
 
-        {/* Informative Note */}
-        <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/60 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
-          <p>
-            ℹ️ <strong>Thông báo tự động:</strong> Lý do trên sẽ được gửi tức thì đến chuông thông báo của{' '}
-            <strong>{peerName}</strong> và lưu trong chi tiết hợp đồng để cả 2 bên cùng theo dõi.
-          </p>
-          <p>
-            🔄 Bài đăng <strong>"{listingTitle}"</strong> sẽ tự động duy trì trạng thái hoạt động (ACTIVE) trên Chợ Sinh Viên để người khác có thể thuê.
-          </p>
-        </div>
+
 
         {/* Action Buttons */}
         <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">

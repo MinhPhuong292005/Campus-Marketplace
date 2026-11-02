@@ -1120,10 +1120,7 @@ export const RentalDetailPage: React.FC = () => {
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               Xác nhận bạn đã nhận lại thiết bị <strong>"{contract.listingTitle}"</strong> đầy đủ nguyên vẹn và hoàn trả 100% tiền cọc ({contract.depositAmount ? formatCurrency(contract.depositAmount) : '0 đ'}) cho người thuê?
             </p>
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Giao dịch thành công sẽ cộng ngay <strong>+5 điểm tín nhiệm Campus Karma</strong> cho cả hai bạn!</span>
-            </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <BaseButton
                 variant="outline"

@@ -511,9 +511,7 @@ export const CheckoutPage: React.FC = () => {
               </div>
             </div>
 
-            <p className="text-[11px] text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 p-2.5 rounded-xl text-left leading-relaxed">
-              💬 <strong>Lưu ý:</strong> Vui lòng bấm <strong>"Nhắn tin ngay với người bán"</strong> bên dưới để chốt giờ hẹn gặp trực tiếp tại trường nhé!
-            </p>
+
 
             <div className="flex flex-col gap-2 pt-2">
               <BaseButton

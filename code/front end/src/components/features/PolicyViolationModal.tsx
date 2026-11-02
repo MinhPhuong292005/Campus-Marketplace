@@ -248,7 +248,7 @@ export const PolicyViolationModal: React.FC<PolicyViolationModalProps> = ({
                   <span>Quy chế 3 - Quy định chống Spam bài đăng:</span>
                 </p>
                 <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
-                  Nghiêm cấm gửi bài đăng liên tục trong thời gian ngắn (dưới 15 giây). Hệ thống sẽ cảnh báo ở lần đầu và <strong>tự động cấm đăng bài trong 1 ngày (24 giờ)</strong> nếu tiếp tục spam.
+                  Nghiêm cấm gửi bài đăng liên tục trong thời gian ngắn (dưới 15 giây). Hệ thống sẽ cảnh báo ở lần đầu và <strong>tạm khóa đăng bài trong 1 tiếng (60 phút)</strong> nếu tiếp tục spam.
                 </p>
               </div>
             </div>

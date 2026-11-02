@@ -693,15 +693,10 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
             </div>
 
             {/* Confirm Explanation Box */}
-            <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800">
-              <p className="font-bold text-slate-800 dark:text-slate-200">
+            <div className="text-xs text-slate-700 dark:text-slate-300 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+              <p className="font-bold text-slate-900 dark:text-white">
                 Bạn có chắc chắn muốn chốt tặng món đồ "{listingTitle}" cho bạn "{confirmingClaim.requesterName}"?
               </p>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 space-y-1 pt-1">
-                <p>• <b>Thông báo riêng:</b> Hệ thống sẽ gửi thông báo chúc mừng riêng đến bạn {confirmingClaim.requesterName}.</p>
-                <p>• <b>Thông báo các bạn khác:</b> Hệ thống sẽ tự động thông báo đến các bạn còn lại rằng món đồ đã được trao tặng.</p>
-                <p>• <b>Bàn giao tại trường:</b> Hai bạn sẽ trao đổi thời gian & điểm gặp mặt an toàn tại khuôn viên Phenikaa.</p>
-              </div>
             </div>
 
             {/* Modal Actions */}
@@ -815,9 +810,7 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
               />
             </div>
 
-            <p className="text-[11px] text-rose-600 dark:text-rose-400 leading-relaxed font-medium">
-              * Bài đăng sẽ tự động được khôi phục lại để các bạn sinh viên khác có thể gửi yêu cầu nhận đồ.
-            </p>
+
 
             <div className="flex items-center justify-end gap-2 pt-1">
               <button

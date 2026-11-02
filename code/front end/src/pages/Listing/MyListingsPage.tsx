@@ -733,9 +733,7 @@ export const MyListingsPage: React.FC = () => {
               />
             </div>
 
-            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 text-blue-800 dark:text-blue-300 text-[11px] leading-relaxed">
-              💡 Khi bạn bấm xác nhận, hệ thống sẽ chuyển bài đăng sang trạng thái <strong>Giữ chỗ / Hẹn gặp</strong> và gửi thông báo trực tiếp đến người mua rằng món đồ sẽ được giao theo thỏa thuận.
-            </div>
+
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <BaseButton

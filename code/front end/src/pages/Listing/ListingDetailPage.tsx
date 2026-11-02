@@ -626,9 +626,7 @@ export const ListingDetailPage: React.FC = () => {
                     </p>
                   </div>
                 )}
-                <p className="text-[11px] text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 p-2.5 rounded-xl border border-purple-200/50 dark:border-purple-900/40">
-                  Cọc bắt buộc bảo vệ quyền lợi sinh viên. Khi trả lại máy nguyên vẹn, người cho thuê sẽ hoàn trả 100% tiền cọc.
-                </p>
+
               </div>
             )}
 
