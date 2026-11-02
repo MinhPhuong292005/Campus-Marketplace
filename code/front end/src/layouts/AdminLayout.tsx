@@ -93,8 +93,8 @@ export const AdminLayout: React.FC = () => {
       <header className="h-16 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 flex items-center justify-between">
         {/* Left: Brand */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-600 border border-indigo-400/40 flex items-center justify-center font-bold text-white shadow-sm">
-            <ShieldCheck className="w-5 h-5 text-white" />
+          <div className="w-9 h-9 rounded-xl bg-blue-600 border border-blue-400/30 flex items-center justify-center font-bold text-white shadow-sm">
+            <ShoppingBag className="w-5 h-5 text-white" />
           </div>
           <div>
             <div className="flex items-center gap-2">

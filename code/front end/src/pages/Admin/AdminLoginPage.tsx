@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Lock, Mail, AlertTriangle, ArrowRight, Server, KeyRound } from 'lucide-react';
+import { ShoppingBag, Lock, Mail, AlertTriangle, ArrowRight } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
 import { authService } from '../../services/authService';
 import { useAdminAuthStore } from '../../store/useAdminAuthStore';
 
 export const AdminLoginPage: React.FC = () => {
-  const [email, setEmail] = useState('minhphuong2925@gmail.com');
-  const [password, setPassword] = useState('Aa123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -50,11 +50,6 @@ export const AdminLoginPage: React.FC = () => {
     }
   };
 
-  const handleFillDemo = () => {
-    setEmail('minhphuong2925@gmail.com');
-    setPassword('Aa123');
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-4 relative overflow-hidden">
       {/* Background Glows */}
@@ -65,10 +60,8 @@ export const AdminLoginPage: React.FC = () => {
       <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur relative z-10">
         {/* Header Branding */}
         <div className="text-center space-y-3 mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500 to-emerald-400 p-0.5 mx-auto shadow-xl shadow-indigo-500/20 flex items-center justify-center">
-            <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
-              <ShieldCheck className="w-8 h-8 text-indigo-400" />
-            </div>
+          <div className="w-16 h-16 rounded-2xl bg-blue-600 border border-blue-400/30 flex items-center justify-center text-white mx-auto shadow-xl shadow-blue-500/25">
+            <ShoppingBag className="w-8 h-8 text-white" />
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-white">
@@ -101,7 +94,7 @@ export const AdminLoginPage: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="minhphuong2925@gmail.com"
+                placeholder="Nhập email quản trị viên..."
                 className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
@@ -118,22 +111,10 @@ export const AdminLoginPage: React.FC = () => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Aa123"
+                placeholder="Nhập mật khẩu..."
                 className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
-          </div>
-
-          {/* Quick Demo Fill Button */}
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={handleFillDemo}
-              className="w-full py-1.5 px-3 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 rounded-xl text-[11px] text-indigo-300 font-medium flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-              <span>Điền tài khoản Admin: minhphuong2925@gmail.com / Aa123</span>
-            </button>
           </div>
 
           <BaseButton
@@ -155,11 +136,6 @@ export const AdminLoginPage: React.FC = () => {
 
         {/* Footer info & link back */}
         <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-col items-center gap-3 text-xs">
-          <div className="flex items-center gap-2 text-slate-500 text-[11px]">
-            <Server className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Phân vùng bảo mật riêng biệt • PostgreSQL Connected</span>
-          </div>
-
           <a
             href="/"
             className="text-slate-400 hover:text-indigo-400 transition-colors flex items-center gap-1 text-[11px]"
