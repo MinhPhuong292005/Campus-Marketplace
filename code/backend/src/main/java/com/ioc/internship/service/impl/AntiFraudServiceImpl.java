@@ -166,6 +166,15 @@ public class AntiFraudServiceImpl implements AntiFraudService {
                         .description("Chốt kiểm soát an ninh bảo vệ trường và hệ thống camera giám sát phương tiện 24/7.")
                         .recommendedHours("06:00 - 22:00 hàng ngày")
                         .isCctvMonitored(true)
+                        .build(),
+                SafeMeetingPointRes.builder()
+                        .id(7L)
+                        .name("Trước cửa Cổng bảo vệ (Cổng chính Trường Đại học Phenikaa)")
+                        .address("Trước chốt bảo vệ Cổng chính, Trường ĐH Phenikaa (Đường Nguyễn Trác, P. Yên Nghĩa)")
+                        .campusName("Cổng chính Trường ĐH Phenikaa")
+                        .description("Chốt bảo vệ an ninh túc trực 24/7, có camera giám sát và đèn chiếu sáng, giao dịch an toàn và thuận tiện ngay lối vào trường.")
+                        .recommendedHours("06:00 - 22:30 hàng ngày")
+                        .isCctvMonitored(true)
                         .build()
         );
     }

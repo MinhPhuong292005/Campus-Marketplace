@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Clock,
   BarChart3,
-  DollarSign,
   AlertOctagon,
   MessageSquare,
   UserX,
@@ -928,8 +927,8 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
           )}
 
-          {/* 5 Realtime KPI Cards with vibrant accents */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* 4 Realtime KPI Cards with vibrant accents */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* KPI 1 */}
             <div className="bg-gradient-to-b from-slate-900/90 to-slate-900/40 border border-slate-800/80 hover:border-amber-500/40 rounded-2xl p-5 relative overflow-hidden transition-all duration-300 group shadow-lg">
               <div className="flex items-center justify-between text-slate-400 mb-3">
@@ -1009,23 +1008,6 @@ export const AdminDashboardPage: React.FC = () => {
                 </Link>
               </div>
             </div>
-
-            {/* KPI 5 */}
-            <div className="bg-gradient-to-b from-slate-900/90 to-slate-900/40 border border-slate-800/80 hover:border-indigo-500/40 rounded-2xl p-5 relative overflow-hidden transition-all duration-300 group shadow-lg">
-              <div className="flex items-center justify-between text-slate-400 mb-3">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Giao dịch thành công</span>
-                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <DollarSign className="w-5 h-5" />
-                </div>
-              </div>
-              <p className="text-3xl font-black text-white tracking-tight">
-                {stats?.completedTransactionsCount || 0}
-              </p>
-              <div className="mt-2 flex items-center justify-between text-xs">
-                <span className="text-indigo-400 font-medium">Tổng bài: {stats?.totalListings || 0}</span>
-                <span className="text-slate-400 text-[11px]">Tin cậy 100%</span>
-              </div>
-            </div>
           </div>
 
           {/* Charts & Distribution Section */}
@@ -1088,54 +1070,6 @@ export const AdminDashboardPage: React.FC = () => {
                 })()}
               </div>
             </div>
-          </div>
-
-          {/* Quick Navigation Action Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-            <Link
-              to="/admin/listings"
-              className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80 hover:border-indigo-500/50 hover:bg-slate-800/50 transition-all flex items-center gap-3.5 group shadow-sm"
-            >
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                <ShoppingBag className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-white group-hover:text-indigo-400 transition-colors">
-                  Quản lý bài đăng
-                </h4>
-                <p className="text-[11px] text-slate-400">Quản lý bài đăng sàn SV: Được duyệt, Chưa được duyệt, Bị cấm & Bị xóa</p>
-              </div>
-            </Link>
-
-            <Link
-              to="/admin/users"
-              className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80 hover:border-emerald-500/50 hover:bg-slate-800/50 transition-all flex items-center gap-3.5 group shadow-sm"
-            >
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                <BadgeCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-white group-hover:text-emerald-400 transition-colors">
-                  Xác thực Thẻ Sinh Viên
-                </h4>
-                <p className="text-[11px] text-slate-400">Cấp tích xanh & thưởng +15 Karma cho SV</p>
-              </div>
-            </Link>
-
-            <Link
-              to="/admin/settings"
-              className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80 hover:border-rose-500/50 hover:bg-slate-800/50 transition-all flex items-center gap-3.5 group shadow-sm"
-            >
-              <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                <ShieldAlert className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-white group-hover:text-rose-400 transition-colors">
-                  Bộ lọc Từ khóa Cấm
-                </h4>
-                <p className="text-[11px] text-slate-400">Ngăn chặn lừa đảo, cọc thẻ cào & hàng cấm</p>
-              </div>
-            </Link>
           </div>
         </div>
       )}
@@ -1434,13 +1368,7 @@ export const AdminDashboardPage: React.FC = () => {
                 <div>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
                     <span>Quản Lý Sinh Viên & Thẻ SV</span>
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
-                      Student Verification
-                    </span>
                   </h1>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Xác minh thẻ sinh viên qua OCR, thưởng +15 Karma uy tín & quản lý quyền tài khoản
-                  </p>
                 </div>
                 <button
                   onClick={() => {
@@ -1479,22 +1407,13 @@ export const AdminDashboardPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setUserStatusFilter('BLOCKED_ONLY')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                     userStatusFilter === 'BLOCKED_ONLY'
                       ? 'bg-rose-600 text-white shadow-md shadow-rose-950/40'
                       : 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30'
                   }`}
                 >
-                  <UserX className="w-3.5 h-3.5" />
-                  <span>🚫 Danh sách sinh viên bị chặn ({studentBlockedCount})</span>
-                </button>
-                <button
-                  onClick={() => setShowBannedModal(true)}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 transition-all shadow-sm"
-                  title="Danh sách các mã sinh viên đã bị cấm vĩnh viễn không thể tạo lại tài khoản"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Tra cứu MSSV Cấm Vĩnh Viễn ({bannedStudents.length})</span>
+                  Danh sách sinh viên bị chặn ({studentBlockedCount})
                 </button>
               </div>
 
@@ -1516,11 +1435,11 @@ export const AdminDashboardPage: React.FC = () => {
                   <select
                     value={userStatusFilter}
                     onChange={(e) => setUserStatusFilter(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
                   >
                     <option value="ALL">Tất cả trạng thái</option>
                     <option value="ACTIVE">Hoạt động (Active)</option>
-                    <option value="BLOCKED_ONLY">🚫 Danh sách sinh viên bị chặn</option>
+                    <option value="BLOCKED_ONLY">Danh sách sinh viên bị chặn</option>
                     <option value="SUSPENDED">Khóa tạm thời (Suspended)</option>
                     <option value="BANNED">Cấm vĩnh viễn (Banned)</option>
                   </select>
@@ -1539,7 +1458,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <thead className="bg-slate-950/60 text-slate-400 uppercase font-semibold border-b border-slate-800">
                       <tr>
                         <th className="px-4 py-3">Hồ sơ Sinh viên</th>
-                        <th className="px-4 py-3">Trường & KTX</th>
+                        <th className="px-4 py-3">Niên khóa & Ngành</th>
                         <th className="px-4 py-3">Uy tín (Karma)</th>
                         <th className="px-4 py-3">Tích xanh thẻ SV</th>
                         <th className="px-4 py-3">Trạng thái</th>
@@ -1563,8 +1482,12 @@ export const AdminDashboardPage: React.FC = () => {
                               <p className="text-slate-500 text-[10px]">MSSV: {u.studentCode || 'N/A'} • {u.phone || 'Chưa cập nhật SĐT'}</p>
                             </td>
                             <td className="px-4 py-3">
-                              <p className="text-slate-200 font-medium">{u.universityName || 'Đại học'}</p>
-                              <p className="text-[11px] text-slate-400">{u.campusName || 'Cơ sở'} {u.dormitory ? `• ${u.dormitory}` : ''}</p>
+                              <p className="text-slate-200 font-semibold">
+                                {u.academicYear || (u.studentCode?.startsWith('23') ? 'K17 (2023 - 2027)' : u.studentCode?.startsWith('22') ? 'K16 (2022 - 2026)' : u.studentCode?.startsWith('24') ? 'K18 (2024 - 2028)' : 'K17 (2023 - 2027)')}
+                              </p>
+                              <p className="text-[11px] text-indigo-400 font-medium mt-0.5">
+                                {u.major || 'Công nghệ thông tin'}
+                              </p>
                             </td>
                             <td className="px-4 py-3">
                               <span className="font-extrabold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">

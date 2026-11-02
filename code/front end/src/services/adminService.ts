@@ -65,6 +65,8 @@ export interface AdminUserItem {
   email: string;
   phone?: string;
   studentCode?: string;
+  major?: string;
+  academicYear?: string;
   universityName?: string;
   campusName?: string;
   dormitory?: string;
