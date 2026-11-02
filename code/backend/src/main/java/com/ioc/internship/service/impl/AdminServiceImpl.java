@@ -510,6 +510,45 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
+    @Transactional
+    public void deleteUniversity(Long adminId, String adminEmail, Long id) {
+        UniversityEntity university = universityRepository.findById(id)
+                .orElseThrow(() -> new CustomBusinessException(ErrorCodes.NOT_FOUND, HttpStatus.NOT_FOUND));
+        String name = university.getName();
+        universityRepository.delete(university);
+        recordAudit(adminId, adminEmail, "DELETE_UNIVERSITY", "UNIVERSITY", id, "Xóa trường đại học: " + name);
+    }
+
+    @Override
+    @Transactional
+    public CampusEntity updateCampus(Long adminId, String adminEmail, Long id, CampusReq req) {
+        CampusEntity campus = campusRepository.findById(id)
+                .orElseThrow(() -> new CustomBusinessException(ErrorCodes.NOT_FOUND, HttpStatus.NOT_FOUND));
+        if (req.getUniversityId() != null) {
+            UniversityEntity uni = universityRepository.findById(req.getUniversityId())
+                    .orElseThrow(() -> new CustomBusinessException(ErrorCodes.NOT_FOUND, HttpStatus.NOT_FOUND));
+            campus.setUniversity(uni);
+        }
+        campus.setName(req.getName().trim());
+        if (req.getLocation() != null) {
+            campus.setLocation(req.getLocation().trim());
+        }
+        CampusEntity saved = campusRepository.save(campus);
+        recordAudit(adminId, adminEmail, "UPDATE_CAMPUS", "CAMPUS", id, "Cập nhật cơ sở: " + saved.getName());
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public void deleteCampus(Long adminId, String adminEmail, Long id) {
+        CampusEntity campus = campusRepository.findById(id)
+                .orElseThrow(() -> new CustomBusinessException(ErrorCodes.NOT_FOUND, HttpStatus.NOT_FOUND));
+        String name = campus.getName();
+        campusRepository.delete(campus);
+        recordAudit(adminId, adminEmail, "DELETE_CAMPUS", "CAMPUS", id, "Xóa cơ sở: " + name);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<KeywordBlacklistEntity> getAllBlacklistKeywords() {
         return keywordBlacklistRepository.findAll();

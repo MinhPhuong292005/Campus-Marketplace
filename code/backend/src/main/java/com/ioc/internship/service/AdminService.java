@@ -33,7 +33,10 @@ public interface AdminService {
     List<UniversityEntity> getAllUniversities();
     UniversityEntity createUniversity(Long adminId, String adminEmail, UniversityReq req);
     UniversityEntity updateUniversity(Long adminId, String adminEmail, Long id, UniversityReq req);
+    void deleteUniversity(Long adminId, String adminEmail, Long id);
     CampusEntity createCampus(Long adminId, String adminEmail, CampusReq req);
+    CampusEntity updateCampus(Long adminId, String adminEmail, Long id, CampusReq req);
+    void deleteCampus(Long adminId, String adminEmail, Long id);
 
     // 6. Keyword Blacklist & Audit Logs
     List<KeywordBlacklistEntity> getAllBlacklistKeywords();

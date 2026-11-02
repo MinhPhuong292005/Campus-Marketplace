@@ -10,6 +10,7 @@ import {
   LogOut,
   ExternalLink,
   ShieldCheck,
+  MapPin,
 } from 'lucide-react';
 import { useAdminAuthStore } from '../store/useAdminAuthStore';
 import { adminService } from '../services/adminService';
@@ -70,15 +71,22 @@ export const AdminLayout: React.FC = () => {
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/40',
     },
     {
+      path: '/admin/locations',
+      label: '5. Điểm hẹn & Cơ sở trường',
+      icon: MapPin,
+      badge: null,
+      badgeColor: '',
+    },
+    {
       path: '/admin/metadata',
-      label: '5. Quản lý Danh mục',
+      label: '6. Quản lý Danh mục',
       icon: Layers,
       badge: null,
       badgeColor: '',
     },
     {
       path: '/admin/settings',
-      label: '6. Cấu hình & Nhật ký',
+      label: '7. Cấu hình & Nhật ký',
       icon: Settings,
       badge: null,
       badgeColor: '',

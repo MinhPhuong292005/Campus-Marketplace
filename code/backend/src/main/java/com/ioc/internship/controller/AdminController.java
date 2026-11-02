@@ -163,6 +163,16 @@ public class AdminController extends BaseController {
         return success(res, "Cập nhật trường đại học thành công");
     }
 
+    @DeleteMapping("/universities/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteUniversity(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id) {
+        Long adminId = principal != null ? principal.getUserId() : 1L;
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
+        adminService.deleteUniversity(adminId, adminEmail, id);
+        return success(null, "Đã xóa trường đại học thành công");
+    }
+
     @PostMapping("/campuses")
     public ResponseEntity<ApiResponse<CampusEntity>> createCampus(
             @AuthenticationPrincipal UserPrincipal principal,
@@ -171,6 +181,27 @@ public class AdminController extends BaseController {
         String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         CampusEntity res = adminService.createCampus(adminId, adminEmail, req);
         return created(res, "Thêm cơ sở / KTX mới thành công");
+    }
+
+    @PutMapping("/campuses/{id}")
+    public ResponseEntity<ApiResponse<CampusEntity>> updateCampus(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id,
+            @Valid @RequestBody CampusReq req) {
+        Long adminId = principal != null ? principal.getUserId() : 1L;
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
+        CampusEntity res = adminService.updateCampus(adminId, adminEmail, id, req);
+        return success(res, "Cập nhật cơ sở thành công");
+    }
+
+    @DeleteMapping("/campuses/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteCampus(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id) {
+        Long adminId = principal != null ? principal.getUserId() : 1L;
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
+        adminService.deleteCampus(adminId, adminEmail, id);
+        return success(null, "Đã xóa cơ sở thành công");
     }
 
     // 6. Security & RBAC: Keywords Blacklist & Audit Logs

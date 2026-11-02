@@ -185,3 +185,25 @@ export const PHENIKAA_SAFE_MEETING_POINTS: PhenikaaSafePoint[] = [
   },
 ];
 
+const SAFE_MEETING_POINTS_KEY = 'campus_safe_meeting_points_v1';
+
+export const getSafeMeetingPoints = (): PhenikaaSafePoint[] => {
+  try {
+    const raw = localStorage.getItem(SAFE_MEETING_POINTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return PHENIKAA_SAFE_MEETING_POINTS;
+};
+
+export const saveSafeMeetingPoints = (points: PhenikaaSafePoint[]) => {
+  try {
+    localStorage.setItem(SAFE_MEETING_POINTS_KEY, JSON.stringify(points));
+    window.dispatchEvent(new CustomEvent('campus_meeting_points_updated', { detail: points }));
+  } catch (e) {
+    console.error('Failed to save safe meeting points', e);
+  }
+};
+

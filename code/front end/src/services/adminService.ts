@@ -1,5 +1,6 @@
 import { apiClient } from '../lib/axios';
 import { ApiResponse, PaginatedResult } from '../types';
+import { PhenikaaSafePoint, getSafeMeetingPoints, saveSafeMeetingPoints } from '../constants/phenikaaData';
 
 export interface AdminStats {
   pendingListingsCount: number;
@@ -154,6 +155,42 @@ const saveStoredUsers = (users: AdminUserItem[]) => {
     localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
   } catch (e) {
     console.error('Failed to save admin users to localStorage', e);
+  }
+};
+
+const LOCAL_STORAGE_UNIVERSITIES_KEY = 'campus_admin_universities_v1';
+
+export const INITIAL_UNIVERSITIES: UniversityItem[] = [
+  {
+    id: 1,
+    name: 'Trường Đại học Phenikaa',
+    shortName: 'PHENIKAA',
+    emailDomains: 'st.phenikaa-uni.edu.vn,phenikaa-uni.edu.vn',
+    campuses: [
+      { id: 1, name: 'Cơ sở Yên Nghĩa (Trụ sở chính)', location: 'Đường Nguyễn Trác, P. Yên Nghĩa, Q. Hà Đông, Hà Nội' },
+      { id: 2, name: 'Khu Ký túc xá Phenikaa (Tòa K1 - K2 - K3)', location: 'Khuôn viên Nội trú ĐH Phenikaa' },
+      { id: 3, name: 'Khu Thể thao & Nhà thi đấu Đa năng Phenikaa', location: 'Cạnh Tòa A3 & KTX Phenikaa' },
+    ],
+  },
+];
+
+export const getStoredUniversities = (): UniversityItem[] => {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_UNIVERSITIES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return INITIAL_UNIVERSITIES;
+};
+
+export const saveStoredUniversities = (unis: UniversityItem[]) => {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_UNIVERSITIES_KEY, JSON.stringify(unis));
+    window.dispatchEvent(new CustomEvent('campus_universities_updated', { detail: unis }));
+  } catch (e) {
+    console.error('Failed to save universities to localStorage', e);
   }
 };
 
@@ -466,26 +503,16 @@ export const adminService = {
     return apiClient.delete(`/admin/categories/${id}`);
   },
 
-  // 5. Universities & Campuses
+  // 5. Universities, Campuses & Meeting Points
   getUniversities: async (): Promise<ApiResponse<UniversityItem[]>> => {
     try {
-      return await apiClient.get('/admin/universities');
+      const res: any = await apiClient.get('/admin/universities');
+      if (res && res.data && res.data.length > 0) {
+        return res as ApiResponse<UniversityItem[]>;
+      }
+      return { success: true, data: getStoredUniversities() };
     } catch {
-      return {
-        success: true,
-        data: [
-          {
-            id: 1,
-            name: 'Trường Đại học Phenikaa',
-            shortName: 'PHENIKAA',
-            emailDomains: 'st.phenikaa-uni.edu.vn,phenikaa-uni.edu.vn',
-            campuses: [
-              { id: 1, name: 'Cơ sở Yên Nghĩa (Trụ sở chính)', location: 'Yên Nghĩa, Hà Đông, Hà Nội' },
-              { id: 2, name: 'Khu Ký túc xá Phenikaa (Tòa K1 - K2 - K3)', location: 'Khuôn viên ĐH Phenikaa' },
-            ],
-          },
-        ],
-      };
+      return { success: true, data: getStoredUniversities() };
     }
   },
 
@@ -494,14 +521,61 @@ export const adminService = {
     shortName: string;
     emailDomains: string;
   }): Promise<ApiResponse<UniversityItem>> => {
-    return apiClient.post('/admin/universities', payload);
+    try {
+      const res: any = await apiClient.post('/admin/universities', payload);
+      if (res && res.data) {
+        const unis = getStoredUniversities();
+        saveStoredUniversities([...unis, res.data]);
+        return res;
+      }
+    } catch {}
+    const unis = getStoredUniversities();
+    const newUni: UniversityItem = {
+      id: Date.now(),
+      name: payload.name.trim(),
+      shortName: payload.shortName.trim().toUpperCase(),
+      emailDomains: payload.emailDomains.trim().toLowerCase(),
+      campuses: [],
+    };
+    saveStoredUniversities([...unis, newUni]);
+    return { success: true, data: newUni };
   },
 
   updateUniversity: async (
     id: number,
     payload: { name: string; shortName: string; emailDomains: string }
   ): Promise<ApiResponse<UniversityItem>> => {
-    return apiClient.put(`/admin/universities/${id}`, payload);
+    try {
+      const res: any = await apiClient.put(`/admin/universities/${id}`, payload);
+      if (res && res.data) {
+        const unis = getStoredUniversities();
+        const updated = unis.map((u) => (u.id === id ? { ...u, ...res.data } : u));
+        saveStoredUniversities(updated);
+        return res;
+      }
+    } catch {}
+    const unis = getStoredUniversities();
+    const updated = unis.map((u) =>
+      u.id === id
+        ? {
+            ...u,
+            name: payload.name.trim(),
+            shortName: payload.shortName.trim().toUpperCase(),
+            emailDomains: payload.emailDomains.trim().toLowerCase(),
+          }
+        : u
+    );
+    saveStoredUniversities(updated);
+    return { success: true, data: updated.find((u) => u.id === id)! };
+  },
+
+  deleteUniversity: async (id: number): Promise<ApiResponse<void>> => {
+    try {
+      await apiClient.delete(`/admin/universities/${id}`);
+    } catch {}
+    const unis = getStoredUniversities().filter((u) => u.id !== id);
+    saveStoredUniversities(unis);
+    return { success: true };
   },
 
   createCampus: async (payload: {
@@ -509,7 +583,123 @@ export const adminService = {
     name: string;
     location?: string;
   }): Promise<ApiResponse<any>> => {
-    return apiClient.post('/admin/campuses', payload);
+    try {
+      const res: any = await apiClient.post('/admin/campuses', payload);
+      if (res && res.data) {
+        const unis = getStoredUniversities();
+        const updated = unis.map((u) => {
+          if (u.id === payload.universityId) {
+            return { ...u, campuses: [...(u.campuses || []), res.data] };
+          }
+          return u;
+        });
+        saveStoredUniversities(updated);
+        return res;
+      }
+    } catch {}
+    const unis = getStoredUniversities();
+    const newCamp = {
+      id: Date.now(),
+      name: payload.name.trim(),
+      location: payload.location?.trim() || '',
+    };
+    const updated = unis.map((u) => {
+      if (u.id === payload.universityId) {
+        return { ...u, campuses: [...(u.campuses || []), newCamp] };
+      }
+      return u;
+    });
+    saveStoredUniversities(updated);
+    return { success: true, data: newCamp };
+  },
+
+  updateCampus: async (
+    id: number,
+    payload: { universityId?: number; name: string; location?: string }
+  ): Promise<ApiResponse<any>> => {
+    try {
+      await apiClient.put(`/admin/campuses/${id}`, payload);
+    } catch {}
+    const unis = getStoredUniversities();
+    const updated = unis.map((u) => ({
+      ...u,
+      campuses: (u.campuses || []).map((c) =>
+        c.id === id
+          ? { ...c, name: payload.name.trim(), location: payload.location?.trim() || '' }
+          : c
+      ),
+    }));
+    saveStoredUniversities(updated);
+    return { success: true };
+  },
+
+  deleteCampus: async (id: number): Promise<ApiResponse<void>> => {
+    try {
+      await apiClient.delete(`/admin/campuses/${id}`);
+    } catch {}
+    const unis = getStoredUniversities();
+    const updated = unis.map((u) => ({
+      ...u,
+      campuses: (u.campuses || []).filter((c) => c.id !== id),
+    }));
+    saveStoredUniversities(updated);
+    return { success: true };
+  },
+
+  // 6. Safe Meeting Points Management
+  getMeetingPoints: (): PhenikaaSafePoint[] => {
+    return getSafeMeetingPoints();
+  },
+
+  createMeetingPoint: (payload: Omit<PhenikaaSafePoint, 'id'>): PhenikaaSafePoint => {
+    const points = getSafeMeetingPoints();
+    const newPt: PhenikaaSafePoint = {
+      id: Date.now(),
+      name: payload.name.trim(),
+      address: payload.address.trim(),
+      campusName: payload.campusName.trim(),
+      description: payload.description.trim(),
+      recommendedHours: payload.recommendedHours.trim(),
+      isCctvMonitored: Boolean(payload.isCctvMonitored),
+    };
+    saveSafeMeetingPoints([...points, newPt]);
+    return newPt;
+  },
+
+  updateMeetingPoint: (
+    id: number,
+    payload: Partial<PhenikaaSafePoint>
+  ): PhenikaaSafePoint | null => {
+    const points = getSafeMeetingPoints();
+    const updated = points.map((p) =>
+      p.id === id
+        ? {
+            ...p,
+            ...payload,
+            name: payload.name !== undefined ? payload.name.trim() : p.name,
+            address: payload.address !== undefined ? payload.address.trim() : p.address,
+            campusName: payload.campusName !== undefined ? payload.campusName.trim() : p.campusName,
+            description: payload.description !== undefined ? payload.description.trim() : p.description,
+            recommendedHours:
+              payload.recommendedHours !== undefined
+                ? payload.recommendedHours.trim()
+                : p.recommendedHours,
+            isCctvMonitored:
+              payload.isCctvMonitored !== undefined
+                ? Boolean(payload.isCctvMonitored)
+                : p.isCctvMonitored,
+          }
+        : p
+    );
+    saveSafeMeetingPoints(updated);
+    return updated.find((p) => p.id === id) || null;
+  },
+
+  deleteMeetingPoint: (id: number): boolean => {
+    const points = getSafeMeetingPoints();
+    const filtered = points.filter((p) => p.id !== id);
+    saveSafeMeetingPoints(filtered);
+    return true;
   },
 
   // 6. Keywords Blacklist & Audit Logs

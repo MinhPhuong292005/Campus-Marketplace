@@ -140,6 +140,14 @@ export const router = createBrowserRouter([
         element: <AdminDashboardPage />,
       },
       {
+        path: 'locations',
+        element: <AdminDashboardPage />,
+      },
+      {
+        path: 'campuses',
+        element: <AdminDashboardPage />,
+      },
+      {
         path: 'metadata',
         element: <AdminDashboardPage />,
       },

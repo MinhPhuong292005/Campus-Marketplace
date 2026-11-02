@@ -103,6 +103,16 @@ export const AdminDashboardPage: React.FC = () => {
     return '2301' + String(item.userId).padStart(4, '0');
   };
 
+  // Helper: Kiểm tra xem bài đăng có thuộc trạng thái Bị xóa / Ẩn hay không
+  const isListingDeletedOrHidden = (status?: string): boolean => {
+    if (!status) return true;
+    const s = status.toUpperCase();
+    if (s === 'DELETED' || s === 'ARCHIVED' || s === 'HIDDEN' || s === 'COMPLETED' || s === 'INACTIVE' || s === 'CLOSED') {
+      return true;
+    }
+    return !['ACTIVE', 'PENDING_APPROVAL', 'PENDING', 'REJECTED', 'BANNED'].includes(s);
+  };
+
   // 2. Users State
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [allUsers, setAllUsers] = useState<AdminUserItem[]>([]);
@@ -1295,8 +1305,8 @@ export const AdminDashboardPage: React.FC = () => {
                                   <span className="hidden sm:inline">Chi tiết</span>
                                 </button>
 
-                                {/* Những bài đăng đã bị xóa hoặc ẩn: chỉ hiện Chi tiết và Thùng rác */}
-                                {item.status === 'DELETED' || item.status === 'ARCHIVED' ? (
+                                {/* Những bài đăng đã bị xóa hoặc ẩn: CHỈ hiện Chi tiết và Thùng rác */}
+                                {isListingDeletedOrHidden(item.status) ? (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -2635,7 +2645,7 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2">
-                {detailModalListing.status === 'DELETED' || detailModalListing.status === 'ARCHIVED' ? (
+                {isListingDeletedOrHidden(detailModalListing.status) ? (
                   <button
                     onClick={() => {
                       const item = detailModalListing;
