@@ -25,6 +25,8 @@ export interface AdminListingItem {
   userId: number;
   authorName: string;
   authorKarma: number;
+  authorStudentCode?: string;
+  authorStatus?: string;
   universityName: string;
   campusName: string;
   categoryId: number;
@@ -34,6 +36,10 @@ export interface AdminListingItem {
   price: number;
   transactionType: string;
   conditionStatus: string;
+  rentalTerms?: string;
+  depositAmount?: number;
+  swapTarget?: string;
+  safeMeetingPoint?: string;
   status: string;
   isRiskFlagged?: boolean;
   riskReason?: string;

@@ -20,6 +20,7 @@ public class ListingDetailRes {
     private String authorName;
     private Integer authorKarma;
     private String authorStatus;
+    private String authorStudentCode;
     private String universityName;
     private String campusName;
     private Long categoryId;

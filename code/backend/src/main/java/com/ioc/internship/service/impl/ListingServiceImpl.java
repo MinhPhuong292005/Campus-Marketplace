@@ -343,6 +343,7 @@ public class ListingServiceImpl implements ListingService {
                 .authorName(author != null ? author.getFullName() : "Sinh viên")
                 .authorKarma(author != null ? author.getKarmaScore() : 20)
                 .authorStatus(author != null ? author.getStatus() : "ACTIVE")
+                .authorStudentCode(author != null ? author.getStudentCode() : null)
                 .universityName(author != null && author.getUniversity() != null ? author.getUniversity().getName() : "")
                 .campusName(author != null && author.getCampus() != null ? author.getCampus().getName() : "")
                 .categoryId(listing.getCategory() != null ? listing.getCategory().getId() : null)

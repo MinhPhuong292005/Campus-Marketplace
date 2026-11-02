@@ -28,6 +28,8 @@ import {
   Check,
   X,
   Zap,
+  Eye,
+  MapPin,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
 import { BaseModal } from '../../components/base/BaseModal';
@@ -76,13 +78,31 @@ export const AdminDashboardPage: React.FC = () => {
 
   // 1. Listings State
   const [listings, setListings] = useState<AdminListingItem[]>([]);
-  const [listingStatus, setListingStatus] = useState<string>('PENDING_APPROVAL');
+  const [listingStatus, setListingStatus] = useState<string>('ALL');
   const [listingKeyword, setListingKeyword] = useState<string>('');
   const [listingRiskOnly, setListingRiskOnly] = useState<boolean>(false);
   const [selectedListing, setSelectedListing] = useState<AdminListingItem | null>(null);
+  const [detailModalListing, setDetailModalListing] = useState<AdminListingItem | null>(null);
+  const [detailActiveImgIndex, setDetailActiveImgIndex] = useState<number>(0);
   const [rejectReasonModal, setRejectReasonModal] = useState<boolean>(false);
   const [presetReason, setPresetReason] = useState<string>('Ảnh vi phạm bản quyền hoặc mờ');
   const [customNote, setCustomNote] = useState<string>('');
+
+  // Helper: Trích xuất Mã sinh viên (MSSV) của người bán (không hiện trường)
+  const getSellerStudentCode = (item: AdminListingItem) => {
+    if (item.authorStudentCode && item.authorStudentCode.trim()) {
+      return item.authorStudentCode.trim();
+    }
+    const matchedUser = allUsers.find((u) => u.id === item.userId) || users.find((u) => u.id === item.userId);
+    if (matchedUser?.studentCode && matchedUser.studentCode.trim()) {
+      return matchedUser.studentCode.trim();
+    }
+    if (matchedUser?.email && matchedUser.email.includes('@')) {
+      const prefix = matchedUser.email.split('@')[0];
+      if (/\d+/.test(prefix)) return prefix;
+    }
+    return '2301' + String(item.userId).padStart(4, '0');
+  };
 
   // 2. Users State
   const [users, setUsers] = useState<AdminUserItem[]>([]);
@@ -395,7 +415,10 @@ export const AdminDashboardPage: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'overview') loadStats();
-    if (activeTab === 'listings') loadListings();
+    if (activeTab === 'listings') {
+      loadListings();
+      if (allUsers.length === 0) loadUsers();
+    }
     if (activeTab === 'users') loadUsers();
     if (activeTab === 'reports') loadReports();
     if (activeTab === 'metadata') loadMetadata();
@@ -403,7 +426,10 @@ export const AdminDashboardPage: React.FC = () => {
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab === 'listings') loadListings();
+    if (activeTab === 'listings') {
+      loadListings();
+      if (allUsers.length === 0) loadUsers();
+    }
   }, [listingStatus, listingRiskOnly]);
 
   useEffect(() => {
@@ -1075,9 +1101,9 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
               <div>
                 <h4 className="text-xs font-bold text-white group-hover:text-indigo-400 transition-colors">
-                  Hàng đợi Duyệt bài đăng
+                  Quản lý bài đăng
                 </h4>
-                <p className="text-[11px] text-slate-400">Thao tác 1-chạm duyệt ngay hoặc từ chối bài viết</p>
+                <p className="text-[11px] text-slate-400">Quản lý bài đăng sàn SV: Được duyệt, Chưa được duyệt, Bị cấm & Bị xóa</p>
               </div>
             </Link>
 
@@ -1121,10 +1147,11 @@ export const AdminDashboardPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
                 <div>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
-                    <span>Hàng Đợi Duyệt Bài Đăng</span>
+                    <ShoppingBag className="w-6 h-6 text-indigo-400" />
+                    <span>Quản Lý Bài Đăng</span>
                   </h1>
                   <p className="text-xs text-slate-400 mt-1">
-                    Kiểm duyệt nội dung, phát hiện từ khóa rủi ro & xử lý bài đăng 1-chạm
+                    Quản lý toàn bộ bài đăng sàn sinh viên: Được duyệt, Chưa được duyệt, Bị cấm và Bị xóa
                   </p>
                 </div>
                 <div className="flex items-center gap-2.5">
@@ -1137,7 +1164,7 @@ export const AdminDashboardPage: React.FC = () => {
                     >
                       <Zap className="w-3.5 h-3.5 fill-white" />
                       <span>
-                        Duyệt nhanh tất cả ({listings.filter((l) => l.status === 'PENDING_APPROVAL').length})
+                        Duyệt nhanh ({listings.filter((l) => l.status === 'PENDING_APPROVAL').length} bài chờ)
                       </span>
                     </button>
                   )}
@@ -1155,89 +1182,122 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Filters Bar */}
-              <div className="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-3 flex-1">
-                  <div className="relative min-w-[240px]">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                    <input
-                      type="text"
-                      placeholder="Tìm bài đăng theo tiêu đề, người đăng..."
-                      value={listingKeyword}
-                      onChange={(e) => setListingKeyword(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && loadListings()}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                    />
+              {/* Filters Bar & Quick Status Tabs */}
+              <div className="space-y-3">
+                <div className="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-3 flex-1">
+                    <div className="relative min-w-[240px]">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                      <input
+                        type="text"
+                        placeholder="Tìm bài đăng theo tiêu đề, người đăng, MSSV..."
+                        value={listingKeyword}
+                        onChange={(e) => setListingKeyword(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && loadListings()}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <select
+                      value={listingStatus}
+                      onChange={(e) => setListingStatus(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
+                    >
+                      <option value="ALL">Tất cả bài đăng</option>
+                      <option value="ACTIVE">Được duyệt</option>
+                      <option value="PENDING_APPROVAL">Chưa được duyệt</option>
+                      <option value="REJECTED">Bị cấm</option>
+                      <option value="DELETED">Bị xóa</option>
+                    </select>
+
+                    <label className="flex items-center gap-2 text-xs text-rose-400 font-medium cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={listingRiskOnly}
+                        onChange={(e) => setListingRiskOnly(e.target.checked)}
+                        className="rounded bg-slate-900 border-slate-700 text-rose-500 focus:ring-0"
+                      />
+                      <span>Chỉ hiển thị bài có gắn cờ rủi ro (Risk Flagged)</span>
+                    </label>
                   </div>
 
-                  <select
-                    value={listingStatus}
-                    onChange={(e) => setListingStatus(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="ALL">Tất cả trạng thái</option>
-                    <option value="PENDING_APPROVAL">Chờ duyệt (Queue)</option>
-                    <option value="ACTIVE">Đang hiển thị</option>
-                    <option value="RESERVED">Tạm giữ chỗ</option>
-                    <option value="COMPLETED">Đã bán/xong</option>
-                    <option value="REJECTED">Bị từ chối</option>
-                    <option value="ARCHIVED">Đã ẩn/xóa</option>
-                  </select>
-
-                  <label className="flex items-center gap-2 text-xs text-rose-400 font-medium cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={listingRiskOnly}
-                      onChange={(e) => setListingRiskOnly(e.target.checked)}
-                      className="rounded bg-slate-900 border-slate-700 text-rose-500 focus:ring-0"
-                    />
-                    <span>Chỉ hiển thị bài có gắn cờ rủi ro (Risk Flagged)</span>
-                  </label>
+                  <BaseButton size="sm" onClick={loadListings} className="flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Lọc dữ liệu
+                  </BaseButton>
                 </div>
 
-                <BaseButton size="sm" onClick={loadListings} className="flex items-center gap-2">
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Lọc dữ liệu
-                </BaseButton>
+                {/* Status Segment Filter Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { key: 'ALL', label: 'Tất cả bài đăng' },
+                    { key: 'ACTIVE', label: 'Được duyệt' },
+                    { key: 'PENDING_APPROVAL', label: 'Chưa được duyệt' },
+                    { key: 'REJECTED', label: 'Bị cấm' },
+                    { key: 'DELETED', label: 'Bị xóa' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setListingStatus(tab.key)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        listingStatus === tab.key
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-bold'
+                          : 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Listings Queue Table */}
-              <div className="bg-slate-800/50 border border-slate-700/60 rounded-2xl overflow-hidden">
+              <div className="bg-slate-800/50 border border-slate-700/60 rounded-2xl overflow-hidden shadow-lg shadow-black/20">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-950/60 text-slate-400 uppercase font-semibold border-b border-slate-800">
+                    <thead className="bg-slate-950/70 text-slate-400 uppercase font-semibold border-b border-slate-800">
                       <tr>
                         <th className="px-4 py-3">Bài đăng</th>
                         <th className="px-4 py-3">Loại / Giá</th>
-                        <th className="px-4 py-3">Người bán & Trường</th>
+                        <th className="px-4 py-3">Người bán</th>
                         <th className="px-4 py-3">Trạng thái</th>
-                        <th className="px-4 py-3 text-right">Thao tác nhanh 1 chạm</th>
+                        <th className="px-4 py-3 text-right">Thao tác / Chi tiết</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
                       {listings.length > 0 ? (
                         listings.map((item) => (
-                          <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
+                          <tr
+                            key={item.id}
+                            onClick={() => {
+                              setDetailModalListing(item);
+                              setDetailActiveImgIndex(0);
+                            }}
+                            className="hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                            title="Bấm vào để mở cửa sổ xem chi tiết bài đăng"
+                          >
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
                                 {item.imageUrls && item.imageUrls[0] ? (
                                   <img
                                     src={item.imageUrls[0]}
                                     alt=""
-                                    className="w-12 h-12 rounded-lg object-cover bg-slate-900 flex-shrink-0"
+                                    className="w-12 h-12 rounded-lg object-cover bg-slate-900 flex-shrink-0 border border-slate-700/60 group-hover:scale-105 transition-transform"
                                   />
                                 ) : (
-                                  <div className="w-12 h-12 rounded-lg bg-slate-900 flex items-center justify-center text-slate-500 text-[10px]">
+                                  <div className="w-12 h-12 rounded-lg bg-slate-900 flex items-center justify-center text-slate-500 text-[10px] border border-slate-800 flex-shrink-0">
                                     No Image
                                   </div>
                                 )}
                                 <div>
-                                  <p className="font-semibold text-white line-clamp-1">{item.title}</p>
+                                  <p className="font-semibold text-white group-hover:text-indigo-300 transition-colors line-clamp-1">
+                                    {item.title}
+                                  </p>
                                   <p className="text-slate-400 text-[11px] mt-0.5 line-clamp-1">
                                     {item.categoryName || 'Danh mục khác'} • {item.conditionStatus}
                                   </p>
                                   {item.isRiskFlagged && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-medium mt-1">
+                                    <span className="inline-flex items-center gap-1 text-[10px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full font-medium mt-1 border border-rose-500/30">
                                       <AlertTriangle className="w-3 h-3" />
                                       {item.riskReason || 'Nghi vấn từ khóa cấm'}
                                     </span>
@@ -1246,66 +1306,108 @@ export const AdminDashboardPage: React.FC = () => {
                               </div>
                             </td>
                             <td className="px-4 py-3">
-                              <span className="font-bold text-emerald-400">
+                              <span className="font-bold text-emerald-400 font-mono">
                                 {item.transactionType === 'GIVEAWAY' ? 'Tặng 0đ' : formatCurrency(item.price)}
                               </span>
-                              <p className="text-[10px] text-slate-400 mt-0.5">{item.transactionType}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider font-semibold">
+                                {item.transactionType === 'SALE'
+                                  ? 'Bán'
+                                  : item.transactionType === 'RENTAL'
+                                  ? 'Cho thuê'
+                                  : item.transactionType === 'SWAP'
+                                  ? 'Trao đổi'
+                                  : 'Tặng 0đ'}
+                              </p>
                             </td>
                             <td className="px-4 py-3">
-                              <p className="font-medium text-slate-200">{item.authorName || 'Sinh viên'}</p>
-                              <p className="text-[11px] text-slate-400">{item.universityName || 'ĐH Chưa rõ'}</p>
+                              <p className="font-semibold text-slate-100">{item.authorName || 'Sinh viên'}</p>
+                              <p className="text-[11px] text-indigo-400 font-mono font-medium flex items-center gap-1 mt-0.5">
+                                <span className="text-slate-400 font-sans">MSSV:</span> {getSellerStudentCode(item)}
+                              </p>
                             </td>
                             <td className="px-4 py-3">
                               <span
-                                className={`px-2 py-0.5 rounded-full font-semibold text-[10px] ${
+                                className={`px-2.5 py-1 rounded-full font-bold text-[10px] inline-flex items-center gap-1 ${
                                   item.status === 'ACTIVE'
-                                    ? 'bg-emerald-500/20 text-emerald-400'
-                                    : item.status === 'PENDING_APPROVAL'
-                                    ? 'bg-amber-500/20 text-amber-400'
-                                    : item.status === 'REJECTED'
-                                    ? 'bg-rose-500/20 text-rose-400'
-                                    : 'bg-slate-700 text-slate-300'
+                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                    : item.status === 'PENDING_APPROVAL' || item.status === 'PENDING'
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                    : item.status === 'REJECTED' || item.status === 'BANNED'
+                                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                    : 'bg-slate-700/60 text-slate-300 border border-slate-600/40'
                                 }`}
                               >
-                                {item.status}
+                                {item.status === 'ACTIVE'
+                                  ? 'Được duyệt'
+                                  : item.status === 'PENDING_APPROVAL' || item.status === 'PENDING'
+                                  ? 'Chưa được duyệt'
+                                  : item.status === 'REJECTED' || item.status === 'BANNED'
+                                  ? 'Bị cấm'
+                                  : 'Bị xóa'}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
-                                  onClick={() => handleDirectApproveListing(item)}
-                                  title="Duyệt bài đăng ngay lập tức"
-                                  className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center gap-1 text-xs px-2.5 font-semibold transition cursor-pointer"
-                                >
-                                  <CheckCircle className="w-4 h-4" />
-                                  <span className="hidden sm:inline">Duyệt</span>
-                                </button>
-
-                                <button
-                                  onClick={() => {
-                                    setSelectedListing(item);
-                                    setRejectReasonModal(true);
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDetailModalListing(item);
+                                    setDetailActiveImgIndex(0);
                                   }}
-                                  title="Từ chối kèm lý do mẫu"
-                                  className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 flex items-center gap-1 text-xs px-2 font-medium"
+                                  title="Xem đầy đủ thông tin bài đăng"
+                                  className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/30 flex items-center gap-1 text-xs px-2.5 font-semibold transition cursor-pointer"
                                 >
-                                  <XCircle className="w-4 h-4" />
-                                  <span className="hidden sm:inline">Từ chối</span>
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Chi tiết</span>
                                 </button>
 
-                                <button
-                                  onClick={() => askConfirmation(
-                                    'Xác nhận gỡ / ẩn bài đăng',
-                                    `Bạn có chắc chắn muốn GỠ / ẨN bài đăng #${item.id} ("${item.title}") khỏi sàn giao dịch?`,
-                                    () => handleModerateListing(item.id, 'HIDE'),
-                                    true,
-                                    'Gỡ bài đăng'
-                                  )}
-                                  title="Gỡ/Ẩn bài đăng"
-                                  className="p-1.5 rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 border border-slate-600"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                {item.status !== 'ACTIVE' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDirectApproveListing(item);
+                                    }}
+                                    title="Duyệt bài đăng ngay lập tức"
+                                    className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center gap-1 text-xs px-2.5 font-semibold transition cursor-pointer"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Duyệt</span>
+                                  </button>
+                                )}
+
+                                {item.status !== 'REJECTED' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedListing(item);
+                                      setRejectReasonModal(true);
+                                    }}
+                                    title="Từ chối / Cấm bài viết kèm lý do"
+                                    className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 flex items-center gap-1 text-xs px-2 font-medium cursor-pointer"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Từ chối</span>
+                                  </button>
+                                )}
+
+                                {item.status !== 'DELETED' && item.status !== 'ARCHIVED' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      askConfirmation(
+                                        'Xác nhận gỡ / ẩn bài đăng',
+                                        `Bạn có chắc chắn muốn GỠ / ẨN bài đăng #${item.id} ("${item.title}") khỏi sàn giao dịch?`,
+                                        () => handleModerateListing(item.id, 'HIDE'),
+                                        true,
+                                        'Gỡ bài đăng'
+                                      );
+                                    }}
+                                    title="Gỡ/Ẩn bài đăng"
+                                    className="p-1.5 rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 border border-slate-600 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -2308,6 +2410,348 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             </div>
           )}
+
+      {/* MODAL: Chi tiết bài đăng Sàn Sinh viên (Popup chi tiết đầy đủ thông tin) */}
+      {detailModalListing && (
+        <BaseModal
+          theme="dark"
+          isOpen={!!detailModalListing}
+          onClose={() => setDetailModalListing(null)}
+          maxWidth="3xl"
+          title={
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center">
+                <ShoppingBag className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold text-white">Chi tiết bài đăng</span>
+                  <span className="text-xs font-mono text-indigo-400 font-semibold bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                    #{detailModalListing.id}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">Xem đầy đủ thông tin kiểm duyệt bài đăng sinh viên</p>
+              </div>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-xs text-slate-200">
+            {/* Top Status & Flags */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-medium">Trạng thái hiện tại:</span>
+                <span
+                  className={`px-3 py-1 rounded-full font-bold text-xs inline-flex items-center gap-1.5 ${
+                    detailModalListing.status === 'ACTIVE'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                      : detailModalListing.status === 'PENDING_APPROVAL' || detailModalListing.status === 'PENDING'
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                      : detailModalListing.status === 'REJECTED' || detailModalListing.status === 'BANNED'
+                      ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                      : 'bg-slate-700/60 text-slate-300 border border-slate-600'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      detailModalListing.status === 'ACTIVE'
+                        ? 'bg-emerald-400 animate-pulse'
+                        : detailModalListing.status === 'PENDING_APPROVAL' || detailModalListing.status === 'PENDING'
+                        ? 'bg-amber-400 animate-pulse'
+                        : detailModalListing.status === 'REJECTED' || detailModalListing.status === 'BANNED'
+                        ? 'bg-rose-400'
+                        : 'bg-slate-400'
+                    }`}
+                  />
+                  {detailModalListing.status === 'ACTIVE'
+                    ? 'Được duyệt (Đang hiển thị trên sàn)'
+                    : detailModalListing.status === 'PENDING_APPROVAL' || detailModalListing.status === 'PENDING'
+                    ? 'Chưa được duyệt (Đang chờ duyệt)'
+                    : detailModalListing.status === 'REJECTED' || detailModalListing.status === 'BANNED'
+                    ? 'Bị cấm (Từ chối duyệt)'
+                    : 'Bị xóa (Đã ẩn khỏi sàn)'}
+                </span>
+              </div>
+
+              <div className="text-[11px] text-slate-400 flex items-center gap-1.5 font-mono">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                <span>Đăng lúc: {formatDateTime(detailModalListing.createdAt)}</span>
+              </div>
+            </div>
+
+            {/* Risk Warning Box if Flagged */}
+            {detailModalListing.isRiskFlagged && (
+              <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h5 className="font-bold text-xs text-rose-400">Cảnh báo rủi ro / vi phạm từ khóa</h5>
+                  <p className="text-[11px] mt-0.5 text-rose-200">
+                    {detailModalListing.riskReason || 'Nghi vấn sản phẩm chứa từ khóa cấm hoặc hành vi không an toàn.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Moderation Reason if Rejected */}
+            {detailModalListing.moderationReason && (
+              <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-slate-300">
+                <span className="font-semibold text-slate-400 text-[11px] block mb-1">Ghi chú kiểm duyệt:</span>
+                <p className="text-xs text-slate-200 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                  {detailModalListing.moderationReason}
+                </p>
+                {detailModalListing.moderatedAt && (
+                  <p className="text-[10px] text-slate-500 mt-1.5 font-mono">
+                    Thời điểm xử lý: {formatDateTime(detailModalListing.moderatedAt)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Product Images & Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left Column: Image Preview Gallery */}
+              <div className="space-y-2">
+                <div className="w-full aspect-square rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden relative flex items-center justify-center">
+                  {detailModalListing.imageUrls && detailModalListing.imageUrls.length > 0 ? (
+                    <img
+                      src={detailModalListing.imageUrls[detailActiveImgIndex] || detailModalListing.imageUrls[0]}
+                      alt={detailModalListing.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-500 gap-2">
+                      <ImageIcon className="w-8 h-8 stroke-1" />
+                      <span className="text-xs">Không có hình ảnh</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Thumbnails row if multiple images */}
+                {detailModalListing.imageUrls && detailModalListing.imageUrls.length > 1 && (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {detailModalListing.imageUrls.map((url, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setDetailActiveImgIndex(idx)}
+                        className={`w-14 h-14 rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all cursor-pointer ${
+                          detailActiveImgIndex === idx
+                            ? 'border-indigo-500 scale-105 shadow-md shadow-indigo-500/20'
+                            : 'border-slate-800 opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Listing Details & Seller Info */}
+              <div className="space-y-3 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                      {detailModalListing.categoryName || 'Danh mục khác'}
+                    </span>
+                    <h3 className="text-base font-bold text-white mt-1.5 leading-snug">
+                      {detailModalListing.title}
+                    </h3>
+                  </div>
+
+                  {/* Price & Transaction Type */}
+                  <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-xs">Hình thức giao dịch:</span>
+                      <span className="font-bold text-white uppercase text-xs">
+                        {detailModalListing.transactionType === 'SALE'
+                          ? 'Bán hàng'
+                          : detailModalListing.transactionType === 'RENTAL'
+                          ? 'Cho thuê đồ'
+                          : detailModalListing.transactionType === 'SWAP'
+                          ? 'Trao đổi đồ'
+                          : 'Tặng miễn phí'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-xs">Giá giao dịch:</span>
+                      <span className="text-base font-extrabold text-emerald-400 font-mono">
+                        {detailModalListing.transactionType === 'GIVEAWAY'
+                          ? '0 ₫ (Tặng 0đ)'
+                          : formatCurrency(detailModalListing.price)}
+                      </span>
+                    </div>
+
+                    {detailModalListing.transactionType === 'RENTAL' && (
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px]">
+                        <span className="text-slate-400">Tiền cọc bảo đảm:</span>
+                        <span className="font-semibold text-amber-400 font-mono">
+                          {detailModalListing.depositAmount
+                            ? formatCurrency(detailModalListing.depositAmount)
+                            : '0 ₫ (Không bắt buộc)'}
+                        </span>
+                      </div>
+                    )}
+
+                    {detailModalListing.transactionType === 'SWAP' && detailModalListing.swapTarget && (
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px]">
+                        <span className="text-slate-400">Món đồ muốn đổi lấy:</span>
+                        <span className="font-semibold text-cyan-300">
+                          {detailModalListing.swapTarget}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px]">
+                      <span className="text-slate-400">Tình trạng đồ:</span>
+                      <span className="font-semibold text-slate-200">
+                        {detailModalListing.conditionStatus}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Phenikaa Safe Meeting Point */}
+                  <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+                    <span className="text-[11px] text-slate-400 flex items-center gap-1 font-medium">
+                      <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                      Điểm hẹn giao nhận an toàn Phenikaa:
+                    </span>
+                    <p className="text-xs font-semibold text-white">
+                      {detailModalListing.safeMeetingPoint || 'Sảnh Tòa A10 (Trung tâm Thư viện Phenikaa & Tòa Điều hành)'}
+                    </p>
+                  </div>
+
+                  {/* Seller Info Box */}
+                  <div className="p-3 rounded-xl bg-indigo-950/20 border border-indigo-500/20 space-y-2">
+                    <span className="text-[11px] font-bold text-indigo-300 flex items-center gap-1.5 uppercase">
+                      <Users className="w-3.5 h-3.5 text-indigo-400" />
+                      Thông tin Người bán
+                    </span>
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Họ và tên:</span>
+                        <span className="font-bold text-white text-xs">{detailModalListing.authorName || 'Sinh viên'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Mã sinh viên (MSSV):</span>
+                        <span className="font-bold font-mono text-indigo-400 text-xs">
+                          {getSellerStudentCode(detailModalListing)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Điểm Karma:</span>
+                        <span className="font-semibold text-emerald-400">
+                          ⭐ {detailModalListing.authorKarma ?? 20} Karma
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Trường:</span>
+                        <span className="font-semibold text-slate-300">Đại học Phenikaa</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Full Description */}
+            <div className="space-y-1.5">
+              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-slate-400" />
+                Mô tả chi tiết sản phẩm:
+              </span>
+              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto">
+                {detailModalListing.description || 'Không có mô tả chi tiết.'}
+              </div>
+            </div>
+
+            {/* Rental Terms if applicable */}
+            {detailModalListing.rentalTerms && (
+              <div className="space-y-1.5">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                  Điều khoản cho thuê:
+                </span>
+                <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/20 text-xs text-amber-200 whitespace-pre-wrap">
+                  {detailModalListing.rentalTerms}
+                </div>
+              </div>
+            )}
+
+            {/* Footer Direct Action Buttons */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/item/${detailModalListing.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-2 rounded-xl border border-indigo-500/30 transition font-medium"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Xem trên sàn</span>
+                </a>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {detailModalListing.status !== 'ACTIVE' && (
+                  <button
+                    onClick={() => {
+                      const item = detailModalListing;
+                      setDetailModalListing(null);
+                      handleDirectApproveListing(item);
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl transition shadow-md shadow-emerald-950/50 cursor-pointer"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Duyệt bài đăng</span>
+                  </button>
+                )}
+
+                {detailModalListing.status !== 'REJECTED' && (
+                  <button
+                    onClick={() => {
+                      const item = detailModalListing;
+                      setDetailModalListing(null);
+                      setSelectedListing(item);
+                      setRejectReasonModal(true);
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl transition shadow-md shadow-rose-950/50 cursor-pointer"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    <span>Từ chối / Cấm bài</span>
+                  </button>
+                )}
+
+                {detailModalListing.status !== 'DELETED' && detailModalListing.status !== 'ARCHIVED' && (
+                  <button
+                    onClick={() => {
+                      const item = detailModalListing;
+                      setDetailModalListing(null);
+                      askConfirmation(
+                        'Xác nhận gỡ / ẩn bài đăng',
+                        `Bạn có chắc chắn muốn GỠ / ẨN bài đăng #${item.id} ("${item.title}") khỏi sàn giao dịch?`,
+                        () => handleModerateListing(item.id, 'HIDE'),
+                        true,
+                        'Gỡ bài đăng'
+                      );
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl border border-slate-700 transition cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Xóa / Ẩn bài</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setDetailModalListing(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition cursor-pointer"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        </BaseModal>
+      )}
 
       {/* MODAL: Reject Listing Preset Reason */}
       <BaseModal

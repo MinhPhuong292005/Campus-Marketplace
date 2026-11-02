@@ -73,7 +73,7 @@ public interface ListingRepository extends JpaRepository<ListingEntity, Long> {
     java.util.List<Object[]> countListingsGroupedByCategory();
 
     @Query("SELECT l FROM ListingEntity l " +
-           "WHERE (:status IS NULL OR l.status = :status) " +
+           "WHERE (:status IS NULL OR l.status = :status OR (:status = 'DELETED' AND (l.status = 'DELETED' OR l.status = 'ARCHIVED'))) " +
            "  AND (:keyword IS NULL OR :keyword = '' OR LOWER(l.title) LIKE LOWER(CONCAT('%', CAST(:keyword AS String), '%')) OR LOWER(l.user.fullName) LIKE LOWER(CONCAT('%', CAST(:keyword AS String), '%'))) " +
            "  AND (:categoryId IS NULL OR l.category.id = :categoryId) " +
            "  AND (:universityId IS NULL OR l.user.university.id = :universityId) " +

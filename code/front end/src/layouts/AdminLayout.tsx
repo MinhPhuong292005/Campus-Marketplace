@@ -50,7 +50,7 @@ export const AdminLayout: React.FC = () => {
     },
     {
       path: '/admin/listings',
-      label: '2. Duyệt bài đăng',
+      label: '2. Quản lý bài đăng',
       icon: ShoppingBag,
       badge: stats && stats.pendingListingsCount > 0 ? stats.pendingListingsCount : null,
       badgeColor: 'bg-amber-500/20 text-amber-300 border border-amber-500/40',
