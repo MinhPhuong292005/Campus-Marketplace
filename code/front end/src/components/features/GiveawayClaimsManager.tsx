@@ -87,7 +87,9 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
   const isReceiver = user && user.id === acceptedClaim?.requesterId;
   const isParticipantInTransaction = isGiver || isReceiver;
 
-  if (!isOwner && claims.length === 0 && !isParticipantInTransaction) return null;
+  // Danh sách người xin nhận đồ CHỈ hiển thị với người đăng bài tặng (isOwner).
+  // Người xin nhận hoặc người xem khác sẽ KHÔNG nhìn thấy danh sách này.
+  if (!isOwner && !isReceiver) return null;
 
   // Bước 1: Mở khung xác nhận trao tặng (thay thế hoàn toàn localhost:3000 says)
   const handleAcceptClaim = (claim: GiveawayClaim) => {
@@ -235,22 +237,30 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              Danh sách sinh viên xin nhận đồ
-              <span className="text-xs px-2 py-0.5 rounded-full bg-pink-200/80 dark:bg-pink-900/50 text-pink-800 dark:text-pink-300 font-extrabold">
-                {claims.length} yêu cầu
-              </span>
+              {isOwner ? (
+                <>
+                  <span>Danh sách sinh viên xin nhận đồ</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-pink-200/80 dark:bg-pink-900/50 text-pink-800 dark:text-pink-300 font-extrabold">
+                    {claims.length} yêu cầu
+                  </span>
+                </>
+              ) : (
+                <span>Tiến trình nhận món đồ tặng</span>
+              )}
             </h3>
             <p className="text-[11px] text-slate-500">
-              {isClosed
-                ? 'Món đồ đã được chốt tặng cho một bạn sinh viên. Hai bên tiến hành hẹn giờ và bàn giao đồ.'
-                : 'Xem lý do xin đồ của từng bạn, hoặc dùng Vòng quay may mắn để chọn ngẫu nhiên công bằng.'}
+              {isOwner
+                ? (isClosed
+                    ? 'Món đồ đã được chốt tặng cho một bạn sinh viên. Hai bên tiến hành hẹn giờ và bàn giao đồ.'
+                    : 'Xem lý do xin đồ của từng bạn, hoặc dùng Vòng quay may mắn để chọn ngẫu nhiên công bằng.')
+                : 'Bạn đã được chủ sở hữu lựa chọn để trao tặng món đồ này. Hãy thống nhất lịch hẹn và điểm gặp tại trường Phenikaa!'}
             </p>
           </div>
         </div>
 
         {/* Action Controls in Header */}
         <div className="flex items-center gap-2">
-          {/* Nút Vòng quay Random */}
+          {/* Nút Vòng quay Random (Chỉ hiển thị cho người tặng) */}
           {isOwner && !isClosed && claims.length > 0 && (
             <button
               type="button"
@@ -496,115 +506,117 @@ export const GiveawayClaimsManager: React.FC<GiveawayClaimsManagerProps> = ({
       )}
 
       {/* ========================================================== */}
-      {/* DANH SÁCH TẤT CẢ NGƯỜI XIN NHẬN ĐỒ                         */}
+      {/* DANH SÁCH TẤT CẢ NGƯỜI XIN NHẬN ĐỒ (CHỈ HIỂN THỊ VỚI NGƯỜI TẶNG) */}
       {/* ========================================================== */}
-      {claims.length === 0 ? (
-        <div className="py-6 text-center text-xs text-slate-500">
-          Chưa có bạn sinh viên nào gửi lời nhắn xin nhận món đồ này.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {claims.map((claim) => {
-            const isThisAccepted = claim.status === 'ACCEPTED' || claim.status === 'COMPLETED';
-            const isThisRejected = claim.status === 'REJECTED';
+      {isOwner && (
+        claims.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-500">
+            Chưa có bạn sinh viên nào gửi lời nhắn xin nhận món đồ này.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {claims.map((claim) => {
+              const isThisAccepted = claim.status === 'ACCEPTED' || claim.status === 'COMPLETED';
+              const isThisRejected = claim.status === 'REJECTED';
 
-            return (
-              <div
-                key={claim.id}
-                className={`p-4 rounded-2xl border transition-all ${
-                  isThisAccepted
-                    ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800'
-                    : isThisRejected
-                    ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60 opacity-60'
-                    : 'bg-white dark:bg-slate-900 border-pink-100 dark:border-pink-900/30 shadow-xs'
-                }`}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={
-                        claim.requesterAvatar ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${claim.requesterName}`
-                      }
-                      alt={claim.requesterName}
-                      className="w-11 h-11 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                          {claim.requesterName}
-                        </span>
-                        <KarmaBadge score={claim.requesterKarma || 20} showText={false} />
-                        {isThisAccepted && (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white">
-                            ✓ Đã chốt tặng
+              return (
+                <div
+                  key={claim.id}
+                  className={`p-4 rounded-2xl border transition-all ${
+                    isThisAccepted
+                      ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800'
+                      : isThisRejected
+                      ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60 opacity-60'
+                      : 'bg-white dark:bg-slate-900 border-pink-100 dark:border-pink-900/30 shadow-xs'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={
+                          claim.requesterAvatar ||
+                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${claim.requesterName}`
+                        }
+                        alt={claim.requesterName}
+                        className="w-11 h-11 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                            {claim.requesterName}
                           </span>
-                        )}
-                        {isThisRejected && (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                            Không được chọn
-                          </span>
-                        )}
+                          <KarmaBadge score={claim.requesterKarma || 20} showText={false} />
+                          {isThisAccepted && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white">
+                              ✓ Đã chốt tặng
+                            </span>
+                          )}
+                          {isThisRejected && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                              Không được chọn
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                          MSSV: {claim.requesterStudentCode || 'Chưa cập nhật'} • Gửi lúc{' '}
+                          {new Date(claim.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })},{' '}
+                          {new Date(claim.createdAt).toLocaleDateString('vi-VN')}
+                        </p>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">
-                        MSSV: {claim.requesterStudentCode || 'Chưa cập nhật'} • Gửi lúc{' '}
-                        {new Date(claim.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })},{' '}
-                        {new Date(claim.createdAt).toLocaleDateString('vi-VN')}
-                      </p>
                     </div>
-                  </div>
 
-                  {/* Actions for owner */}
-                  {isOwner && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <BaseButton
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          navigate('/chat', {
-                            state: {
-                              sellerId: claim.requesterId,
-                              sellerName: claim.requesterName,
-                              listingId: claim.listingId,
-                              listingTitle: claim.listingTitle,
-                            },
-                          });
-                        }}
-                        className="text-xs font-bold gap-1 py-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 text-blue-500" />
-                        <span>Nhắn tin</span>
-                      </BaseButton>
-
-                      {!isClosed && !isThisAccepted && (
+                    {/* Actions for owner */}
+                    {isOwner && (
+                      <div className="flex items-center gap-2 shrink-0">
                         <BaseButton
                           type="button"
                           size="sm"
-                          variant="primary"
-                          disabled={isProcessing}
-                          onClick={() => handleAcceptClaim(claim)}
-                          className="text-xs font-bold gap-1 py-1.5 px-3 rounded-xl bg-pink-600 hover:bg-pink-700 text-white shadow-xs cursor-pointer"
+                          variant="secondary"
+                          onClick={() => {
+                            navigate('/chat', {
+                              state: {
+                                sellerId: claim.requesterId,
+                                sellerName: claim.requesterName,
+                                listingId: claim.listingId,
+                                listingTitle: claim.listingTitle,
+                              },
+                            });
+                          }}
+                          className="text-xs font-bold gap-1 py-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Chốt tặng cho bạn này</span>
+                          <MessageCircle className="w-3.5 h-3.5 text-blue-500" />
+                          <span>Nhắn tin</span>
                         </BaseButton>
-                      )}
-                    </div>
-                  )}
-                </div>
 
-                {/* Message / Reason Content */}
-                <div className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-                  <span className="font-semibold text-slate-500 text-[11px] block mb-0.5">
-                    Lý do xin nhận đồ:
-                  </span>
-                  "{claim.message}"
+                        {!isClosed && !isThisAccepted && (
+                          <BaseButton
+                            type="button"
+                            size="sm"
+                            variant="primary"
+                            disabled={isProcessing}
+                            onClick={() => handleAcceptClaim(claim)}
+                            className="text-xs font-bold gap-1 py-1.5 px-3 rounded-xl bg-pink-600 hover:bg-pink-700 text-white shadow-xs cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Chốt tặng cho bạn này</span>
+                          </BaseButton>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Message / Reason Content */}
+                  <div className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                    <span className="font-semibold text-slate-500 text-[11px] block mb-0.5">
+                      Lý do xin nhận đồ:
+                    </span>
+                    "{claim.message}"
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )
       )}
 
       {/* Vòng quay may mắn Modal */}
