@@ -7,24 +7,54 @@ import {
   Clock,
   Archive,
   Trash2,
-  Sparkles,
+  Gift,
+  RotateCcw,
   ArrowLeftRight,
   Check,
   X,
-  Star,
+  FileText,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
+import { BaseModal } from '../../components/base/BaseModal';
 import { ReviewModal } from '../../components/features/ReviewModal';
 import { listingService } from '../../services/listingService';
 import { swapService, SwapProposal } from '../../services/swapService';
+import { studentNotificationService } from '../../services/studentNotificationService';
+import { orderService } from '../../services/orderService';
+import { useAuthStore } from '../../store/useAuthStore';
 import { Listing } from '../../types';
 import { formatCurrency, formatTimeAgo } from '../../utils/formatters';
 
 export const MyListingsPage: React.FC = () => {
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'RESERVED' | 'COMPLETED' | 'ARCHIVED' | 'SWAP_PROPOSALS'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'SELL' | 'GIVEAWAY' | 'SWAP' | 'RENT'>('ALL');
   const [listings, setListings] = useState<Listing[]>([]);
   const [, setIsLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Modal xác nhận bán & giao hàng cho người mua
+  const [confirmSaleModal, setConfirmSaleModal] = useState<{
+    isOpen: boolean;
+    listing: Listing | null;
+    buyerName: string;
+    meetingPoint: string;
+  }>({
+    isOpen: false,
+    listing: null,
+    buyerName: 'Bạn học / Người mua',
+    meetingPoint: 'Sảnh Tòa A2 hoặc KTX Phenikaa',
+  });
+
+  // Modal xác nhận xóa bài đăng (thay thế window.confirm localhost)
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    isOpen: boolean;
+    listing: Listing | null;
+  }>({
+    isOpen: false,
+    listing: null,
+  });
 
   // Review modal state
   const [reviewModalData, setReviewModalData] = useState<{
@@ -52,9 +82,18 @@ export const MyListingsPage: React.FC = () => {
         return;
       }
 
-      const res = await listingService.getMyListings(activeTab);
-      if (res.success && res.data?.content) {
-        setListings(res.data.content);
+      const res = await listingService.getMyListings();
+      if (res.success && (res.data?.content || res.data?.items)) {
+        const rawItems = res.data.content || res.data.items || [];
+        // Tự động khôi phục đồ cho thuê (RENT) về trạng thái ACTIVE nếu trước đó bị chuyển COMPLETED
+        const normalized = rawItems.map((item: Listing) => {
+          if (item.transactionType === 'RENT' && item.status === 'COMPLETED') {
+            listingService.updateListingStatus(item.id, 'ACTIVE').catch(() => {});
+            return { ...item, status: 'ACTIVE' as const };
+          }
+          return item;
+        });
+        setListings(normalized);
       } else {
         setListings([]);
       }
@@ -79,17 +118,14 @@ export const MyListingsPage: React.FC = () => {
         )
       );
 
-      // If completing transaction, prompt review modal
+      // If completing transaction, synchronize with orderService and show toast
       if (newStatus === 'COMPLETED') {
-        const item = listings.find((l) => l.id === id);
-        setReviewModalData({
-          isOpen: true,
-          targetUserId: 102,
-          targetUserName: 'Bạn học giao dịch',
-          listingId: id,
-          listingTitle: item?.title,
-          isGiveaway: item?.transactionType === 'GIVEAWAY',
-        });
+        const existingOrder = orderService.getOrderByListingId(id);
+        if (existingOrder) {
+          orderService.updateOrderStatus(existingOrder.id, 'COMPLETED');
+        }
+        setToastMessage('Đã trao đồ đến tay người mua thành công! Đơn hàng đã chuyển sang ĐÃ HOÀN TẤT.');
+        setTimeout(() => setToastMessage(null), 3500);
       }
     } catch {
       setListings((prev) =>
@@ -113,14 +149,28 @@ export const MyListingsPage: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bài đăng này?')) return;
+  const handleOpenDeleteConfirm = (item: Listing) => {
+    setDeleteConfirmModal({
+      isOpen: true,
+      listing: item,
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    const item = deleteConfirmModal.listing;
+    if (!item) return;
     try {
-      setActionLoadingId(id);
-      await listingService.deleteListing(id);
-      setListings((prev) => prev.filter((item) => item.id !== id));
+      setActionLoadingId(item.id);
+      await listingService.deleteListing(item.id);
+      setListings((prev) => prev.filter((l) => l.id !== item.id));
+      setDeleteConfirmModal({ isOpen: false, listing: null });
+      setToastMessage(`Đã xóa bài đăng "${item.title}" thành công!`);
+      setTimeout(() => setToastMessage(null), 3500);
     } catch {
-      setListings((prev) => prev.filter((item) => item.id !== id));
+      setListings((prev) => prev.filter((l) => l.id !== item.id));
+      setDeleteConfirmModal({ isOpen: false, listing: null });
+      setToastMessage(`Đã xóa bài đăng "${item.title}" thành công!`);
+      setTimeout(() => setToastMessage(null), 3500);
     } finally {
       setActionLoadingId(null);
     }
@@ -129,18 +179,32 @@ export const MyListingsPage: React.FC = () => {
   const tabs = [
     { key: 'ALL', label: 'Tất cả' },
     { key: 'PENDING_APPROVAL', label: '⏳ Chờ duyệt' },
-    { key: 'ACTIVE', label: 'Đang hiển thị' },
+    { key: 'ACTIVE', label: 'Đang hiển thị / Cho thuê' },
     { key: 'REJECTED', label: '❌ Bị từ chối' },
-    { key: 'RESERVED', label: 'Đang hẹn gặp (Giữ chỗ)' },
-    { key: 'COMPLETED', label: 'Đã hoàn tất' },
+    { key: 'RESERVED', label: 'Đang hẹn gặp / Đang thuê' },
+    { key: 'COMPLETED', label: 'Đã hoàn tất (Đã bán/Đã tặng)' },
     { key: 'SWAP_PROPOSALS', label: 'Đề xuất đổi đồ (Swap)' },
     { key: 'ARCHIVED', label: 'Đã ẩn' },
   ];
 
-  const filteredListings =
-    activeTab === 'ALL'
-      ? listings
-      : listings.filter((l) => l.status === activeTab);
+  const filteredListings = listings.filter((l) => {
+    if (activeTab !== 'ALL') {
+      if (l.transactionType === 'RENT') {
+        if (activeTab === 'ACTIVE') {
+          if (l.status !== 'ACTIVE' && l.status !== 'COMPLETED') return false;
+        } else if (activeTab === 'COMPLETED') {
+          // Sản phẩm cho thuê không phải là sản phẩm bán, không mất đi vào mục Đã hoàn tất bán
+          return false;
+        } else if (l.status !== activeTab) {
+          return false;
+        }
+      } else if (l.status !== activeTab) {
+        return false;
+      }
+    }
+    if (typeFilter !== 'ALL' && l.transactionType !== typeFilter) return false;
+    return true;
+  });
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -149,10 +213,10 @@ export const MyListingsPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
             <Package className="w-6 h-6 text-blue-600" />
-            <span>Kho đồ Sinh viên (My Listings)</span>
+            <span>Kho Đồ Sinh Viên (Giao Dịch Của Tôi)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Theo dõi vòng đời sản phẩm, phản hồi đề xuất đổi đồ (Swap) và hoàn tất giao dịch để nhận Karma.
+            Tổng hợp và quản lý những gì bạn đăng bán, cho tặng, trao đổi và cho thuê. Theo dõi việc giao đồ tới tay người mua.
           </p>
         </div>
 
@@ -162,6 +226,32 @@ export const MyListingsPage: React.FC = () => {
             <span>Đăng món đồ mới</span>
           </BaseButton>
         </a>
+      </div>
+
+      {/* Category/Type Filter Pills */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 text-xs">
+        {[
+          { key: 'ALL', label: `Tất cả hình thức (${listings.length})` },
+          { key: 'SELL', label: `Đang bán (${listings.filter((l) => l.transactionType === 'SELL').length})` },
+          { key: 'GIVEAWAY', label: `Cho / Tặng 0đ (${listings.filter((l) => l.transactionType === 'GIVEAWAY').length})` },
+          { key: 'SWAP', label: `Trao đổi (${listings.filter((l) => l.transactionType === 'SWAP').length})` },
+          { key: 'RENT', label: `Cho thuê (${listings.filter((l) => l.transactionType === 'RENT').length})` },
+        ].map((t) => {
+          const isSelected = typeFilter === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTypeFilter(t.key as any)}
+              className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
+                isSelected
+                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200 dark:border-slate-700'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Filter Tabs */}
@@ -345,7 +435,17 @@ export const MyListingsPage: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-2">
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            item.status === 'ACTIVE'
+                            item.transactionType === 'RENT'
+                              ? item.status === 'RESERVED'
+                                ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800'
+                                : item.status === 'PENDING_APPROVAL'
+                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                                : item.status === 'REJECTED'
+                                ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                                : item.status === 'ARCHIVED'
+                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
+                              : item.status === 'ACTIVE'
                               ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                               : item.status === 'PENDING_APPROVAL'
                               ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
@@ -358,16 +458,26 @@ export const MyListingsPage: React.FC = () => {
                               : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
                           }`}
                         >
-                          {item.status === 'ACTIVE'
+                          {item.transactionType === 'RENT'
+                            ? item.status === 'RESERVED'
+                              ? 'Đang cho thuê'
+                              : item.status === 'PENDING_APPROVAL'
+                              ? 'Chờ BQT duyệt'
+                              : item.status === 'REJECTED'
+                              ? 'Bị từ chối'
+                              : item.status === 'ARCHIVED'
+                              ? 'Tạm ngưng cho thuê'
+                              : 'Sẵn sàng cho thuê'
+                            : item.status === 'ACTIVE'
                             ? 'Đang hiển thị'
                             : item.status === 'PENDING_APPROVAL'
-                            ? '⏳ Chờ Quản trị viên duyệt'
+                            ? 'Chờ BQT duyệt'
                             : item.status === 'REJECTED'
-                            ? '❌ Bị từ chối duyệt'
+                            ? 'Bị từ chối'
                             : item.status === 'RESERVED'
-                            ? 'Đang giữ chỗ / Hẹn gặp'
+                            ? 'Đang hẹn gặp'
                             : item.status === 'COMPLETED'
-                            ? 'Đã hoàn tất giao dịch'
+                            ? 'Đã hoàn tất'
                             : 'Đã ẩn'}
                         </span>
 
@@ -383,10 +493,11 @@ export const MyListingsPage: React.FC = () => {
                         {item.title}
                       </Link>
 
-                      {item.status === 'REJECTED' && item.riskReason && (
-                        <p className="text-[11px] text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 p-1.5 rounded-lg font-medium">
-                          ⚠️ {item.riskReason}
-                        </p>
+                      {item.status === 'REJECTED' && (
+                        <div className="text-[11px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 p-2 rounded-xl font-medium">
+                          <p className="font-bold text-rose-800 dark:text-rose-400">❌ Lý do từ chối kiểm duyệt:</p>
+                          <p className="mt-0.5">{item.moderationReason || item.riskReason || 'Ảnh chụp hoặc nội dung vi phạm tiêu chuẩn Chợ Sinh viên Phenikaa'}</p>
+                        </div>
                       )}
 
                       {item.status === 'PENDING_APPROVAL' && (
@@ -397,9 +508,20 @@ export const MyListingsPage: React.FC = () => {
 
                       <div className="flex items-center gap-2 pt-0.5">
                         {isGiveaway ? (
-                          <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-mono">
-                            <Sparkles className="w-3.5 h-3.5" /> TẶNG 0đ (+10 Karma)
+                          <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-mono">
+                            <Gift className="w-3.5 h-3.5" /> TẶNG 0đ (+10 Karma)
                           </span>
+                        ) : item.transactionType === 'RENT' ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-extrabold text-purple-600 dark:text-purple-400 font-mono">
+                              {formatCurrency(item.price)} <span className="text-xs font-semibold text-slate-500">/ ngày</span>
+                            </span>
+                            {item.depositAmount ? (
+                              <span className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200/60 dark:border-amber-900/40 px-2 py-0.5 rounded-md font-medium">
+                                Cọc: {formatCurrency(item.depositAmount)}
+                              </span>
+                            ) : null}
+                          </div>
                         ) : (
                           <span className="text-sm font-extrabold text-blue-600 dark:text-blue-400 font-mono">
                             {formatCurrency(item.price)}
@@ -411,80 +533,125 @@ export const MyListingsPage: React.FC = () => {
 
                   {/* Quick Actions */}
                   <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
-                    {item.status === 'ACTIVE' && (
-                      <BaseButton
-                        variant="outline"
-                        size="sm"
-                        isLoading={isActionLoading}
-                        onClick={() => handleStatusChange(item.id, 'RESERVED')}
-                        className="text-amber-600 border-amber-200 dark:border-amber-900/40 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-xs"
-                        title="Có người hẹn xem đồ"
-                      >
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Giữ chỗ</span>
+                    <Link to={`/listings/${item.id}`}>
+                      <BaseButton variant="outline" size="sm" className="text-xs">
+                        {item.transactionType === 'RENT' ? 'Xem bài cho thuê' : 'Xem lại bài đăng'}
                       </BaseButton>
-                    )}
+                    </Link>
 
-                    {item.status === 'RESERVED' && (
+                    {/* DÀNH CHO ĐỒ CHO THUÊ (RENT): KHÔNG PHẢI BÁN, VẪN LUÔN THUỘC VỀ CHỦ SỞ HỮU */}
+                    {item.transactionType === 'RENT' ? (
                       <>
-                        <BaseButton
-                          variant="primary"
-                          size="sm"
-                          isLoading={isActionLoading}
-                          onClick={() => handleStatusChange(item.id, 'COMPLETED')}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-xs gap-1"
-                          title="Đã giao dịch thành công"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          <span>Đã giao đồ & Đánh giá</span>
-                        </BaseButton>
+                        <Link to="/rentals">
+                          <BaseButton
+                            variant="outline"
+                            size="sm"
+                            className="text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 text-xs gap-1 font-semibold"
+                            title="Xem hợp đồng và lịch trình thuê món đồ này"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Hợp đồng thuê</span>
+                          </BaseButton>
+                        </Link>
 
-                        <BaseButton
-                          variant="outline"
-                          size="sm"
-                          isLoading={isActionLoading}
-                          onClick={() => handleStatusChange(item.id, 'ACTIVE')}
-                          className="text-xs"
-                          title="Hủy hẹn gặp, mở lại bài đăng"
-                        >
-                          Mở lại
-                        </BaseButton>
+                        {(item.status === 'COMPLETED' || item.status === 'ARCHIVED') && (
+                          <BaseButton
+                            variant="primary"
+                            size="sm"
+                            isLoading={isActionLoading}
+                            onClick={() => handleStatusChange(item.id, 'ACTIVE')}
+                            className="bg-purple-600 hover:bg-purple-700 text-xs gap-1 text-white font-semibold"
+                            title="Tiếp tục mở cho thuê lượt tiếp theo"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Mở cho thuê tiếp</span>
+                          </BaseButton>
+                        )}
+
+                        {item.status === 'ACTIVE' && (
+                          <BaseButton
+                            variant="outline"
+                            size="sm"
+                            isLoading={isActionLoading}
+                            onClick={() => handleStatusChange(item.id, 'ARCHIVED')}
+                            className="text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs"
+                            title="Tạm ngưng nhận lượt thuê mới"
+                          >
+                            Tạm ngưng
+                          </BaseButton>
+                        )}
                       </>
-                    )}
+                    ) : (
+                      /* DÀNH CHO ĐỒ BÁN (SELL), TẶNG (GIVEAWAY), ĐỔI (SWAP) */
+                      <>
+                        {item.status === 'ACTIVE' && (
+                          <BaseButton
+                            variant="outline"
+                            size="sm"
+                            isLoading={isActionLoading}
+                            onClick={() =>
+                              setConfirmSaleModal({
+                                isOpen: true,
+                                listing: item,
+                                buyerName: 'Người mua',
+                                meetingPoint: 'Khuôn viên Trường ĐH Phenikaa',
+                              })
+                            }
+                            className="text-amber-600 border-amber-200 dark:border-amber-900/40 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-xs gap-1"
+                            title="Xác nhận bán cho người mua & thông báo giao hàng"
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Xác nhận bán</span>
+                          </BaseButton>
+                        )}
 
-                    {item.status === 'COMPLETED' && (
-                      <BaseButton
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setReviewModalData({
-                            isOpen: true,
-                            targetUserId: 102,
-                            targetUserName: 'Bạn học giao dịch',
-                            listingId: item.id,
-                            listingTitle: item.title,
-                            isGiveaway,
-                          })
-                        }
-                        className="text-amber-600 text-xs gap-1"
-                      >
-                        <Star className="w-3.5 h-3.5" />
-                        <span>Đánh giá lại</span>
-                      </BaseButton>
-                    )}
+                        {item.status === 'RESERVED' && (
+                          <>
+                            <BaseButton
+                              variant="primary"
+                              size="sm"
+                              isLoading={isActionLoading}
+                              onClick={() => handleStatusChange(item.id, 'COMPLETED')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-xs gap-1 text-white font-bold"
+                              title="Xác nhận đã bàn giao đồ cho người mua"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>Xác nhận đã trao đồ cho người mua</span>
+                            </BaseButton>
 
-                    {item.status === 'ACTIVE' && (
-                      <BaseButton
-                        variant="outline"
-                        size="sm"
-                        isLoading={isActionLoading}
-                        onClick={() => handleStatusChange(item.id, 'ARCHIVED')}
-                        className="text-slate-500 text-xs"
-                        title="Tạm ẩn bài đăng"
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                        <span>Ẩn tin</span>
-                      </BaseButton>
+                            <BaseButton
+                              variant="outline"
+                              size="sm"
+                              isLoading={isActionLoading}
+                              onClick={() => handleStatusChange(item.id, 'ACTIVE')}
+                              className="text-xs"
+                              title="Hủy hẹn gặp, mở lại bài đăng"
+                            >
+                              Mở lại
+                            </BaseButton>
+                          </>
+                        )}
+
+                        {item.status === 'COMPLETED' && (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                            ✓ Đã trao tay hoàn tất
+                          </span>
+                        )}
+
+                        {item.status === 'ACTIVE' && (
+                          <BaseButton
+                            variant="outline"
+                            size="sm"
+                            isLoading={isActionLoading}
+                            onClick={() => handleStatusChange(item.id, 'ARCHIVED')}
+                            className="text-slate-500 text-xs gap-1"
+                            title="Tạm ẩn bài đăng"
+                          >
+                            <Archive className="w-3.5 h-3.5" />
+                            <span>Ẩn tin</span>
+                          </BaseButton>
+                        )}
+                      </>
                     )}
 
                     {item.status === 'ARCHIVED' && (
@@ -500,9 +667,9 @@ export const MyListingsPage: React.FC = () => {
                     )}
 
                     <button
-                      onClick={() => handleDelete(item.id)}
+                      onClick={() => handleOpenDeleteConfirm(item)}
                       className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                      title="Xóa vĩnh viễn"
+                      title="Xóa bài đăng"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -512,6 +679,172 @@ export const MyListingsPage: React.FC = () => {
             })}
           </div>
         )
+      )}
+
+      {/* Modal Xác nhận bán & Lên lịch giao đồ cho người mua */}
+      {confirmSaleModal.listing && (
+        <BaseModal
+          isOpen={confirmSaleModal.isOpen}
+          onClose={() => setConfirmSaleModal((prev) => ({ ...prev, isOpen: false }))}
+          title="Xác nhận bán sản phẩm"
+        >
+          <div className="space-y-4 text-xs text-slate-700 dark:text-slate-300">
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                  {confirmSaleModal.listing.title}
+                </p>
+                <p className="text-orange-600 dark:text-orange-400 font-extrabold text-sm mt-0.5 font-mono">
+                  {formatCurrency(confirmSaleModal.listing.price)}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Người mua / Bạn học nhận đồ:
+              </label>
+              <input
+                type="text"
+                value={confirmSaleModal.buyerName}
+                onChange={(e) =>
+                  setConfirmSaleModal((prev) => ({ ...prev, buyerName: e.target.value }))
+                }
+                placeholder="Nhập tên người mua..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Địa điểm giao hàng tại trường:
+              </label>
+              <input
+                type="text"
+                value={confirmSaleModal.meetingPoint}
+                onChange={(e) =>
+                  setConfirmSaleModal((prev) => ({ ...prev, meetingPoint: e.target.value }))
+                }
+                placeholder="vd: Sảnh Tòa A2, Thư viện A9..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 text-blue-800 dark:text-blue-300 text-[11px] leading-relaxed">
+              💡 Khi bạn bấm xác nhận, hệ thống sẽ chuyển bài đăng sang trạng thái <strong>Giữ chỗ / Hẹn gặp</strong> và gửi thông báo trực tiếp đến người mua rằng món đồ sẽ được giao theo thỏa thuận.
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <BaseButton
+                variant="secondary"
+                size="sm"
+                onClick={() => setConfirmSaleModal((prev) => ({ ...prev, isOpen: false }))}
+              >
+                Hủy bỏ
+              </BaseButton>
+              <BaseButton
+                variant="primary"
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4"
+                onClick={async () => {
+                  const targetListing = confirmSaleModal.listing;
+                  if (!targetListing) return;
+                  await handleStatusChange(targetListing.id, 'RESERVED');
+                  studentNotificationService.notifyBuyerDeliveryScheduled({
+                    listingTitle: targetListing.title,
+                    sellerName: user?.fullName || 'Người bán',
+                    meetingPoint: confirmSaleModal.meetingPoint,
+                  });
+                  setConfirmSaleModal((prev) => ({ ...prev, isOpen: false }));
+                  setToastMessage(`Đã xác nhận bán cho ${confirmSaleModal.buyerName}! Thông báo giao hàng đã được gửi tới người mua.`);
+                  setTimeout(() => setToastMessage(null), 4000);
+                }}
+              >
+                Xác nhận & Gửi thông báo
+              </BaseButton>
+            </div>
+          </div>
+        </BaseModal>
+      )}
+
+      {/* Modal Xác nhận Xóa bài đăng (Thay thế hoàn toàn window.confirm của trình duyệt) */}
+      {deleteConfirmModal.listing && (
+        <BaseModal
+          isOpen={deleteConfirmModal.isOpen}
+          onClose={() => setDeleteConfirmModal({ isOpen: false, listing: null })}
+          title="Xác nhận xóa bài đăng"
+          maxWidth="md"
+        >
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-900/60 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-bold text-sm text-rose-950 dark:text-rose-200">
+                  Bạn có chắc chắn muốn xóa bài đăng này?
+                </p>
+                <p className="text-xs text-rose-800/80 dark:text-rose-300/80 leading-relaxed">
+                  Hành động này sẽ gỡ bỏ bài đăng vĩnh viễn khỏi Chợ Sinh viên Phenikaa và không thể khôi phục lại.
+                </p>
+              </div>
+            </div>
+
+            {/* Chi tiết sản phẩm */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+              <img
+                src={
+                  deleteConfirmModal.listing.images?.[0]?.mediaUrl ||
+                  (deleteConfirmModal.listing as any).imageUrls?.[0] ||
+                  'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=900&q=80'
+                }
+                alt={deleteConfirmModal.listing.title}
+                className="w-12 h-12 rounded-xl object-cover bg-slate-200 dark:bg-slate-700 shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                  {deleteConfirmModal.listing.title}
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-extrabold mt-0.5">
+                  {deleteConfirmModal.listing.transactionType === 'GIVEAWAY'
+                    ? 'Tặng 0đ'
+                    : formatCurrency(deleteConfirmModal.listing.price)}
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <BaseButton
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteConfirmModal({ isOpen: false, listing: null })}
+                disabled={Boolean(actionLoadingId)}
+              >
+                Hủy bỏ
+              </BaseButton>
+
+              <BaseButton
+                variant="primary"
+                size="sm"
+                isLoading={Boolean(actionLoadingId)}
+                onClick={handleConfirmDelete}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 gap-1.5 shadow-sm"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Xác nhận xóa</span>
+              </BaseButton>
+            </div>
+          </div>
+        </BaseModal>
+      )}
+
+      {/* Toast thông báo góc màn hình */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
+          <Check className="w-4 h-4" />
+          <span>{toastMessage}</span>
+        </div>
       )}
 
       {/* Review Modal */}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, Sparkles } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 
 interface SearchBarProps {
   value: string;
@@ -61,9 +61,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
       {/* Suggested keywords / Quick pills */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] scrollbar-none">
-        <span className="text-slate-400 flex items-center gap-1 shrink-0">
-          <Sparkles className="w-3 h-3 text-amber-500" /> Gợi ý:
-        </span>
+        <span className="text-slate-400 font-medium shrink-0">Gợi ý:</span>
         {popularKeywords.map((kw) => (
           <button
             key={kw}

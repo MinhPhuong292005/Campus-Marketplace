@@ -20,7 +20,19 @@ public interface ListingRepository extends JpaRepository<ListingEntity, Long> {
 
     Page<ListingEntity> findByUserIdAndStatusOrderByCreatedAtDesc(Long userId, String status, Pageable pageable);
 
+    @Query("SELECT l FROM ListingEntity l " +
+           "WHERE l.user.id = :userId " +
+           "  AND l.status = 'ACTIVE' " +
+           "  AND (:transactionType IS NULL OR l.transactionType = :transactionType) " +
+           "ORDER BY l.createdAt DESC")
+    Page<ListingEntity> findActiveByUserIdAndTransactionType(
+            @Param("userId") Long userId,
+            @Param("transactionType") String transactionType,
+            Pageable pageable);
+
     Page<ListingEntity> findByStatusOrderByCreatedAtDesc(String status, Pageable pageable);
+
+    long countByUserIdAndStatusIn(Long userId, java.util.Collection<String> statuses);
 
     @Query("SELECT l FROM ListingEntity l " +
            "LEFT JOIN FETCH l.images " +

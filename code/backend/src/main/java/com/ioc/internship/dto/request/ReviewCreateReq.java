@@ -16,7 +16,6 @@ import java.util.List;
 @AllArgsConstructor
 public class ReviewCreateReq {
 
-    @NotNull(message = "ID người được đánh giá không được để trống")
     private Long targetUserId;
 
     private Long listingId;

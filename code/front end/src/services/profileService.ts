@@ -1,4 +1,4 @@
-import { getRequest, putRequest } from './api';
+import { getRequest, putRequest, postRequest } from './api';
 import { User, PublicProfile, University, Campus, ApiResponse } from '../types';
 import { API_ROUTES } from '../constants';
 
@@ -15,6 +15,11 @@ export interface UserProfileFormData {
   bio?: string;
 }
 
+export interface ChangePasswordFormData {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export const profileService = {
   getMyProfile: async (): Promise<ApiResponse<User>> => {
     return getRequest<User>(API_ROUTES.STUDENT_PROFILE);
@@ -22,6 +27,10 @@ export const profileService = {
 
   updateProfile: async (data: UserProfileFormData): Promise<ApiResponse<User>> => {
     return putRequest<User>(API_ROUTES.STUDENT_PROFILE, data);
+  },
+
+  changePassword: async (data: ChangePasswordFormData): Promise<ApiResponse<void>> => {
+    return postRequest<void>(API_ROUTES.CHANGE_PASSWORD, data);
   },
 
   getPublicProfile: async (userId: number): Promise<ApiResponse<PublicProfile>> => {

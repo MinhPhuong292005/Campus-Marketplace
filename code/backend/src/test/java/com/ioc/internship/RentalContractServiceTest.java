@@ -42,6 +42,9 @@ public class RentalContractServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private com.ioc.internship.repository.NotificationRepository notificationRepository;
+
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 

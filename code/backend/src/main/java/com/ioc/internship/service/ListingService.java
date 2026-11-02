@@ -27,4 +27,5 @@ public interface ListingService {
             BigDecimal maxPrice,
             Pageable pageable
     );
+    Page<ListingDetailRes> getUserPublicListings(Long userId, String transactionType, Pageable pageable);
 }

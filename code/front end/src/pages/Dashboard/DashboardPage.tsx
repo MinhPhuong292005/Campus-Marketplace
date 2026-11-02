@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BookOpen, Laptop, Home, Wrench, Sparkles, SlidersHorizontal, PackageSearch, PlusCircle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { SlidersHorizontal, PackageSearch, PlusCircle, X, ArrowLeftRight } from 'lucide-react';
 import { Listing } from '../../types';
 import { ListingCard } from '../../components/features/ListingCard';
 import { SearchBar } from '../../components/features/SearchBar';
 import { FilterSidebar, FilterState } from '../../components/features/FilterSidebar';
 import { SwapModal } from '../../components/features/SwapModal';
 import { listingService } from '../../services/listingService';
+import { APP_CATEGORIES, resolveCategoryId } from '../../constants/categories';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [showMobileFilter, setShowMobileFilter] = useState(false);
   const [selectedSwapListing, setSelectedSwapListing] = useState<Listing | null>(null);
@@ -24,13 +26,36 @@ export const DashboardPage: React.FC = () => {
     maxPrice: 1000000,
   };
 
-  const [filters, setFilters] = useState<FilterState>(initialFilters);
+  const [filters, setFilters] = useState<FilterState>(() => {
+    const catIdParam = searchParams.get('categoryId');
+    const catParam = searchParams.get('category');
+    if (catIdParam || catParam) {
+      return {
+        ...initialFilters,
+        category: resolveCategoryId(catIdParam || catParam),
+      };
+    }
+    return initialFilters;
+  });
+
+  // Sync filters if URL search params change
+  useEffect(() => {
+    const catIdParam = searchParams.get('categoryId');
+    const catParam = searchParams.get('category');
+    if (catIdParam || catParam) {
+      const resolved = resolveCategoryId(catIdParam || catParam);
+      setFilters((prev) => (prev.category !== resolved ? { ...prev, category: resolved } : prev));
+    } else if (filters.category !== 'ALL' && !catIdParam && !catParam) {
+      // Keep in sync if search params were cleared
+      setFilters((prev) => ({ ...prev, category: 'ALL' }));
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchListings = async () => {
       setLoading(true);
       try {
-        const res = await listingService.getListings();
+        const res = await listingService.getListings({ size: 100 });
         if (res.success && res.data?.content) {
           setListings(res.data.content);
         } else {
@@ -45,25 +70,54 @@ export const DashboardPage: React.FC = () => {
     fetchListings();
   }, []);
 
-  const categories = [
-    { id: 'ALL', label: 'Tất cả danh mục', icon: <Sparkles className="w-4 h-4" /> },
-    { id: 'BOOKS', label: 'Giáo trình & Tài liệu', icon: <BookOpen className="w-4 h-4" /> },
-    { id: 'TECH', label: 'Thiết bị công nghệ', icon: <Laptop className="w-4 h-4" /> },
-    { id: 'ROOM', label: 'Đồ phòng trọ', icon: <Home className="w-4 h-4" /> },
-    { id: 'TOOLS', label: 'Dụng cụ chuyên ngành', icon: <Wrench className="w-4 h-4" /> },
-  ];
+  const handleCategorySelect = (catId: string) => {
+    setFilters((prev) => ({ ...prev, category: catId }));
+    const nextParams = new URLSearchParams(searchParams);
+    if (catId === 'ALL') {
+      nextParams.delete('categoryId');
+      nextParams.delete('category');
+    } else {
+      nextParams.set('categoryId', catId);
+      nextParams.delete('category');
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const handleFilterChange = (newFilters: FilterState) => {
+    setFilters(newFilters);
+    const nextParams = new URLSearchParams(searchParams);
+    if (newFilters.category === 'ALL') {
+      nextParams.delete('categoryId');
+      nextParams.delete('category');
+    } else {
+      nextParams.set('categoryId', newFilters.category);
+      nextParams.delete('category');
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const handleResetFilters = () => {
+    setFilters(initialFilters);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('categoryId');
+    nextParams.delete('category');
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const filteredListings = listings.filter((item) => {
     // Transaction type
     if (filters.transactionType !== 'ALL' && item.transactionType !== filters.transactionType) {
       return false;
     }
-    // Category
+    // Category filtering: strictly match by categoryId or resolved ID
     if (filters.category !== 'ALL') {
-      if (filters.category === 'BOOKS' && item.categoryId !== 1) return false;
-      if (filters.category === 'TECH' && item.categoryId !== 2) return false;
-      if (filters.category === 'ROOM' && item.categoryId !== 3) return false;
-      if (filters.category === 'TOOLS' && item.categoryId !== 4) return false;
+      const targetCatId = Number(filters.category);
+      if (!isNaN(targetCatId) && targetCatId > 0) {
+        if (item.categoryId !== targetCatId) return false;
+      } else {
+        const catName = (item.categoryName || '').toLowerCase();
+        if (!catName.includes(filters.category.toLowerCase())) return false;
+      }
     }
     // Condition
     if (filters.condition !== 'ALL' && item.conditionStatus !== filters.condition) {
@@ -93,15 +147,17 @@ export const DashboardPage: React.FC = () => {
     return true;
   });
 
+  const activeCategoryObj = APP_CATEGORIES.find((c) => c.id === filters.category);
+
   return (
     <div className="space-y-6">
       {/* Hero Banner */}
       <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 text-white p-6 sm:p-10 shadow-lg shadow-blue-500/10">
         <div className="relative z-10 max-w-2xl space-y-3 text-left">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-md text-blue-100">
-            🎓 Chợ Thương Mại Điện Tử Sinh Viên Nội Bộ
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/10 backdrop-blur-md text-blue-100 border border-white/10">
+            Chợ Thương Mại Điện Tử Sinh Viên Nội Bộ
           </span>
-          <h1 className="text-2xl sm:text-4xl font-display font-extrabold tracking-tight leading-tight">
+          <h1 className="text-2xl sm:text-4xl font-display font-extrabold tracking-normal leading-tight">
             Mua, Bán, Thuê, Tặng & Đổi đồ ngay trong khuôn viên trường
           </h1>
           <p className="text-sm sm:text-base text-blue-100/90 leading-relaxed">
@@ -122,20 +178,24 @@ export const DashboardPage: React.FC = () => {
       {/* Category Pills & Mobile Filter Button */}
       <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 scrollbar-none">
         <div className="flex items-center gap-2">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setFilters({ ...filters, category: cat.id })}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                filters.category === cat.id
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
-                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              {cat.icon}
-              {cat.label}
-            </button>
-          ))}
+          {APP_CATEGORIES.map((cat) => {
+            const Icon = cat.icon;
+            const isActive = filters.category === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => handleCategorySelect(cat.id)}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-2 ring-blue-600/30'
+                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {cat.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Mobile toggle button */}
@@ -154,18 +214,39 @@ export const DashboardPage: React.FC = () => {
         <div className={`${showMobileFilter ? 'block w-full' : 'hidden'} lg:block`}>
           <FilterSidebar
             filters={filters}
-            onChange={setFilters}
-            onReset={() => setFilters(initialFilters)}
+            onChange={handleFilterChange}
+            onReset={handleResetFilters}
             totalResults={filteredListings.length}
           />
         </div>
 
         {/* Listings Container */}
         <div className="flex-1 w-full space-y-4">
+          {/* Active Category Filter Banner */}
+          {filters.category !== 'ALL' && (
+            <div className="flex items-center justify-between p-3 sm:p-3.5 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-2xl text-xs animate-in fade-in">
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                <span className="text-slate-500">Đang lọc theo danh mục:</span>
+                <span className="font-bold text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800 shadow-2xs">
+                  {activeCategoryObj?.label || 'Danh mục được chọn'}
+                </span>
+              </div>
+              <button
+                onClick={() => handleCategorySelect('ALL')}
+                className="text-xs font-semibold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1 transition-colors px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                title="Bỏ lọc danh mục để xem tất cả"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Xem tất cả</span>
+              </button>
+            </div>
+          )}
+
           {/* Results Summary Header */}
           <div className="flex items-center justify-between text-xs text-slate-500 pb-1 border-b border-slate-200 dark:border-slate-800">
             <span>
               Hiển thị <b>{filteredListings.length}</b> món đồ
+              {filters.category !== 'ALL' ? ` trong "${activeCategoryObj?.label}"` : ''}
               {searchQuery ? ` cho từ khóa "${searchQuery}"` : ''}
             </span>
           </div>
@@ -215,7 +296,7 @@ export const DashboardPage: React.FC = () => {
                   Xóa từ khóa tìm kiếm
                 </button>
                 <button
-                  onClick={() => setFilters(initialFilters)}
+                  onClick={handleResetFilters}
                   className="px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 text-xs font-semibold hover:bg-slate-200"
                 >
                   Xóa toàn bộ bộ lọc
@@ -238,9 +319,9 @@ export const DashboardPage: React.FC = () => {
                         e.stopPropagation();
                         setSelectedSwapListing(listing);
                       }}
-                      className="mt-2 w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                      className="mt-2 w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
+                      <ArrowLeftRight className="w-3.5 h-3.5" />
                       <span>Đề xuất đổi đồ (Swap)</span>
                     </button>
                   )}

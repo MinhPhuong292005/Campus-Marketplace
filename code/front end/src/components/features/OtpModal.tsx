@@ -19,16 +19,16 @@ export const OtpModal: React.FC<OtpModalProps> = ({
   onResendOtp,
 }) => {
   const [otp, setOtp] = useState('');
-  const [countdown, setCountdown] = useState(60);
+  const [countdown, setCountdown] = useState(10);
   const [canResend, setCanResend] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // 60-second cooldown timer (BUG-01 idempotency fix)
+  // 10-second cooldown timer (rút ngắn xuống 10 giây)
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
     if (isOpen) {
-      setCountdown(60);
+      setCountdown(10);
       setCanResend(false);
       setOtp('');
       setErrorMsg(null);
@@ -56,7 +56,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
       setErrorMsg(null);
       await onResendOtp();
       setCanResend(false);
-      setCountdown(60);
+      setCountdown(10);
       const timer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {

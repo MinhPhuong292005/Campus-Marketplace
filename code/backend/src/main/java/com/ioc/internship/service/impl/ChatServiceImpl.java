@@ -6,6 +6,7 @@ import com.ioc.internship.dto.request.ChatMessageReq;
 import com.ioc.internship.dto.request.CreateChatRoomReq;
 import com.ioc.internship.dto.response.ChatMessageRes;
 import com.ioc.internship.dto.response.ChatRoomRes;
+import com.ioc.internship.dto.response.UserDetailRes;
 import com.ioc.internship.entity.ChatRoomEntity;
 import com.ioc.internship.entity.ListingEntity;
 import com.ioc.internship.entity.MessageEntity;
@@ -23,6 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -54,22 +57,27 @@ public class ChatServiceImpl implements ChatService {
         UserEntity peerUser = userRepository.findById(req.getPeerUserId())
                 .orElseThrow(() -> new CustomBusinessException(ErrorCodes.NOT_FOUND, HttpStatus.NOT_FOUND));
 
+        // Sinh viên không thể nhắn tin trực tiếp cho Quản trị viên hệ thống
+        if (peerUser.getId().equals(1L) ||
+                (peerUser.getRole() != null && peerUser.getRole().toUpperCase().contains("ADMIN")) ||
+                "minhphuong2925@gmail.com".equalsIgnoreCase(peerUser.getEmail())) {
+            throw new CustomBusinessException(ErrorCodes.FORBIDDEN, HttpStatus.FORBIDDEN, "Không thể nhắn tin trực tiếp cho Quản trị viên hệ thống.");
+        }
+
         ListingEntity listing = null;
         if (req.getListingId() != null) {
             listing = listingRepository.findById(req.getListingId()).orElse(null);
-            if (listing != null) {
-                Optional<ChatRoomEntity> existing = chatRoomRepository.findByListingAndUsers(
-                        listing.getId(), currentUserId, req.getPeerUserId());
-                if (existing.isPresent()) {
-                    return mapToRoomRes(existing.get(), currentUserId);
-                }
-            }
         }
 
-        // If no listing or no room with listing, check if room already exists between users
+        // Each pair of users shares exactly ONE single conversation room
         List<ChatRoomEntity> between = chatRoomRepository.findBetweenUsers(currentUserId, req.getPeerUserId());
-        if (!between.isEmpty() && listing == null) {
-            return mapToRoomRes(between.get(0), currentUserId);
+        if (!between.isEmpty()) {
+            ChatRoomEntity existing = between.get(0);
+            if (listing != null && existing.getListing() == null) {
+                existing.setListing(listing);
+                chatRoomRepository.save(existing);
+            }
+            return mapToRoomRes(existing, currentUserId);
         }
 
         ChatRoomEntity room = ChatRoomEntity.builder()
@@ -87,7 +95,21 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional(readOnly = true)
     public List<ChatRoomRes> getUserRooms(Long currentUserId) {
-        return chatRoomRepository.findAllUserRooms(currentUserId).stream()
+        List<ChatRoomEntity> allRooms = chatRoomRepository.findAllUserRooms(currentUserId);
+        Map<Long, ChatRoomEntity> uniqueByPeer = new LinkedHashMap<>();
+
+        for (ChatRoomEntity room : allRooms) {
+            UserEntity peer = room.getUserOne().getId().equals(currentUserId) ? room.getUserTwo() : room.getUserOne();
+            if (peer.getId().equals(1L)) continue;
+            if (peer.getRole() != null && peer.getRole().toUpperCase().contains("ADMIN")) continue;
+            if ("minhphuong2925@gmail.com".equalsIgnoreCase(peer.getEmail())) continue;
+
+            if (!uniqueByPeer.containsKey(peer.getId())) {
+                uniqueByPeer.put(peer.getId(), room);
+            }
+        }
+
+        return uniqueByPeer.values().stream()
                 .map(room -> mapToRoomRes(room, currentUserId))
                 .collect(Collectors.toList());
     }
@@ -217,5 +239,28 @@ public class ChatServiceImpl implements ChatService {
                 .isRead(m.getIsRead())
                 .createdAt(m.getCreatedAt())
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserDetailRes> getAvailableContacts(Long currentUserId) {
+        return userRepository.findAll().stream()
+                .filter(u -> !u.getId().equals(currentUserId))
+                .filter(u -> !"BANNED".equalsIgnoreCase(u.getStatus()))
+                .filter(u -> !u.getId().equals(1L))
+                .filter(u -> u.getRole() == null || !u.getRole().toUpperCase().contains("ADMIN"))
+                .filter(u -> !"minhphuong2925@gmail.com".equalsIgnoreCase(u.getEmail()))
+                .map(u -> UserDetailRes.builder()
+                        .id(u.getId())
+                        .fullName(u.getFullName())
+                        .email(u.getEmail())
+                        .studentCode(u.getStudentCode())
+                        .avatarUrl(u.getAvatarUrl())
+                        .karmaScore(u.getKarmaScore())
+                        .status(u.getStatus())
+                        .blockReason(u.getBlockReason())
+                        .role(u.getRole())
+                        .build())
+                .collect(java.util.stream.Collectors.toList());
     }
 }

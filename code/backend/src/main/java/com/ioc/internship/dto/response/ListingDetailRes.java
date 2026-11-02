@@ -30,11 +30,15 @@ public class ListingDetailRes {
     private String transactionType;
     private String conditionStatus;
     private String rentalTerms;
+    private BigDecimal depositAmount;
     private String swapTarget;
+    private String safeMeetingPoint;
     private String status;
     private Boolean isRiskFlagged;
     private String riskReason;
     private List<String> imageUrls;
+    private String moderationReason;
+    private LocalDateTime moderatedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

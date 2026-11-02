@@ -33,7 +33,7 @@ public class OtpServiceImpl implements OtpService {
 
     // Các tham số cấu hình thời gian
     private static final long OTP_EXPIRY_MINUTES = 5;      // Mã có hiệu lực 5 phút (300 giây)
-    private static final long COOLDOWN_SECONDS = 60;       // Thời gian chờ gửi lại (60 giây)
+    private static final long COOLDOWN_SECONDS = 10;       // Thời gian chờ gửi lại (rút ngắn xuống 10 giây)
     private static final int MAX_ATTEMPTS = 5;             // Tối đa 5 lần thử sai để chống Brute Force
 
     private static final SecureRandom RANDOM = new SecureRandom();

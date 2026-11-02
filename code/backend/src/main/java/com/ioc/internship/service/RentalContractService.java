@@ -16,6 +16,10 @@ public interface RentalContractService {
 
     RentalContractRes uploadProofImages(Long userId, Long contractId, RentalProofImagesReq req);
 
+    RentalContractRes approveRentalContract(Long userId, Long contractId);
+
+    RentalContractRes confirmHandover(Long userId, Long contractId);
+
     RentalContractRes confirmReturnAndRefundDeposit(Long userId, Long contractId);
 
     RentalContractRes reportDispute(Long userId, Long contractId, RentalDisputeReq req);

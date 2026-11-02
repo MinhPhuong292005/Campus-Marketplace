@@ -15,7 +15,10 @@ import { RentalDetailPage } from '../pages/Rental/RentalDetailPage';
 import { AdminDashboardPage } from '../pages/Admin/AdminDashboardPage';
 import { AdminLoginPage } from '../pages/Admin/AdminLoginPage';
 import { ChatPage } from '../pages/Chat/ChatPage';
-
+import { MyOrdersPage } from '../pages/Order/MyOrdersPage';
+import { CartPage } from '../pages/Cart/CartPage';
+import { CheckoutPage } from '../pages/Checkout/CheckoutPage';
+import { SellerProfilePage } from '../pages/Profile/SellerProfilePage';
 export const router = createBrowserRouter([
   // 1. Phân hệ Khách hàng / Sinh viên (Customer Marketplace)
   {
@@ -43,6 +46,14 @@ export const router = createBrowserRouter([
         element: <ProfilePage />,
       },
       {
+        path: 'seller/:id',
+        element: <SellerProfilePage />,
+      },
+      {
+        path: 'user/:id',
+        element: <SellerProfilePage />,
+      },
+      {
         path: 'rentals',
         element: <RentalListPage />,
       },
@@ -53,6 +64,22 @@ export const router = createBrowserRouter([
       {
         path: 'chat',
         element: <ChatPage />,
+      },
+      {
+        path: 'cart',
+        element: <CartPage />,
+      },
+      {
+        path: 'checkout',
+        element: <CheckoutPage />,
+      },
+      {
+        path: 'orders',
+        element: <MyOrdersPage />,
+      },
+      {
+        path: 'my-orders',
+        element: <Navigate to="/orders" replace />,
       },
     ],
   },

@@ -43,6 +43,8 @@ export interface PublicProfile {
   major?: string;
   academicYear?: string;
   bio?: string;
+  phone?: string;
+  studentCode?: string;
   studentCardVerified: boolean;
   karmaScore: number;
   createdAt: string;
@@ -96,10 +98,13 @@ export interface Listing {
   transactionType: TransactionType;
   conditionStatus: ConditionStatus;
   rentalTerms?: string;
+  depositAmount?: number;
   swapTarget?: string;
   status: ListingStatus;
   isRiskFlagged?: boolean;
   riskReason?: string;
+  moderationReason?: string;
+  moderatedAt?: string;
   images: ListingImage[];
   createdAt: string;
   updatedAt: string;
@@ -121,16 +126,18 @@ export interface PaginatedResult<T> {
   size?: number;
   totalElements?: number;
   totalPages?: number;
+  total?: number;
 }
 
 // ======================== SPRINT 3 TYPES ========================
 
-export type RentalStatus = 'PENDING' | 'ACTIVE' | 'RETURNED' | 'DISPUTED';
+export type RentalStatus = 'PENDING' | 'APPROVED' | 'ACTIVE' | 'RETURNED' | 'DISPUTED' | 'CANCELLED';
 
 export interface RentalContract {
   id: number;
   listingId: number;
   listingTitle?: string;
+  rentalTerms?: string;
   renterId: number;
   renterName?: string;
   renterKarma?: number;
@@ -144,6 +151,12 @@ export interface RentalContract {
   proofImages: string[];
   status: RentalStatus;
   disputeReason?: string;
+  meetingPoint?: string;
+  meetingTime?: string;
+  ownerHandoverConfirmed?: boolean;
+  renterHandoverConfirmed?: boolean;
+  ownerReturnConfirmed?: boolean;
+  renterReturnConfirmed?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -152,6 +165,13 @@ export interface OcrVerificationResult {
   fullName: string;
   studentCode: string;
   universityName: string;
+  dateOfBirth?: string;
+  major?: string;
+  faculty?: string;
+  cohort?: string;
+  academicYear?: string;
+  isPhenikaaStandardCard?: boolean;
+  barcodeMatched?: boolean;
   confidenceScore: number;
   matched: boolean;
   autoApproved: boolean;

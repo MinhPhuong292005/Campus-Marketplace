@@ -89,9 +89,21 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing, onClick }) =>
 
         <div className="mt-auto pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div>
-            <p className="text-base font-bold text-blue-600 dark:text-blue-400">
-              {formatCurrency(listing.price)}
-            </p>
+            {listing.transactionType === 'RENT' ? (
+              <p className="text-base font-bold text-purple-600 dark:text-purple-400">
+                {formatCurrency(listing.price)}{' '}
+                <span className="text-xs font-normal text-slate-500">/ ngày</span>
+              </p>
+            ) : listing.transactionType === 'GIVEAWAY' ? (
+              <p className="text-base font-bold text-pink-600 dark:text-pink-400">
+                0 đ{' '}
+                <span className="text-xs font-normal text-pink-500">(Tặng 0đ)</span>
+              </p>
+            ) : (
+              <p className="text-base font-bold text-blue-600 dark:text-blue-400">
+                {formatCurrency(listing.price)}
+              </p>
+            )}
             {listing.campusName && (
               <p className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
                 <MapPin className="w-3 h-3" /> {listing.campusName}

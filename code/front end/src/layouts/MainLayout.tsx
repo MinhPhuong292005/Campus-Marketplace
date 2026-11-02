@@ -1,16 +1,28 @@
 import React from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, MessageSquare, PlusCircle, LogOut, Sun, Moon, Package, FileText, AlertTriangle } from 'lucide-react';
+import { ShoppingBag, ShoppingCart, MessageSquare, PlusCircle, LogOut, Sun, Moon, Package, FileText, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { KarmaBadge } from '../components/features/KarmaBadge';
 import { BaseButton } from '../components/base/BaseButton';
 import { SuspendedAccountModal } from '../components/features/SuspendedAccountModal';
+import { StudentNotificationBell } from '../components/features/StudentNotificationBell';
+import { cartService } from '../services/cartService';
 
 export const MainLayout: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuthStore();
   const navigate = useNavigate();
   const [isDark, setIsDark] = React.useState(false);
   const [isSuspendedModalOpen, setIsSuspendedModalOpen] = React.useState(false);
+  const [cartCount, setCartCount] = React.useState(0);
+
+  React.useEffect(() => {
+    const updateCount = () => {
+      setCartCount(cartService.getCartCount());
+    };
+    updateCount();
+    window.addEventListener('campus_cart_updated', updateCount);
+    return () => window.removeEventListener('campus_cart_updated', updateCount);
+  }, [user?.id]);
 
   const toggleDarkMode = () => {
     setIsDark(!isDark);
@@ -64,6 +76,19 @@ export const MainLayout: React.FC = () => {
                   </BaseButton>
                 </button>
 
+                <Link to="/cart" className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative" title="Giỏ hàng của tôi">
+                  <ShoppingCart className="w-5 h-5" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 px-1.5 py-0.2 min-w-4.5 h-4.5 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-xs animate-in zoom-in-75">
+                      {cartCount > 9 ? '9+' : cartCount}
+                    </span>
+                  )}
+                </Link>
+
+                <Link to="/orders" className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Đơn mua của tôi (Khiếu nại / Đổi trả)">
+                  <ShoppingBag className="w-5 h-5" />
+                </Link>
+
                 <Link to="/rentals" className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Hợp đồng thuê đồ (US-10)">
                   <FileText className="w-5 h-5" />
                 </Link>
@@ -72,10 +97,13 @@ export const MainLayout: React.FC = () => {
                   <Package className="w-5 h-5" />
                 </Link>
 
-                <Link to="/chat" className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 relative" title="Tin nhắn Realtime">
+                <Link to="/chat" className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 relative" title="Tin nhắn">
                   <MessageSquare className="w-5 h-5" />
                   <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-600"></span>
                 </Link>
+
+                {/* Ô Cửa Sổ Hộp Thư Thông Báo Cá Nhân & Duyệt Bài (Dropdown Popover) */}
+                <StudentNotificationBell />
 
                 <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
                   <Link to="/profile" className="flex items-center gap-1.5 hover:opacity-80 transition-opacity" title="Hồ sơ cá nhân">

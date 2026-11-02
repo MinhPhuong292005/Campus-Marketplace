@@ -25,6 +25,8 @@ public class PublicProfileRes {
     private String major;
     private String academicYear;
     private String bio;
+    private String phone;
+    private String studentCode;
     private boolean studentCardVerified;
     private Integer karmaScore;
     private LocalDateTime createdAt;

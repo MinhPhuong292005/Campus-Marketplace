@@ -13,7 +13,7 @@ export class ChatSocketClient {
   private listeners: Map<string, Array<(data: any) => void>> = new Map();
   private isExplicitlyClosed = false;
 
-  constructor(url: string = 'ws://localhost:8080/ws-chat') {
+  constructor(url: string = 'ws://localhost:8088/ws-chat') {
     this.url = url;
     this.setupNetworkListeners();
   }

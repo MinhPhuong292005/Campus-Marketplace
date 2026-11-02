@@ -10,9 +10,8 @@ import lombok.*;
 @Builder
 public class StudentCardVerifyReq {
 
-    @NotBlank(message = "Ảnh mặt trước thẻ sinh viên không được để trống")
+    @NotBlank(message = "Ảnh thẻ sinh viên không được để trống")
     private String frontImageUrl;
 
-    @NotBlank(message = "Ảnh mặt sau thẻ sinh viên không được để trống")
     private String backImageUrl;
 }

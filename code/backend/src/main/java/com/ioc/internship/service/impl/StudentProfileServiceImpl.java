@@ -2,6 +2,8 @@ package com.ioc.internship.service.impl;
 
 import com.ioc.internship.common.constants.ErrorCodes;
 import com.ioc.internship.common.exception.CustomBusinessException;
+import com.ioc.internship.common.utils.PasswordEncoderUtils;
+import com.ioc.internship.dto.request.ChangePasswordReq;
 import com.ioc.internship.dto.request.UserProfileReq;
 import com.ioc.internship.dto.response.PublicProfileRes;
 import com.ioc.internship.dto.response.UserProfileRes;
@@ -26,6 +28,7 @@ public class StudentProfileServiceImpl implements StudentProfileService {
     private final UserRepository userRepository;
     private final UniversityRepository universityRepository;
     private final CampusRepository campusRepository;
+    private final PasswordEncoderUtils passwordEncoderUtils;
 
     @Override
     @Transactional(readOnly = true)
@@ -65,6 +68,20 @@ public class StudentProfileServiceImpl implements StudentProfileService {
     }
 
     @Override
+    @Transactional
+    public void changePassword(Long userId, ChangePasswordReq req) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomBusinessException(ErrorCodes.NOT_FOUND, HttpStatus.NOT_FOUND));
+
+        if (!passwordEncoderUtils.matches(req.getCurrentPassword(), user.getPasswordHash())) {
+            throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST, "Mật khẩu hiện tại không chính xác!");
+        }
+
+        user.setPasswordHash(passwordEncoderUtils.encode(req.getNewPassword()));
+        userRepository.save(user);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public PublicProfileRes getPublicProfile(Long targetUserId) {
         UserEntity user = userRepository.findById(targetUserId)
@@ -81,6 +98,8 @@ public class StudentProfileServiceImpl implements StudentProfileService {
                 .major(user.getMajor())
                 .academicYear(user.getAcademicYear())
                 .bio(user.getBio())
+                .phone(user.getPhone())
+                .studentCode(user.getStudentCode())
                 .studentCardVerified(Boolean.TRUE.equals(user.getStudentCardVerified()))
                 .karmaScore(user.getKarmaScore())
                 .createdAt(user.getCreatedAt())
@@ -103,6 +122,8 @@ public class StudentProfileServiceImpl implements StudentProfileService {
                 .major(user.getMajor())
                 .academicYear(user.getAcademicYear())
                 .bio(user.getBio())
+                .phone(user.getPhone())
+                .studentCode(user.getStudentCode())
                 .studentCardVerified(Boolean.TRUE.equals(user.getStudentCardVerified()))
                 .karmaScore(user.getKarmaScore())
                 .role(user.getRole())

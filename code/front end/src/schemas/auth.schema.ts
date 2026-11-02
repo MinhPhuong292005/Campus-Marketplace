@@ -36,8 +36,8 @@ export const registerSchema = z.object({
   fullName: z.string().min(2, 'Họ tên tối thiểu 2 ký tự').max(100, 'Họ tên không vượt quá 100 ký tự'),
   password: z.string().min(5, 'Mật khẩu tối thiểu 5 ký tự'),
   confirmPassword: z.string(),
-  universityId: z.number().min(1, 'Vui lòng chọn trường đại học'),
-  campusId: z.number().optional().nullable(),
+  universityId: z.number().optional().default(5),
+  campusId: z.number().optional().nullable().default(8),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Mật khẩu xác nhận không khớp',
   path: ['confirmPassword'],

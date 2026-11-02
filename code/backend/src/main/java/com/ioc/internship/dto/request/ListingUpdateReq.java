@@ -35,7 +35,9 @@ public class ListingUpdateReq {
     private String conditionStatus;
 
     private String rentalTerms;
+    private BigDecimal depositAmount;
     private String swapTarget;
+    private String safeMeetingPoint;
 
     @Size(max = 6, message = "Chỉ được upload tối đa 6 hình ảnh")
     private List<String> imageUrls;

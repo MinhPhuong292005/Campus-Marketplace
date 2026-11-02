@@ -68,22 +68,22 @@ export const BaseModal: React.FC<BaseModalProps> = ({
 
       {/* Modal Dialog Card */}
       <div
-        className={`relative w-full ${maxWidthMap[maxWidth]} max-h-[88vh] flex flex-col ${
+        className={`relative w-full ${maxWidthMap[maxWidth]} max-h-[92vh] flex flex-col ${
           theme === 'dark'
-            ? 'bg-slate-900 border-slate-800 text-slate-100 shadow-slate-950/80'
+            ? 'dark bg-slate-900 border-2 border-slate-800 text-slate-100 shadow-2xl shadow-slate-950/80'
             : theme === 'light'
-            ? 'bg-white border-slate-200 text-slate-900'
-            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100'
-        } rounded-3xl border shadow-2xl p-5 sm:p-7 my-auto transform transition-all animate-in zoom-in-95 duration-200 ${className}`}
+            ? 'bg-white border-2 border-slate-200 text-slate-900 shadow-xl'
+            : 'bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl'
+        } rounded-3xl shadow-2xl p-5 sm:p-6 my-auto transform transition-all animate-in zoom-in-95 duration-200 ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || description) && (
-          <div className="flex items-start justify-between gap-4 mb-4 pb-3 border-b border-slate-200/60 dark:border-slate-800/80 shrink-0">
+          <div className="flex items-start justify-between gap-4 mb-4 pb-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <div>
               {title && (
-                <h3 className="text-base sm:text-xl font-bold tracking-tight">
+                <div className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
                   {title}
-                </h3>
+                </div>
               )}
               {description && (
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -93,7 +93,7 @@ export const BaseModal: React.FC<BaseModalProps> = ({
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
               title="Đóng"
             >
               <X className="w-5 h-5" />
@@ -104,7 +104,7 @@ export const BaseModal: React.FC<BaseModalProps> = ({
         <div className="overflow-y-auto flex-1 pr-1 overscroll-contain">{children}</div>
 
         {footer && (
-          <div className="pt-3 mt-3 border-t border-slate-200/60 dark:border-slate-800/80 shrink-0">
+          <div className="pt-3 mt-3 border-t border-slate-200 dark:border-slate-800 shrink-0">
             {footer}
           </div>
         )}

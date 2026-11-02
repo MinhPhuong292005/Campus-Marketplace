@@ -55,6 +55,10 @@ public class ReportServiceImpl implements ReportService {
             }
         }
 
+        if (reportedUser != null && reporterId.equals(reportedUser.getId())) {
+            throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST, "Bạn không thể tự gửi báo cáo vi phạm chính mình");
+        }
+
         RentalContractEntity contract = null;
         if (req.getRentalContractId() != null) {
             contract = rentalContractRepository.findById(req.getRentalContractId()).orElse(null);

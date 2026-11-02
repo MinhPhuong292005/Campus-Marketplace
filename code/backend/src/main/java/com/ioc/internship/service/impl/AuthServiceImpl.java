@@ -13,6 +13,7 @@ import com.ioc.internship.dto.response.UserDetailRes;
 import com.ioc.internship.entity.CampusEntity;
 import com.ioc.internship.entity.UniversityEntity;
 import com.ioc.internship.entity.UserEntity;
+import com.ioc.internship.repository.BannedStudentCodeRepository;
 import com.ioc.internship.repository.CampusRepository;
 import com.ioc.internship.repository.UniversityRepository;
 import com.ioc.internship.repository.UserRepository;
@@ -38,6 +39,35 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoderUtils passwordEncoderUtils;
     private final JwtUtils jwtUtils;
     private final OtpService otpService;
+    private final BannedStudentCodeRepository bannedStudentCodeRepository;
+
+    private String extractStudentCode(String email, String providedStudentCode) {
+        if (providedStudentCode != null && !providedStudentCode.trim().isEmpty()) {
+            return providedStudentCode.trim();
+        }
+        if (email != null && email.contains("@")) {
+            return email.substring(0, email.indexOf("@")).trim();
+        }
+        return null;
+    }
+
+    private void checkBannedStudent(String email, String studentCode) {
+        String code = extractStudentCode(email, studentCode);
+        if (code != null && !code.isBlank()) {
+            if (bannedStudentCodeRepository.existsByStudentCode(code)) {
+                throw new CustomBusinessException(ErrorCodes.FORBIDDEN, HttpStatus.FORBIDDEN,
+                        "Mã sinh viên [" + code + "] nằm trong danh sách CẤM VĨNH VIỄN do vi phạm nghiêm trọng quy chế Phenikaa. Hệ thống không cho phép tạo tài khoản mới!");
+            }
+            if (userRepository.existsByStudentCodeAndStatus(code, "BANNED")) {
+                throw new CustomBusinessException(ErrorCodes.FORBIDDEN, HttpStatus.FORBIDDEN,
+                        "Mã sinh viên [" + code + "] đã bị CẤM VĨNH VIỄN khỏi hệ thống. Không được phép tạo tài khoản mới!");
+            }
+        }
+        if (email != null && bannedStudentCodeRepository.existsByEmailIgnoreCase(email.trim())) {
+            throw new CustomBusinessException(ErrorCodes.FORBIDDEN, HttpStatus.FORBIDDEN,
+                    "Email sinh viên này nằm trong danh sách CẤM VĨNH VIỄN của hệ thống. Không được phép đăng ký lại!");
+        }
+    }
 
     private boolean isPhenikaaStudentEmail(String email) {
         if (email == null || !email.contains("@")) {
@@ -57,6 +87,9 @@ public class AuthServiceImpl implements AuthService {
             throw new CustomBusinessException(ErrorCodes.INVALID_EDU_EMAIL, HttpStatus.BAD_REQUEST,
                     "Ứng dụng chỉ áp dụng cho sinh viên trường Đại học Phenikaa (email @st.phenikaa-uni.edu.vn). Không tiếp nhận sinh viên trường khác.");
         }
+
+        // Kiểm tra danh sách cấm vĩnh viễn (Blacklist MSSV & Email)
+        checkBannedStudent(email, null);
 
         otpService.sendOtp(email);
     }
@@ -87,12 +120,15 @@ public class AuthServiceImpl implements AuthService {
                     "Ứng dụng chỉ áp dụng cho sinh viên trường Đại học Phenikaa (email @st.phenikaa-uni.edu.vn). Không tiếp nhận sinh viên trường khác.");
         }
 
-        // 2. Check if email exists
+        // 2. Kiểm tra danh sách cấm vĩnh viễn (Blacklist MSSV & Email)
+        checkBannedStudent(email, req.getStudentCode());
+
+        // 3. Check if email exists
         if (userRepository.existsByEmail(email)) {
             throw new CustomBusinessException(ErrorCodes.EMAIL_ALREADY_EXISTS, HttpStatus.CONFLICT);
         }
 
-        // 3. Verify OTP if provided
+        // 4. Verify OTP if provided
         if (req.getOtp() != null && !req.getOtp().isBlank()) {
             boolean verified = otpService.verifyOtp(email, req.getOtp());
             if (!verified) {
@@ -100,7 +136,7 @@ public class AuthServiceImpl implements AuthService {
             }
         }
 
-        // 4. Bắt buộc liên kết với Trường Đại học Phenikaa
+        // 5. Bắt buộc liên kết với Trường Đại học Phenikaa
         UniversityEntity university = null;
         if (req.getUniversityId() != null) {
             university = universityRepository.findById(req.getUniversityId()).orElse(null);
@@ -120,7 +156,8 @@ public class AuthServiceImpl implements AuthService {
             campus = university.getCampuses().get(0);
         }
 
-        // 5. Create user with +20 initial Campus Karma
+        // 6. Create user with +20 initial Campus Karma
+        String finalStudentCode = extractStudentCode(email, req.getStudentCode());
         UserEntity user = UserEntity.builder()
                 .email(email)
                 .passwordHash(passwordEncoderUtils.encode(req.getPassword()))
@@ -129,7 +166,7 @@ public class AuthServiceImpl implements AuthService {
                 .university(university)
                 .campus(campus)
                 .dormitory(req.getDormitory())
-                .studentCode(req.getStudentCode())
+                .studentCode(finalStudentCode)
                 .studentCardVerified(false)
                 .karmaScore(20) // Initial +20 Karma bonus
                 .role("ROLE_STUDENT")

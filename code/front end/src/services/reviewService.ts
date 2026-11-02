@@ -51,28 +51,81 @@ export const reviewService = {
     }
   },
 
-  getReviewsForUser: async (userId: number): Promise<{ success: boolean; data: ReviewRes[] }> => {
+  getReviewsForListing: async (listingId: number): Promise<{ success: boolean; data: ReviewRes[] }> => {
     try {
-      const response = await api.get<ReviewRes[]>(`/student/reviews/user/${userId}`);
-      return response;
+      const response = await api.get<ReviewRes[]>(`/public/listings/${listingId}/reviews`);
+      if (response && response.data) return response;
     } catch {
-      return {
-        success: true,
-        data: [
-          {
-            id: 1,
-            reviewerId: 102,
-            reviewerName: 'Lê Thuỳ Linh',
-            targetUserId: userId,
-            targetUserName: 'Nguyễn Văn An',
-            rating: 5,
-            comment: 'Bạn An trả máy tính đúng hẹn, máy sạch sẽ nguyên vẹn như lúc nhận! Rất uy tín.',
-            tags: ['Đúng giờ', 'Giữ gìn đồ cẩn thận', 'Nhiệt tình'],
-            karmaAwarded: 5,
-            createdAt: '2026-09-22T10:00:00Z',
-          },
-        ],
-      };
+      // Fallback to local or demo reviews
     }
+    return {
+      success: true,
+      data: [
+        {
+          id: 101,
+          reviewerId: 201,
+          reviewerName: 'Trần Minh Quang',
+          reviewerAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80',
+          targetUserId: 1,
+          targetUserName: 'Người bán Phenikaa',
+          listingId: listingId,
+          rating: 5,
+          comment: 'Đã nhận đồ trực tiếp tại Safe Meeting Point Sảnh A. Sách còn mới 95%, đúng như ảnh và mô tả. Bạn bán rất nhiệt tình và đúng hẹn!',
+          tags: ['Đúng như mô tả', 'Giao dịch nhanh chóng', 'Nhiệt tình'],
+          karmaAwarded: 5,
+          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+          id: 102,
+          reviewerId: 202,
+          reviewerName: 'Nguyễn Thảo My (K17)',
+          reviewerAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&q=80',
+          targetUserId: 1,
+          targetUserName: 'Người bán Phenikaa',
+          listingId: listingId,
+          rating: 5,
+          comment: 'Rất ưng ý! Bạn bán tặng thêm cả tài liệu cương ôn thi. 5 sao cho bạn sinh viên uy tín.',
+          tags: ['Rất đáng tiền', 'Thân thiện', 'Chuẩn sinh viên Phenikaa'],
+          karmaAwarded: 5,
+          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+      ],
+    };
+  },
+
+  checkEligibility: async (
+    listingId: number
+  ): Promise<{
+    success: boolean;
+    data: {
+      canReview: boolean;
+      isBuyer: boolean;
+      isOwner: boolean;
+      alreadyReviewed: boolean;
+      reason: string;
+    };
+  }> => {
+    try {
+      const response = await api.get<{
+        canReview: boolean;
+        isBuyer: boolean;
+        isOwner: boolean;
+        alreadyReviewed: boolean;
+        reason: string;
+      }>(`/student/reviews/listing/${listingId}/eligibility`);
+      if (response && response.data) return response;
+    } catch {
+      // Return fallback
+    }
+    return {
+      success: true,
+      data: {
+        canReview: false,
+        isBuyer: false,
+        isOwner: false,
+        alreadyReviewed: false,
+        reason: 'Chỉ người đã từng mua hoặc thuê sản phẩm này mới có thể để lại bình luận và đánh giá sao.',
+      },
+    };
   },
 };

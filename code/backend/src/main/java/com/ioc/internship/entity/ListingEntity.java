@@ -44,12 +44,18 @@ public class ListingEntity extends BaseEntity {
     @Column(name = "rental_terms", columnDefinition = "TEXT")
     private String rentalTerms;
 
+    @Column(name = "deposit_amount", precision = 12, scale = 2)
+    private BigDecimal depositAmount;
+
     @Column(name = "swap_target", columnDefinition = "TEXT")
     private String swapTarget;
 
+    @Column(name = "safe_meeting_point", length = 255)
+    private String safeMeetingPoint;
+
     @Column(name = "status", length = 30)
     @Builder.Default
-    private String status = "ACTIVE"; // DRAFT, ACTIVE, RESERVED, COMPLETED, DELETED, REJECTED, PENDING_APPROVAL
+    private String status = "PENDING_APPROVAL"; // DRAFT, ACTIVE, RESERVED, COMPLETED, DELETED, REJECTED, PENDING_APPROVAL
 
     @Column(name = "is_risk_flagged")
     @Builder.Default
@@ -57,6 +63,12 @@ public class ListingEntity extends BaseEntity {
 
     @Column(name = "risk_reason", length = 255)
     private String riskReason;
+
+    @Column(name = "moderation_reason", columnDefinition = "TEXT")
+    private String moderationReason;
+
+    @Column(name = "moderated_at")
+    private java.time.LocalDateTime moderatedAt;
 
     @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

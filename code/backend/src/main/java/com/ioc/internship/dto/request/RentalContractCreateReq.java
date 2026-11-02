@@ -1,5 +1,6 @@
 package com.ioc.internship.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -21,9 +22,11 @@ public class RentalContractCreateReq {
     private Long ownerId;
 
     @NotNull(message = "startDate is required")
+    @JsonFormat(pattern = "yyyy-MM-dd['T'[HH:mm[:ss]]]")
     private LocalDateTime startDate;
 
     @NotNull(message = "endDate is required")
+    @JsonFormat(pattern = "yyyy-MM-dd['T'[HH:mm[:ss]]]")
     private LocalDateTime endDate;
 
     @NotNull(message = "totalRentAmount is required")

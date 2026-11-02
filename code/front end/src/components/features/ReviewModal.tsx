@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, Award, Sparkles, Check } from 'lucide-react';
+import { Star, Award, Check } from 'lucide-react';
 import { BaseModal } from '../base/BaseModal';
 import { BaseButton } from '../base/BaseButton';
 import { reviewService } from '../../services/reviewService';
@@ -95,7 +95,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
       {submittedKarma !== null ? (
         <div className="py-8 text-center space-y-4 animate-in fade-in zoom-in duration-300">
           <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center mx-auto">
-            <Sparkles className="w-8 h-8 animate-spin" />
+            <Check className="w-8 h-8" />
           </div>
           <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
             Giao dịch hoàn tất thành công!
@@ -226,7 +226,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               isLoading={isSubmitting}
               className="gap-1.5"
             >
-              <Sparkles className="w-4 h-4" />
+              <Check className="w-4 h-4" />
               <span>Gửi đánh giá & Tích điểm</span>
             </BaseButton>
           </div>

@@ -1,59 +1,58 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   UploadCloud,
   X,
-  Sparkles,
   Gift,
   DollarSign,
   AlertCircle,
   CheckCircle,
-  LogIn,
-  Image as ImageIcon,
-  UserCheck,
-  ShieldAlert,
+  Check,
+  Film,
+  ShoppingBag,
+  Clock,
+  ArrowLeftRight,
+  ShieldCheck,
 } from 'lucide-react';
 import { listingSchema, ListingFormData } from '../../schemas/listing.schema';
 import { BaseInput } from '../../components/base/BaseInput';
 import { BaseButton } from '../../components/base/BaseButton';
+import { BaseModal } from '../../components/base/BaseModal';
 import { listingService } from '../../services/listingService';
-import { authService } from '../../services/authService';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Category } from '../../types';
 import { SuspendedAccountModal } from '../../components/features/SuspendedAccountModal';
-
-// Preset photos for quick 1-click testing
-const PHOTO_PRESETS = [
-  {
-    label: '📚 Sách & Giáo trình',
-    url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=900&q=80',
-  },
-  {
-    label: '💻 Máy tính / Laptop',
-    url: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=900&q=80',
-  },
-  {
-    label: '🏠 Đồ dùng phòng trọ',
-    url: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=900&q=80',
-  },
-  {
-    label: '🎒 Balo & Phụ kiện',
-    url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=900&q=80',
-  },
-];
+import { PolicyViolationModal, ViolationAlertData } from '../../components/features/PolicyViolationModal';
+import { keywordViolationService } from '../../services/keywordViolationService';
+import { adminNotificationService } from '../../services/adminNotificationService';
+import { PHENIKAA_SAFE_MEETING_POINTS } from '../../constants/phenikaaData';
 
 export const CreateListingPage: React.FC = () => {
-  const { user, isAuthenticated, login } = useAuthStore();
+  const { user } = useAuthStore();
   const [categories, setCategories] = useState<Category[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [quickLoginLoading, setQuickLoginLoading] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isSuspendedModalOpen, setIsSuspendedModalOpen] = useState(false);
+  const [isViolationModalOpen, setIsViolationModalOpen] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<ListingFormData | null>(null);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [successToastData, setSuccessToastData] = useState<{
+    title: string;
+    subtitle: string;
+    isAutoApproved: boolean;
+  } | null>(null);
+  const [violationAlert, setViolationAlert] = useState<ViolationAlertData | null>(null);
+  const [violationRecord, setViolationRecord] = useState(() =>
+    user ? keywordViolationService.getRecordByUserId(user.id) : null
+  );
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -61,6 +60,31 @@ export const CreateListingPage: React.FC = () => {
       setIsSuspendedModalOpen(true);
     }
   }, [user]);
+
+  // Đồng bộ và khôi phục số lượt an toàn về ban đầu khi mở khóa
+  useEffect(() => {
+    if (user) {
+      const rec = keywordViolationService.getRecordByUserId(user.id);
+      // Khi tài khoản ở trạng thái ACTIVE (được mở khóa) nhưng record cũ đang có chế tài: hồi về 3/3 ban đầu
+      if (user.status === 'ACTIVE' && rec && (rec.isSuspended || rec.strikeCount >= 3)) {
+        keywordViolationService.restoreSafeChances(user.id, 'Tài khoản hoạt động - khôi phục 3/3 lượt an toàn');
+        setViolationRecord(keywordViolationService.getRecordByUserId(user.id));
+      } else {
+        setViolationRecord(rec);
+      }
+    }
+    const handleViolationUpdate = () => {
+      if (user) setViolationRecord(keywordViolationService.getRecordByUserId(user.id));
+    };
+    window.addEventListener('campus_keyword_violations_updated', handleViolationUpdate);
+    window.addEventListener('campus_user_status_changed', handleViolationUpdate);
+    return () => {
+      window.removeEventListener('campus_keyword_violations_updated', handleViolationUpdate);
+      window.removeEventListener('campus_user_status_changed', handleViolationUpdate);
+    };
+  }, [user]);
+
+
 
   const {
     register,
@@ -74,6 +98,7 @@ export const CreateListingPage: React.FC = () => {
       transactionType: 'SELL',
       conditionStatus: 'GOOD_90',
       price: 50000,
+      safeMeetingPoint: PHENIKAA_SAFE_MEETING_POINTS[0].name,
       imageUrls: [],
     },
   });
@@ -116,115 +141,279 @@ export const CreateListingPage: React.FC = () => {
     }
   }, [transactionType, setValue, watch]);
 
-  // Sync imageUrls to react-hook-form
+  // Sync imageUrls & videoUrl to react-hook-form
   useEffect(() => {
-    setValue('imageUrls', imageUrls, { shouldValidate: true });
-  }, [imageUrls, setValue]);
+    const allMedia = [...imageUrls, ...(videoUrl ? [videoUrl] : [])];
+    setValue('imageUrls', allMedia, { shouldValidate: true });
+  }, [imageUrls, videoUrl, setValue]);
 
-  // Quick login handler for testing
-  const handleQuickLogin = async (email: string) => {
-    try {
-      setQuickLoginLoading(email);
-      setErrorMsg(null);
-      const res = await authService.login({ email, password: 'Aa123' });
-      if (res.success && res.data) {
-        login(res.data.user, res.data.token);
-        setSuccessMsg(`Đã kích hoạt phiên làm việc cho ${res.data.user.fullName} (${email})! Bây giờ bạn có thể bấm "Đăng bài ngay".`);
-        setTimeout(() => setSuccessMsg(null), 4000);
-      } else {
-        setErrorMsg('Không thể đăng nhập tài khoản mẫu.');
-      }
-    } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || 'Đăng nhập không thành công.');
-    } finally {
-      setQuickLoginLoading(null);
-    }
-  };
+  const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'];
+  const ALLOWED_VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.mkv'];
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    if (imageUrls.length + files.length > 6) {
-      setErrorMsg('Bạn chỉ có thể tải lên tối đa 6 hình ảnh (AC1)');
-      return;
-    }
+  const processFiles = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (!fileArray || fileArray.length === 0) return;
 
     try {
       setIsUploading(true);
       setErrorMsg(null);
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (file.size > 5 * 1024 * 1024) {
-          setErrorMsg(`Tệp "${file.name}" vượt quá 5MB. Vui lòng chọn tệp nhỏ hơn.`);
+      for (const file of fileArray) {
+        const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+        const isVideo =
+          file.type.startsWith('video/') ||
+          ALLOWED_VIDEO_EXTENSIONS.includes(ext);
+        const isImage =
+          file.type.startsWith('image/') ||
+          ALLOWED_IMAGE_EXTENSIONS.includes(ext);
+
+        // Chặn chặt chẽ các file không phải ảnh và video (.zip, .pptx, .pdf, .docx, .rar, v.v.)
+        if (!isImage && !isVideo) {
+          setErrorMsg(
+            `❌ Tệp "${file.name}" không hợp lệ! Hệ thống chỉ chấp nhận hình ảnh (JPG, PNG, WEBP, GIF) hoặc video ngắn (MP4, WEBM, MOV). Tuyệt đối không tải lên tệp nén, bài thuyết trình hay tài liệu (.zip, .pptx, .pdf, .docx,...).`
+          );
           continue;
         }
 
-        try {
-          const res = await listingService.uploadMedia(file);
-          if (res.success && res.data?.url) {
-            setImageUrls((prev) => [...prev, res.data.url]);
-          } else {
-            const blobUrl = URL.createObjectURL(file);
-            setImageUrls((prev) => [...prev, blobUrl]);
+        if (isVideo) {
+          if (videoUrl) {
+            setErrorMsg('Mỗi bài đăng chỉ được thêm tối đa 1 video ngắn (không bắt buộc). Vui lòng xóa video hiện tại nếu muốn đổi video khác.');
+            continue;
           }
-        } catch (uploadErr) {
-          const blobUrl = URL.createObjectURL(file);
-          setImageUrls((prev) => [...prev, blobUrl]);
+          if (file.size > 25 * 1024 * 1024) {
+            setErrorMsg(`Tệp video "${file.name}" vượt quá dung lượng 25MB. Vui lòng chọn video ngắn gọn hơn.`);
+            continue;
+          }
+
+          try {
+            const res = await listingService.uploadMedia(file);
+            if (res.success && res.data?.url) {
+              setVideoUrl(res.data.url);
+            } else {
+              setErrorMsg(res.message || `Lỗi tải tệp video "${file.name}".`);
+            }
+          } catch (err: any) {
+            const serverMsg = err.response?.data?.message;
+            if (serverMsg) {
+              setErrorMsg(serverMsg);
+            } else {
+              const blobUrl = URL.createObjectURL(file);
+              setVideoUrl(blobUrl);
+            }
+          }
+        } else if (isImage) {
+          // Xử lý hình ảnh hợp lệ
+          if (imageUrls.length >= 6) {
+            setErrorMsg('Bạn chỉ có thể tải lên tối đa 6 hình ảnh sản phẩm.');
+            continue;
+          }
+          if (file.size > 5 * 1024 * 1024) {
+            setErrorMsg(`Hình ảnh "${file.name}" vượt quá 5MB. Vui lòng chọn tệp nhỏ hơn.`);
+            continue;
+          }
+
+          try {
+            const res = await listingService.uploadMedia(file);
+            if (res.success && res.data?.url) {
+              setImageUrls((prev) => [...prev, res.data.url]);
+            } else {
+              setErrorMsg(res.message || `Lỗi tải hình ảnh "${file.name}".`);
+            }
+          } catch (err: any) {
+            const serverMsg = err.response?.data?.message;
+            if (serverMsg) {
+              setErrorMsg(serverMsg);
+            } else {
+              const blobUrl = URL.createObjectURL(file);
+              setImageUrls((prev) => [...prev, blobUrl]);
+            }
+          }
         }
       }
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      await processFiles(e.target.files);
       e.target.value = '';
     }
   };
 
-  const handleAddPreset = (url: string) => {
-    if (imageUrls.length >= 6) {
-      setErrorMsg('Tối đa 6 hình ảnh cho mỗi sản phẩm.');
-      return;
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processFiles(e.dataTransfer.files);
     }
-    setImageUrls((prev) => [...prev, url]);
-    setErrorMsg(null);
   };
 
   const removeImage = (index: number) => {
     setImageUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const onSubmit = async (data: ListingFormData) => {
+  const removeVideo = () => {
+    setVideoUrl(null);
+  };
+
+  // Bước 1: Tiền kiểm tra trước khi mở khung xác nhận
+  const onPreSubmit = async (data: ListingFormData) => {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      setErrorMsg('Bạn cần đăng nhập tài khoản sinh viên trước khi đăng bài.');
+      return;
+    }
+
+    if (
+      user?.status === 'SUSPENDED' ||
+      user?.status === 'BANNED' ||
+      user?.status === 'BLOCKED' ||
+      (user && keywordViolationService.isUserSuspended(user.id))
+    ) {
+      setIsSuspendedModalOpen(true);
+      const isKwSuspended = user && keywordViolationService.isUserSuspended(user.id);
+      setErrorMsg(
+        isKwSuspended
+          ? '🚫 Tài khoản của bạn đang bị TẠM KHÓA 1 NGÀY (24 giờ) do vi phạm quy chế hoặc bị phạt spam. Chức năng đăng bài bị tạm dừng.'
+          : `⚠️ Tài khoản của bạn đang bị Ban quản trị tạm khóa do vi phạm quy định sàn${user.blockReason ? ` (${user.blockReason})` : ''}. Chức năng đăng bài mới đang bị tạm ngưng.`
+      );
+      return;
+    }
+
+    // Kiểm tra hành vi Spam bài đăng (khoảng cách giữa 2 bài đăng < 15 giây)
+    if (user) {
+      const now = Date.now();
+      const lastPostKey = `campus_last_post_ts_${user.id}`;
+      const spamWarnKey = `campus_spam_warned_${user.id}`;
+      const lastPostTimeStr = sessionStorage.getItem(lastPostKey);
+      const lastPostTime = lastPostTimeStr ? parseInt(lastPostTimeStr, 10) : 0;
+      const hasSpamWarned = sessionStorage.getItem(spamWarnKey) === 'true';
+
+      if (lastPostTime && now - lastPostTime < 15000) {
+        if (!hasSpamWarned) {
+          sessionStorage.setItem(spamWarnKey, 'true');
+          const rem = Math.max(0, 3 - (violationRecord?.strikeCount || 0));
+          setViolationAlert({
+            message:
+              'CẢNH BÁO SPAM BÀI ĐĂNG: Bạn vừa gửi bài đăng cách đây ít giây. Vui lòng không spam bài đăng liên tục! Nếu bạn tiếp tục spam, tài khoản sẽ bị CẤM ĐĂNG BÀI TRONG 1 NGÀY (24 giờ).',
+            isSuspended: false,
+            remainingChances: rem,
+          });
+          setIsViolationModalOpen(true);
+          return;
+        } else {
+          keywordViolationService.recordSpamBan(user.id, user.email, user.fullName);
+          sessionStorage.removeItem(spamWarnKey);
+          setViolationAlert({
+            message:
+              'TÀI KHOẢN ĐÃ BỊ CẤM ĐĂNG BÀI 1 NGÀY: Bạn tiếp tục spam bài đăng sau khi đã được cảnh báo. Hệ thống đã tự động khóa quyền đăng bài của bạn trong 24 giờ.',
+            isSuspended: true,
+            remainingChances: 0,
+          });
+          setIsSuspendedModalOpen(true);
+          return;
+        }
+      }
+    }
+
+    if (data.imageUrls.length === 0) {
+      setErrorMsg('Vui lòng chọn hoặc tải lên ít nhất 1 hình ảnh sản phẩm.');
+      return;
+    }
+
+    // Kiểm duyệt từ khóa cấm & Chế tài 3 gậy (3 strikes)
+    const forbiddenKw = keywordViolationService.checkTextHasForbiddenKeyword(`${data.title} ${data.description || ''}`);
+    if (forbiddenKw && user) {
+      const { record, isNewlySuspended } = keywordViolationService.recordViolation({
+        userId: user.id,
+        userEmail: user.email,
+        userName: user.fullName,
+        studentCode: user.studentCode,
+        keyword: forbiddenKw,
+        listingTitle: data.title,
+      });
+
+      const remaining = Math.max(0, 3 - record.strikeCount);
+      setViolationAlert({
+        keyword: forbiddenKw,
+        message: isNewlySuspended
+          ? `CHẾ TÀI 3 LẦN VI PHẠM (0/3 lượt còn lại): Bạn đã đăng bài chứa từ cấm "${forbiddenKw}" lần thứ 3! Hệ thống đã TỰ ĐỘNG TẠM KHÓA tài khoản của bạn trong 1 ngày (24 giờ).`
+          : `CẢNH BÁO VI PHẠM QUY CHẾ (${record.strikeCount}/3 lần vi phạm - Bạn còn lại ${remaining}/3 lượt an toàn): Bài đăng chứa từ khóa cấm "${forbiddenKw}". Nếu vi phạm đủ 3 lần, tài khoản sẽ tự động bị tạm khóa 1 ngày!`,
+        isSuspended: isNewlySuspended,
+        remainingChances: remaining,
+      });
+
+      if (isNewlySuspended) {
+        setIsSuspendedModalOpen(true);
+      } else {
+        setIsViolationModalOpen(true);
+      }
+      return;
+    }
+
+    // Nếu không có vi phạm, xóa cảnh báo vi phạm
+    setViolationAlert(null);
+
+    // Tất cả thông tin hợp lệ -> Mở khung xác nhận đăng bài
+    setPendingFormData(data);
+    setShowConfirmModal(true);
+  };
+
+  // Bước 2: Thực thi khi người dùng bấm "Xác nhận đăng bài" trong modal
+  const handleConfirmSubmit = async () => {
+    if (!pendingFormData) return;
+
     try {
       setIsSubmitting(true);
       setErrorMsg(null);
       setSuccessMsg(null);
 
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        setErrorMsg('Bạn cần đăng nhập tài khoản sinh viên trước khi đăng bài.');
-        return;
+      // Ghi lại mốc thời gian đăng bài hợp lệ
+      if (user) {
+        sessionStorage.setItem(`campus_last_post_ts_${user.id}`, Date.now().toString());
+        sessionStorage.removeItem(`campus_spam_warned_${user.id}`);
       }
 
-      if (user?.status === 'SUSPENDED' || user?.status === 'BANNED' || user?.status === 'BLOCKED') {
-        setIsSuspendedModalOpen(true);
-        setErrorMsg(`⚠️ Tài khoản của bạn đang bị Ban quản trị tạm khóa 1 tuần do vi phạm quy định sàn${user.blockReason ? ` (${user.blockReason})` : ''}. Chức năng đăng bài mới đang bị tạm ngưng.`);
-        return;
-      }
-
-      if (data.imageUrls.length === 0) {
-        setErrorMsg('Vui lòng chọn hoặc tải lên ít nhất 1 hình ảnh sản phẩm.');
-        return;
-      }
-
-      const res = await listingService.createListing(data);
+      const res = await listingService.createListing(pendingFormData);
       if (res.success && res.data) {
+        setShowConfirmModal(false);
+
         if (res.data.status === 'REJECTED') {
-          setErrorMsg(`❌ Bài đăng TỰ ĐỘNG BỊ TỪ CHỐI DUYỆT: ${res.data.riskReason || 'Nội dung chứa từ khóa cấm trong danh mục của Quản trị viên.'}`);
+          setErrorMsg(
+            `❌ Bài đăng bị từ chối duyệt: ${res.data.riskReason || 'Nội dung chứa từ khóa cấm trong danh mục của Quản trị viên.'}`
+          );
         } else {
-          setSuccessMsg('✅ Đăng bài thành công! Bài đăng đang ở trạng thái CHỜ QUẢN TRỊ VIÊN DUYỆT (PENDING_APPROVAL) trước khi xuất hiện trên sàn.');
+          setSuccessToastData({
+            title: 'Bạn đã đăng bài thành công',
+            subtitle:
+              'Bài đăng của bạn đã được gửi thành công và đang chờ Quản trị viên kiểm duyệt trước khi hiển thị công khai trên Chợ Sinh viên Phenikaa.',
+            isAutoApproved: false,
+          });
+          setShowSuccessToast(true);
+
+          // Gửi thông báo đến Quản trị viên (tất cả các bài đăng đều cần BQT duyệt)
+          adminNotificationService.addNotification({
+            type: 'LISTING_PENDING',
+            title: `Duyệt bài đăng mới: ${res.data.title}`,
+            studentId: user?.id,
+            studentName: user?.fullName || 'Sinh viên',
+            studentEmail: user?.email || '',
+            reportedListingId: res.data.id,
+            reportedListingTitle: res.data.title,
+            reportedListingPrice: res.data.price,
+            violationReason: res.data.riskReason || 'Bài đăng mới cần Quản trị viên duyệt',
+            message: `Bài viết "${res.data.title}" được đăng tải với giá ${res.data.price?.toLocaleString()} đ. Chờ Quản trị viên kiểm tra hình ảnh và nội dung.`,
+            imageUrl: res.data.images?.[0]?.mediaUrl || pendingFormData.imageUrls[0] || '',
+          });
+
           setTimeout(() => {
             navigate('/my-listings');
-          }, 2000);
+          }, 2500);
         }
       } else {
         setErrorMsg(res.message || 'Không thể tạo bài đăng lúc này. Vui lòng kiểm tra lại thông tin.');
@@ -256,81 +445,7 @@ export const CreateListingPage: React.FC = () => {
         </p>
       </div>
 
-      {/* Suspended Alert */}
-      {(user?.status === 'SUSPENDED' || user?.status === 'BANNED' || user?.status === 'BLOCKED') && (
-        <div className="mb-5 p-4 rounded-2xl bg-rose-500/10 dark:bg-rose-950/30 border border-rose-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-start gap-3">
-            <ShieldAlert className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-            <div className="text-xs text-rose-800 dark:text-rose-200 space-y-1">
-              <p className="font-bold text-sm">Tài khoản của bạn đang bị tạm khóa quyền đăng bài:</p>
-              <p className="text-[11px] leading-relaxed text-rose-700 dark:text-rose-300">
-                Do vi phạm nội quy sàn Campus Marketplace{user.blockReason ? ` - Lý do: ${user.blockReason}` : ''}. Quý sinh viên tạm thời không thể tạo bài đăng mới cho đến khi hết thời hạn khóa.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsSuspendedModalOpen(true)}
-            className="shrink-0 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-1.5"
-          >
-            <span>⏰ Xem thời gian & Liên hệ Admin</span>
-          </button>
-        </div>
-      )}
 
-      {/* Moderation Policy Notice */}
-      <div className="mb-5 p-3.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 flex items-start gap-3">
-        <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-        <div className="text-xs text-amber-800 dark:text-amber-200 space-y-1">
-          <p className="font-bold">Quy chế kiểm duyệt bài đăng bắt buộc:</p>
-          <ul className="list-disc list-inside text-[11px] space-y-0.5 text-amber-700 dark:text-amber-300">
-            <li>Mọi bài đăng <strong>phải được Quản trị viên duyệt</strong> mới được phép xuất hiện công khai trên Marketplace.</li>
-            <li>Hệ thống <strong>tự động từ chối duyệt</strong> nếu tiêu đề hoặc mô tả chứa từ khóa cấm (vape, thuốc lá điện tử, thi hộ, chạy điểm, vay nặng lãi, cọc trước,...).</li>
-          </ul>
-        </div>
-      </div>
-
-      {/* Account Info & Switcher Bar */}
-      <div className="mb-6 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-              {isAuthenticated && user
-                ? `Đang đăng bài với: ${user.fullName} (${user.email || 'Sinh viên'})`
-                : 'Bạn chưa đăng nhập tài khoản sinh viên'}
-            </span>
-          </div>
-          <span className="text-[11px] text-slate-400">Chọn nick sinh viên để đăng bài:</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={() => handleQuickLogin('23010190@st.phenikaa-uni.edu.vn')}
-            disabled={!!quickLoginLoading}
-            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
-          >
-            <UserCheck className="w-3.5 h-3.5" />
-            <span>{quickLoginLoading === '23010190@st.phenikaa-uni.edu.vn' ? 'Đang kích hoạt...' : 'Nick 1: Sinh Viên Phenikaa (23010190)'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickLogin('23010191@st.phenikaa-uni.edu.vn')}
-            disabled={!!quickLoginLoading}
-            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
-          >
-            <UserCheck className="w-3.5 h-3.5" />
-            <span>{quickLoginLoading === '23010191@st.phenikaa-uni.edu.vn' ? 'Đang kích hoạt...' : 'Nick 2: Hoài Thương (23010191)'}</span>
-          </button>
-          <Link
-            to="/auth/login"
-            className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1"
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>Đổi nick khác</span>
-          </Link>
-        </div>
-      </div>
 
       {errorMsg && (
         <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
@@ -346,7 +461,7 @@ export const CreateListingPage: React.FC = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onPreSubmit)} className="space-y-6">
         {/* Transaction Type Selector (Bán / Tặng / Thuê / Đổi) */}
         <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
           <label className="block text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
@@ -357,8 +472,8 @@ export const CreateListingPage: React.FC = () => {
             {[
               { type: 'SELL', label: 'Bán thanh lý', desc: 'Thu hồi vốn sinh viên', icon: DollarSign, color: 'blue' },
               { type: 'GIVEAWAY', label: 'Tặng 0đ (Free)', desc: 'Tích +10 Karma Score', icon: Gift, color: 'emerald' },
-              { type: 'RENT', label: 'Cho thuê ngắn hạn', desc: 'Máy tính, máy ảnh', icon: Sparkles, color: 'indigo' },
-              { type: 'SWAP', label: 'Đổi đồ (Swap)', desc: 'Giao lưu ngang giá', icon: Sparkles, color: 'purple' },
+              { type: 'RENT', label: 'Cho thuê ngắn hạn', desc: 'Máy tính, máy ảnh', icon: Clock, color: 'indigo' },
+              { type: 'SWAP', label: 'Đổi đồ (Swap)', desc: 'Giao lưu ngang giá', icon: ArrowLeftRight, color: 'purple' },
             ].map((item) => {
               const isSelected = transactionType === item.type;
               return (
@@ -383,18 +498,46 @@ export const CreateListingPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Media Upload (1-6 images, <= 5MB) + Quick Presets */}
-        <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="block text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-              Hình ảnh sản phẩm ({imageUrls.length}/6 ảnh) *
-            </label>
-            <span className="text-[11px] text-slate-400">Tối đa 6 ảnh, mỗi ảnh ≤ 5MB</span>
+        {/* Media Upload (Images up to 6 + Optional 1 Short Video) with Drag & Drop */}
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+          }}
+          onDrop={handleDrop}
+          className={`p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border-2 transition-all shadow-sm space-y-3 ${
+            isDragging
+              ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30 ring-4 ring-blue-500/20'
+              : 'border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <div>
+              <label className="block text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                Hình ảnh & Video sản phẩm ({imageUrls.length}/6 ảnh{videoUrl ? ' + 1 video' : ''}) *
+              </label>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Tối đa 6 ảnh (≤ 5MB) & 1 video ngắn (≤ 25MB, không bắt buộc). <strong>Chỉ chấp nhận tệp hình ảnh (JPG, PNG, WEBP, GIF) và video (MP4, WEBM, MOV)</strong>. Tuyệt đối không cho phép tệp nén hoặc tài liệu (.zip, .pptx, .pdf,...).
+              </p>
+            </div>
+            {isDragging && (
+              <span className="text-xs font-bold text-blue-600 dark:text-blue-400 animate-pulse">
+                📥 Thả tệp vào đây để tải lên ngay!
+              </span>
+            )}
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 pt-1">
+            {/* Uploaded Images */}
             {imageUrls.map((url, idx) => (
-              <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 group shadow-sm bg-slate-100 dark:bg-slate-800">
+              <div
+                key={`img-${idx}`}
+                className="relative aspect-square rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 group shadow-sm bg-slate-100 dark:bg-slate-800"
+              >
                 <img src={url} alt={`preview-${idx}`} className="w-full h-full object-cover" />
                 <button
                   type="button"
@@ -412,43 +555,45 @@ export const CreateListingPage: React.FC = () => {
               </div>
             ))}
 
-            {imageUrls.length < 6 && (
-              <label className="aspect-square rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 flex flex-col items-center justify-center cursor-pointer bg-slate-50 dark:bg-slate-950 transition-colors p-2 text-center group">
-                <UploadCloud className="w-6 h-6 text-slate-400 group-hover:text-blue-500 mb-1 transition-colors" />
-                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                  {isUploading ? 'Đang tải...' : 'Tải ảnh từ máy'}
+            {/* Uploaded Short Video (Optional, max 1) */}
+            {videoUrl && (
+              <div className="relative aspect-square rounded-2xl overflow-hidden border-2 border-indigo-500/50 bg-black group shadow-sm">
+                <video src={videoUrl} controls className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={removeVideo}
+                  className="absolute top-1 right-1 p-1 rounded-lg bg-black/70 text-white hover:bg-rose-600 transition-colors z-10"
+                  title="Xóa video"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+                <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[9px] bg-indigo-600 text-white font-medium flex items-center gap-1 z-10">
+                  <Film className="w-2.5 h-2.5" />
+                  Video ngắn
+                </span>
+              </div>
+            )}
+
+            {/* Upload / Drop zone button */}
+            {(imageUrls.length < 6 || !videoUrl) && (
+              <label className="aspect-square rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 flex flex-col items-center justify-center cursor-pointer bg-slate-50 dark:bg-slate-950 transition-all p-2 text-center group">
+                <UploadCloud className="w-6 h-6 text-slate-400 group-hover:text-blue-500 group-hover:scale-110 mb-1 transition-all" />
+                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 leading-tight">
+                  {isUploading ? 'Đang tải...' : 'Kéo thả hoặc tải ảnh/video'}
+                </span>
+                <span className="text-[9px] text-slate-400 mt-1">
+                  Chỉ nhận Ảnh (≤ 5MB) & Video (≤ 25MB)
                 </span>
                 <input
                   type="file"
                   multiple
-                  accept="image/png,image/jpeg,image/webp,video/mp4"
+                  accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
                   onChange={handleFileUpload}
                   className="hidden"
                   disabled={isUploading}
                 />
               </label>
             )}
-          </div>
-
-          {/* Quick Photo Presets for convenient testing */}
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
-            <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 mb-2">
-              <ImageIcon className="w-3.5 h-3.5 text-blue-500" />
-              Chọn nhanh ảnh mẫu (nếu chưa có ảnh trên máy):
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {PHOTO_PRESETS.map((preset, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleAddPreset(preset.url)}
-                  disabled={imageUrls.length >= 6}
-                  className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200 dark:border-slate-700 text-xs font-medium transition-colors"
-                >
-                  + {preset.label}
-                </button>
-              ))}
-            </div>
           </div>
 
           {errors.imageUrls && (
@@ -500,7 +645,7 @@ export const CreateListingPage: React.FC = () => {
 
           {/* Price / Giveaway condition */}
           {transactionType === 'SELL' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
               <BaseInput
                 type="number"
                 label="Giá thanh lý (VNĐ) *"
@@ -509,12 +654,6 @@ export const CreateListingPage: React.FC = () => {
                 error={errors.price?.message}
                 {...register('price', { valueAsNumber: true })}
               />
-              <div className="flex items-center h-full pt-5">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600 dark:text-slate-300">
-                  <input type="checkbox" defaultChecked className="rounded border-slate-300 text-blue-600" />
-                  <span>Cho phép người mua thương lượng / trả giá</span>
-                </label>
-              </div>
             </div>
           ) : transactionType === 'GIVEAWAY' ? (
             <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs flex items-center justify-between">
@@ -530,19 +669,52 @@ export const CreateListingPage: React.FC = () => {
               <span className="font-mono font-extrabold text-base text-emerald-600">0 VNĐ</span>
             </div>
           ) : transactionType === 'RENT' ? (
-            <div className="space-y-3">
+            <div className="space-y-4 p-4 rounded-2xl border border-purple-200 dark:border-purple-900/50 bg-purple-50/40 dark:bg-purple-950/20">
+              <div className="flex items-center gap-2 text-xs font-bold text-purple-700 dark:text-purple-300">
+                <Clock className="w-4 h-4 text-purple-600" />
+                <span>Quy định cho thuê ngắn hạn & Đặt cọc bảo đảm tài sản</span>
+              </div>
+
               <BaseInput
                 type="number"
-                label="Giá thuê theo ngày (VNĐ) *"
-                placeholder="vd: 20000"
+                label="Giá thuê theo ngày (VNĐ/ngày) *"
+                placeholder="vd: 50000"
                 error={errors.price?.message}
                 {...register('price', { valueAsNumber: true })}
               />
-              <BaseInput
-                label="Quy định đặt cọc & Điều khoản thuê"
-                placeholder="vd: Cọc 200.000đ hoặc Thẻ sinh viên giữ lại khi nhận máy"
-                {...register('rentalTerms')}
-              />
+
+              {/* Ô 1: Giá trị cọc */}
+              <div>
+                <BaseInput
+                  type="number"
+                  label="1. Giá trị tiền cọc bảo đảm (VNĐ) *"
+                  placeholder="vd: 500000 (Nhập giá trị của máy/đồ để bảo hiểm tài sản)"
+                  error={errors.depositAmount?.message}
+                  {...register('depositAmount', { valueAsNumber: true })}
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Người cho thuê nhập đúng giá trị thực của máy. Người thuê cần chuẩn bị số tiền cọc này và sẽ được hoàn lại 100% khi trả đồ nguyên vẹn.
+                </p>
+              </div>
+
+              {/* Ô 2: Điều khoản thuê & Quy định phạt vi phạm */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  2. Điều khoản thuê & Quy định phạt vi phạm *
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="vd: Nếu làm hỏng mất 100% cọc; Nếu trầy xước xước khấu trừ 20-30% tiền cọc; Nếu quá ngày chưa trả sẽ mất phụ phí 30.000đ/ngày. Hai bên gặp trực tiếp kiểm tra và chụp ảnh hiện trạng khi bàn giao..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-slate-900 dark:text-white"
+                  {...register('rentalTerms')}
+                />
+                <div className="mt-1.5 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                  <span className="font-semibold shrink-0">Cơ sở phân xử BQT:</span>
+                  <span>
+                    Các điều khoản này sẽ là căn cứ pháp lý để Quản trị viên (QTV) xem xét khi có tranh chấp (ví dụ: người thuê trả muộn 2 ngày và người cho thuê có bằng chứng thì QTV sẽ chỉ xem xét hoàn lại một phần cọc chứ không hoàn đủ).
+                  </span>
+                </div>
+              </div>
             </div>
           ) : transactionType === 'SWAP' ? (
             <div className="space-y-3">
@@ -575,6 +747,30 @@ export const CreateListingPage: React.FC = () => {
               <p className="text-xs text-rose-500 mt-1">{errors.description.message}</p>
             )}
           </div>
+
+          {/* Lựa chọn nơi nhận đồ từ các điểm hẹn an toàn */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+              <span>Nơi nhận đồ (Chọn từ các điểm hẹn an toàn tại Trường ĐH Phenikaa) *</span>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Điểm hẹn an toàn có Camera</span>
+              </span>
+            </label>
+            <select
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-slate-900 dark:text-white"
+              {...register('safeMeetingPoint')}
+            >
+              {PHENIKAA_SAFE_MEETING_POINTS.map((pt) => (
+                <option key={pt.id} value={pt.name}>
+                  {pt.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Người mua và người bán sẽ gặp mặt trực tiếp tại điểm hẹn an toàn này để giao dịch và trao nhận đồ.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-3 pt-2">
@@ -582,13 +778,17 @@ export const CreateListingPage: React.FC = () => {
             Hủy
           </BaseButton>
           <BaseButton
-            type="submit"
-            variant="primary"
+            type={user?.status === 'SUSPENDED' ? 'button' : 'submit'}
+            variant={user?.status === 'SUSPENDED' ? 'danger' : 'primary'}
             isLoading={isSubmitting}
-            disabled={user?.status === 'SUSPENDED'}
-            title={user?.status === 'SUSPENDED' ? 'Tài khoản đang bị tạm khóa' : 'Đăng bài'}
+            onClick={() => {
+              if (user && (user.status === 'SUSPENDED' || user.status === 'BANNED' || user.status === 'BLOCKED' || keywordViolationService.isUserSuspended(user.id))) {
+                setIsSuspendedModalOpen(true);
+              }
+            }}
+            title={user?.status === 'SUSPENDED' ? 'Tài khoản đang bị tạm khóa (Bấm để xem lý do & khiếu nại)' : 'Đăng bài'}
           >
-            {user?.status === 'SUSPENDED' ? 'Tài khoản đang bị tạm khóa' : 'Đăng bài ngay (ACTIVE)'}
+            {user?.status === 'SUSPENDED' ? '⏰ Tài khoản đang bị tạm khóa (Bấm xem)' : 'Đăng bài ngay'}
           </BaseButton>
         </div>
       </form>
@@ -599,6 +799,156 @@ export const CreateListingPage: React.FC = () => {
         onClose={() => setIsSuspendedModalOpen(false)}
         user={user}
       />
+
+      {/* Khung Thông Báo Phạt Quy Chế Dạng Modal Popup */}
+      <PolicyViolationModal
+        isOpen={isViolationModalOpen}
+        onClose={() => setIsViolationModalOpen(false)}
+        violationData={violationAlert}
+        userName={user?.fullName || 'Sinh viên'}
+        karmaScore={user?.karmaScore ?? 0}
+        onOpenSuspendedModal={() => {
+          setIsViolationModalOpen(false);
+          setIsSuspendedModalOpen(true);
+        }}
+      />
+
+      {/* KHUNG XÁC NHẬN ĐĂNG BÀI */}
+      <BaseModal
+        isOpen={showConfirmModal}
+        onClose={() => !isSubmitting && setShowConfirmModal(false)}
+        title="Xác nhận đăng bài"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+              <ShoppingBag className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white">
+                Bạn có xác nhận đăng bài không?
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Vui lòng kiểm tra lại thông tin sản phẩm trước khi đưa lên Chợ Sinh Viên Phenikaa.
+              </p>
+            </div>
+          </div>
+
+          {/* Tóm tắt thông tin bài đăng */}
+          {pendingFormData && (
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="flex items-start gap-3">
+                {pendingFormData.imageUrls[0] ? (
+                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shrink-0">
+                    <img
+                      src={pendingFormData.imageUrls[0]}
+                      alt="Thumbnail"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : videoUrl ? (
+                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shrink-0 flex items-center justify-center text-indigo-500">
+                    <Film className="w-7 h-7" />
+                  </div>
+                ) : null}
+
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/60">
+                    {categories.find((c) => c.id === Number(pendingFormData.categoryId))?.name || 'Danh mục sản phẩm'}
+                  </span>
+                  <h4 className="font-bold text-sm text-slate-900 dark:text-white mt-1 line-clamp-1">
+                    {pendingFormData.title}
+                  </h4>
+                  <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
+                    <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                      {pendingFormData.transactionType === 'GIVEAWAY'
+                        ? 'Tặng miễn phí (0 đ)'
+                        : `${Number(pendingFormData.price).toLocaleString('vi-VN')} đ`}
+                    </span>
+                    <span className="text-slate-400">•</span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      {pendingFormData.imageUrls.length} ảnh {videoUrl ? '+ 1 video' : ''}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {pendingFormData.description && (
+                <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 italic bg-white dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800/60">
+                  "{pendingFormData.description}"
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <BaseButton
+              type="button"
+              variant="outline"
+              disabled={isSubmitting}
+              onClick={() => setShowConfirmModal(false)}
+            >
+              Hủy / Xem lại
+            </BaseButton>
+            <BaseButton
+              type="button"
+              variant="primary"
+              isLoading={isSubmitting}
+              onClick={handleConfirmSubmit}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white"
+            >
+              <Check className="w-4 h-4 mr-1.5 stroke-[2.5]" />
+              Xác nhận đăng bài
+            </BaseButton>
+          </div>
+        </div>
+      </BaseModal>
+
+      {/* KHUNG THÔNG BÁO Ở GÓC MÀN HÌNH: ĐÃ ĐĂNG BÀI THÀNH CÔNG MÀU XANH LÁ + LOGO TRÒN HÌNH TÍCH XANH LÁ Ở ĐẦU */}
+      {showSuccessToast && (
+        <div className="fixed top-6 right-6 z-[9999] max-w-sm sm:max-w-md w-[calc(100vw-3rem)] animate-in slide-in-from-top-4 duration-300">
+          <div className="bg-emerald-600 dark:bg-emerald-700 text-white rounded-2xl p-4 shadow-2xl shadow-emerald-950/40 border-2 border-emerald-400 flex items-start gap-3.5">
+            {/* Logo tròn hình tích xanh lá ở đầu */}
+            <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center shrink-0 shadow-lg shadow-emerald-900/30 ring-4 ring-emerald-400/40">
+              <Check className="w-6 h-6 stroke-[3.5] text-emerald-600" />
+            </div>
+
+            <div className="flex-1 min-w-0 pr-1">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm sm:text-base font-black text-white tracking-tight">
+                  Bạn đã đăng bài thành công
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSuccessToast(false);
+                    navigate('/my-listings');
+                  }}
+                  className="text-emerald-200 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+                  title="Đóng"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-xs text-emerald-100 font-medium mt-1 leading-relaxed">
+                {successToastData?.subtitle || 'Bài đăng của bạn đã được ghi nhận trên hệ thống Chợ Sinh Viên.'}
+              </p>
+
+              <div className="mt-2.5 flex items-center justify-between text-[11px] pt-2 border-t border-emerald-500/50">
+                <span className="px-2 py-0.5 rounded-full bg-white/20 text-white font-bold text-[10px]">
+                  ⏳ Chờ Quản trị viên duyệt
+                </span>
+                <span className="text-emerald-200 text-[10px] italic">
+                  Đang chuyển hướng sang bài đăng của bạn...
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

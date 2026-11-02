@@ -14,6 +14,20 @@ export const formatDate = (dateString: string): string => {
   }).format(new Date(dateString));
 };
 
+export const formatDateTime = (dateString?: string): string => {
+  if (!dateString) return '-';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return dateString;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const day = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  const seconds = pad(d.getSeconds());
+  return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+};
+
 export const maskStudentCode = (code?: string): string => {
   if (!code) return '***';
   if (code.length <= 4) return '****';

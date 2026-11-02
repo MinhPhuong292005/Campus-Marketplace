@@ -10,9 +10,11 @@ import com.ioc.internship.dto.request.RentalProofImagesReq;
 import com.ioc.internship.dto.response.PaginatedRes;
 import com.ioc.internship.dto.response.RentalContractRes;
 import com.ioc.internship.entity.ListingEntity;
+import com.ioc.internship.entity.NotificationEntity;
 import com.ioc.internship.entity.RentalContractEntity;
 import com.ioc.internship.entity.UserEntity;
 import com.ioc.internship.repository.ListingRepository;
+import com.ioc.internship.repository.NotificationRepository;
 import com.ioc.internship.repository.RentalContractRepository;
 import com.ioc.internship.repository.UserRepository;
 import com.ioc.internship.service.RentalContractService;
@@ -37,6 +39,7 @@ public class RentalContractServiceImpl implements RentalContractService {
     private final RentalContractRepository rentalContractRepository;
     private final ListingRepository listingRepository;
     private final UserRepository userRepository;
+    private final NotificationRepository notificationRepository;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -82,6 +85,22 @@ public class RentalContractServiceImpl implements RentalContractService {
 
         RentalContractEntity saved = rentalContractRepository.save(contract);
         log.info("Created rental contract #{} between renter #{} and owner #{}", saved.getId(), renterId, owner.getId());
+
+        // Notify owner about the new rental request
+        try {
+            NotificationEntity ownerNotif = NotificationEntity.builder()
+                    .user(owner)
+                    .title("Yêu cầu thuê mới: " + listing.getTitle())
+                    .message("Bạn " + renter.getFullName() + " vừa gửi yêu cầu thuê món đồ \"" + listing.getTitle() + "\". Vui lòng kiểm tra mục Hợp đồng thuê để xem xét duyệt!")
+                    .type("RENTAL_REQUEST")
+                    .referenceId(saved.getId())
+                    .isRead(false)
+                    .build();
+            notificationRepository.save(ownerNotif);
+        } catch (Exception e) {
+            log.warn("Failed to create rental request notification for owner #{}", owner.getId(), e);
+        }
+
         return mapToRes(saved);
     }
 
@@ -138,6 +157,59 @@ public class RentalContractServiceImpl implements RentalContractService {
 
     @Override
     @Transactional
+    public RentalContractRes approveRentalContract(Long userId, Long contractId) {
+        RentalContractEntity contract = getAuthorizedContract(userId, contractId);
+        if (!contract.getOwner().getId().equals(userId)) {
+            throw new CustomBusinessException(ErrorCodes.FORBIDDEN, HttpStatus.FORBIDDEN, "Chỉ chủ sở hữu món đồ mới có quyền phê duyệt yêu cầu thuê.");
+        }
+        contract.setStatus("APPROVED");
+        RentalContractEntity updated = rentalContractRepository.save(contract);
+        log.info("Owner #{} approved rental contract #{}", userId, contractId);
+
+        try {
+            NotificationEntity renterNotif = NotificationEntity.builder()
+                    .user(contract.getRenter())
+                    .title("Yêu cầu thuê đã được duyệt: " + contract.getListing().getTitle())
+                    .message("Chủ sở hữu " + contract.getOwner().getFullName() + " đã đồng ý cho thuê món đồ \"" + contract.getListing().getTitle() + "\". Hãy liên hệ để hẹn điểm giao nhận đồ!")
+                    .type("RENTAL_APPROVED")
+                    .referenceId(contract.getId())
+                    .isRead(false)
+                    .build();
+            notificationRepository.save(renterNotif);
+        } catch (Exception e) {
+            log.warn("Failed to notify renter on approval", e);
+        }
+
+        return mapToRes(updated);
+    }
+
+    @Override
+    @Transactional
+    public RentalContractRes confirmHandover(Long userId, Long contractId) {
+        RentalContractEntity contract = getAuthorizedContract(userId, contractId);
+        contract.setStatus("ACTIVE");
+        RentalContractEntity updated = rentalContractRepository.save(contract);
+        log.info("Handover confirmed for contract #{}, new status ACTIVE", contractId);
+
+        try {
+            NotificationEntity handoverNotif = NotificationEntity.builder()
+                    .user(contract.getRenter())
+                    .title("Bàn giao đồ thuê thành công: " + contract.getListing().getTitle())
+                    .message("Hai bên đã xác nhận bàn giao đồ thành công. Hợp đồng chuyển sang trạng thái Đang trong thời hạn thuê!")
+                    .type("RENTAL_HANDOVER")
+                    .referenceId(contract.getId())
+                    .isRead(false)
+                    .build();
+            notificationRepository.save(handoverNotif);
+        } catch (Exception e) {
+            log.warn("Failed to notify on handover", e);
+        }
+
+        return mapToRes(updated);
+    }
+
+    @Override
+    @Transactional
     public RentalContractRes confirmReturnAndRefundDeposit(Long userId, Long contractId) {
         RentalContractEntity contract = getAuthorizedContract(userId, contractId);
 
@@ -152,9 +224,42 @@ public class RentalContractServiceImpl implements RentalContractService {
         userRepository.save(renter);
         userRepository.save(owner);
 
+        // Đồ cho thuê (RENT) là tài sản của chủ sở hữu, khi trả xong tự động đưa về ACTIVE để tiếp tục cho thuê lượt kế tiếp
+        ListingEntity listing = contract.getListing();
+        if (listing != null && !"DELETED".equalsIgnoreCase(listing.getStatus())) {
+            listing.setStatus("ACTIVE");
+            listingRepository.save(listing);
+            log.info("Listing #{} reset to ACTIVE ready for next rental", listing.getId());
+        }
+
         RentalContractEntity updated = rentalContractRepository.save(contract);
         log.info("Contract #{} completed return & deposit refunded. +5 Karma awarded to users {} and {}",
                 contractId, renter.getId(), owner.getId());
+
+        try {
+            NotificationEntity renterReturnNotif = NotificationEntity.builder()
+                    .user(renter)
+                    .title("Hoàn tất thuê đồ & Hoàn cọc (+5 Karma): " + contract.getListing().getTitle())
+                    .message("Bạn đã trả lại thiết bị và được hoàn trả 100% tiền cọc an toàn. Bạn được cộng +5 điểm Campus Karma!")
+                    .type("RENTAL_RETURNED")
+                    .referenceId(contract.getId())
+                    .isRead(false)
+                    .build();
+            notificationRepository.save(renterReturnNotif);
+
+            NotificationEntity ownerReturnNotif = NotificationEntity.builder()
+                    .user(owner)
+                    .title("Đã nhận lại đồ cho thuê (+5 Karma): " + contract.getListing().getTitle())
+                    .message("Hợp đồng thuê món đồ \"" + contract.getListing().getTitle() + "\" đã hoàn tất. Bạn được cộng +5 điểm Campus Karma!")
+                    .type("RENTAL_RETURNED")
+                    .referenceId(contract.getId())
+                    .isRead(false)
+                    .build();
+            notificationRepository.save(ownerReturnNotif);
+        } catch (Exception e) {
+            log.warn("Failed to notify on return", e);
+        }
+
         return mapToRes(updated);
     }
 

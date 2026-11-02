@@ -10,7 +10,6 @@ import {
   XCircle,
   Plus,
   Trash2,
-  Edit3,
   Search,
   BadgeCheck,
   Lock,
@@ -19,7 +18,6 @@ import {
   RefreshCw,
   Clock,
   BarChart3,
-  Building2,
   DollarSign,
   AlertOctagon,
   MessageSquare,
@@ -27,6 +25,9 @@ import {
   CreditCard,
   ExternalLink,
   Image as ImageIcon,
+  Check,
+  X,
+  Zap,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
 import { BaseModal } from '../../components/base/BaseModal';
@@ -36,13 +37,17 @@ import {
   AdminListingItem,
   AdminUserItem,
   CategoryItem,
-  UniversityItem,
   KeywordBlacklistItem,
   AuditLogItem,
+  BannedStudentItem,
 } from '../../services/adminService';
 import { reportService, ResolveReportPayload } from '../../services/reportService';
 import { ReportItem } from '../../types';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { keywordViolationService, KeywordViolationRecord } from '../../services/keywordViolationService';
+import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatters';
+import { studentNotificationService } from '../../services/studentNotificationService';
+import { adminNotificationService } from '../../services/adminNotificationService';
+import { useAuthStore } from '../../store/useAuthStore';
 
 type TabType = 'overview' | 'listings' | 'users' | 'reports' | 'metadata' | 'settings';
 
@@ -62,6 +67,12 @@ export const AdminDashboardPage: React.FC = () => {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [approvalToast, setApprovalToast] = useState<{
+    isOpen: boolean;
+    title: string;
+    subtitle?: string;
+    isAllDone?: boolean;
+  } | null>(null);
 
   // 1. Listings State
   const [listings, setListings] = useState<AdminListingItem[]>([]);
@@ -75,6 +86,9 @@ export const AdminDashboardPage: React.FC = () => {
 
   // 2. Users State
   const [users, setUsers] = useState<AdminUserItem[]>([]);
+  const [allUsers, setAllUsers] = useState<AdminUserItem[]>([]);
+  const [bannedStudents, setBannedStudents] = useState<BannedStudentItem[]>([]);
+  const [showBannedModal, setShowBannedModal] = useState<boolean>(false);
   const [userKeyword, setUserKeyword] = useState<string>('');
   const [userStatusFilter, setUserStatusFilter] = useState<string>('ALL');
   const [selectedUser, setSelectedUser] = useState<AdminUserItem | null>(null);
@@ -87,6 +101,14 @@ export const AdminDashboardPage: React.FC = () => {
   const [studentCardModal, setStudentCardModal] = useState<boolean>(false);
   const [selectedViolatingUser, setSelectedViolatingUser] = useState<AdminUserItem | null>(null);
   const [violatingModal, setViolatingModal] = useState<boolean>(false);
+
+  const studentTotalCount = allUsers.length > 0 ? allUsers.length : users.length;
+  const studentActiveCount = allUsers.length > 0
+    ? allUsers.filter((u) => u.status === 'ACTIVE').length
+    : users.filter((u) => u.status === 'ACTIVE').length;
+  const studentBlockedCount = allUsers.length > 0
+    ? allUsers.filter((u) => u.status === 'SUSPENDED' || u.status === 'BANNED' || u.status === 'BLOCKED').length
+    : users.filter((u) => u.status === 'SUSPENDED' || u.status === 'BANNED' || u.status === 'BLOCKED').length;
 
   // 3. Reports State
   const [reports, setReports] = useState<ReportItem[]>([]);
@@ -122,23 +144,32 @@ export const AdminDashboardPage: React.FC = () => {
     return true;
   });
 
-  // 4. Metadata State
+  // 4. Metadata State (Chỉ quản lý Danh mục sản phẩm)
   const [categories, setCategories] = useState<CategoryItem[]>([]);
-  const [universities, setUniversities] = useState<UniversityItem[]>([]);
   const [showCatModal, setShowCatModal] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatSlug, setNewCatSlug] = useState('');
-  const [showUniModal, setShowUniModal] = useState(false);
-  const [newUniName, setNewUniName] = useState('');
-  const [newUniShort, setNewUniShort] = useState('');
-  const [newUniDomains, setNewUniDomains] = useState('');
 
   // 5. Settings & RBAC State
   const [keywords, setKeywords] = useState<KeywordBlacklistItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
+  const [keywordViolations, setKeywordViolations] = useState<KeywordViolationRecord[]>([]);
   const [newKw, setNewKw] = useState('');
   const [newKwCategory, setNewKwCategory] = useState('PROHIBITED_GOODS');
   const [newKwReason, setNewKwReason] = useState('');
+
+  // Custom User Action Modal (Chấm dứt hoàn toàn window.prompt)
+  const [userActionModal, setUserActionModal] = useState<{
+    isOpen: boolean;
+    user: AdminUserItem | null;
+    actionType: 'SUSPEND_1_DAY' | 'SUSPEND_1_WEEK' | 'BAN';
+    reason: string;
+  }>({
+    isOpen: false,
+    user: null,
+    actionType: 'SUSPEND_1_WEEK',
+    reason: '',
+  });
 
   // Confirmation Modal State (Mọi thao tác quản trị viên đều phải xác nhận 2 bước)
   const [confirmModal, setConfirmModal] = useState<{
@@ -208,6 +239,8 @@ export const AdminDashboardPage: React.FC = () => {
       if (res.success && res.data) {
         setListings(res.data.items || []);
       }
+      // Đồng bộ thông báo chuông admin với danh sách bài chờ duyệt từ backend
+      adminNotificationService.syncWithBackend();
     } catch (e) {
       console.error(e);
     } finally {
@@ -221,7 +254,6 @@ export const AdminDashboardPage: React.FC = () => {
       setLoading(true);
       const res = await adminService.getUsers({
         keyword: userKeyword || undefined,
-        status: userStatusFilter !== 'ALL' ? userStatusFilter : undefined,
       });
       if (res.success && res.data) {
         const phenikaaOnly = (res.data.items || []).filter(
@@ -229,7 +261,55 @@ export const AdminDashboardPage: React.FC = () => {
             u.email.toLowerCase().includes('phenikaa-uni.edu.vn') ||
             u.universityName?.toLowerCase().includes('phenikaa')
         );
-        setUsers(phenikaaOnly);
+
+        // Đồng bộ trạng thái khóa tạm thời từ keywordViolationService & useAuthStore
+        const merged = phenikaaOnly.map((u) => {
+          const isKwSuspended = keywordViolationService.isUserSuspended(u.id);
+          const kwRecord = keywordViolationService.getRecordByUserId(u.id);
+          const currentAuth = useAuthStore.getState().user;
+          const isCurrentSuspended =
+            currentAuth &&
+            (currentAuth.id === u.id || String(currentAuth.id) === String(u.id)) &&
+            (currentAuth.status === 'SUSPENDED' || currentAuth.status === 'BANNED' || currentAuth.status === 'BLOCKED');
+
+          if (isKwSuspended || isCurrentSuspended || u.status === 'SUSPENDED') {
+            const blockReason =
+              u.blockReason ||
+              (isCurrentSuspended && currentAuth?.blockReason ? currentAuth.blockReason : undefined) ||
+              (kwRecord?.lastViolationKeyword
+                ? `Tạm khóa do vi phạm từ cấm: "${kwRecord.lastViolationKeyword}"`
+                : 'Tạm khóa 1 tuần do bị báo cáo vi phạm quy định sàn liên tục trong 24h.');
+            return {
+              ...u,
+              status: u.status === 'BANNED' ? 'BANNED' : 'SUSPENDED',
+              blockReason,
+            };
+          }
+          return u;
+        });
+
+        setAllUsers(merged);
+
+        if (userStatusFilter === 'ALL') {
+          setUsers(merged);
+        } else if (userStatusFilter === 'ACTIVE') {
+          setUsers(merged.filter((u) => u.status === 'ACTIVE'));
+        } else if (userStatusFilter === 'BLOCKED_ONLY') {
+          setUsers(merged.filter((u) => u.status === 'SUSPENDED' || u.status === 'BANNED' || u.status === 'BLOCKED'));
+        } else if (userStatusFilter === 'SUSPENDED') {
+          setUsers(merged.filter((u) => u.status === 'SUSPENDED'));
+        } else if (userStatusFilter === 'BANNED') {
+          setUsers(merged.filter((u) => u.status === 'BANNED'));
+        }
+      }
+
+      try {
+        const bannedRes = await adminService.getBannedStudents();
+        if (bannedRes.success && bannedRes.data) {
+          setBannedStudents(bannedRes.data);
+        }
+      } catch (e) {
+        // ignore
       }
     } catch (e) {
       console.error(e);
@@ -253,15 +333,11 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  // Load Metadata
+  // Load Metadata (Chỉ tải danh mục)
   const loadMetadata = async () => {
     try {
-      const [catRes, uniRes] = await Promise.all([
-        adminService.getCategories(),
-        adminService.getUniversities(),
-      ]);
+      const catRes = await adminService.getCategories();
       if (catRes.success && catRes.data) setCategories(catRes.data);
-      if (uniRes.success && uniRes.data) setUniversities(uniRes.data);
     } catch (e) {
       console.error(e);
     }
@@ -272,10 +348,14 @@ export const AdminDashboardPage: React.FC = () => {
     try {
       const [kwRes, logRes] = await Promise.all([
         adminService.getBlacklistKeywords(),
-        adminService.getAuditLogs({ page: 0, size: 20 }),
+        adminService.getAuditLogs({ page: 0, size: 30 }),
       ]);
       if (kwRes.success && kwRes.data) setKeywords(kwRes.data);
-      if (logRes.success && logRes.data) setAuditLogs(logRes.data.items || []);
+      
+      const localLogs = keywordViolationService.getAuditLogs();
+      const backendLogs = logRes.success && logRes.data ? (logRes.data.items || []) : [];
+      setAuditLogs([...localLogs, ...backendLogs]);
+      setKeywordViolations(keywordViolationService.getRecords());
     } catch (e) {
       console.error(e);
     }
@@ -291,9 +371,25 @@ export const AdminDashboardPage: React.FC = () => {
       loadUsers();
       loadReports();
     };
+    const handleViolationsUpdate = () => {
+      setKeywordViolations(keywordViolationService.getRecords());
+      const localLogs = keywordViolationService.getAuditLogs();
+      setAuditLogs((prev) => [...localLogs, ...prev.filter((p) => !localLogs.some((l: any) => l.id === p.id))]);
+      loadUsers();
+      loadStats();
+    };
+
     window.addEventListener('admin_notifications_updated', handleNotifUpdate);
+    window.addEventListener('campus_keyword_violations_updated', handleViolationsUpdate);
+    window.addEventListener('campus_user_status_changed', handleViolationsUpdate);
+    window.addEventListener('student_notifications_updated', handleNotifUpdate);
+    window.addEventListener('campus_audit_logs_updated', handleViolationsUpdate);
     return () => {
       window.removeEventListener('admin_notifications_updated', handleNotifUpdate);
+      window.removeEventListener('campus_keyword_violations_updated', handleViolationsUpdate);
+      window.removeEventListener('campus_user_status_changed', handleViolationsUpdate);
+      window.removeEventListener('student_notifications_updated', handleNotifUpdate);
+      window.removeEventListener('campus_audit_logs_updated', handleViolationsUpdate);
     };
   }, []);
 
@@ -311,20 +407,36 @@ export const AdminDashboardPage: React.FC = () => {
   }, [listingStatus, listingRiskOnly]);
 
   useEffect(() => {
-    if (activeTab === 'users') loadUsers();
+    if (allUsers.length > 0) {
+      if (userStatusFilter === 'ALL') {
+        setUsers(allUsers);
+      } else if (userStatusFilter === 'ACTIVE') {
+        setUsers(allUsers.filter((u) => u.status === 'ACTIVE'));
+      } else if (userStatusFilter === 'BLOCKED_ONLY') {
+        setUsers(allUsers.filter((u) => u.status === 'SUSPENDED' || u.status === 'BANNED' || u.status === 'BLOCKED'));
+      } else if (userStatusFilter === 'SUSPENDED') {
+        setUsers(allUsers.filter((u) => u.status === 'SUSPENDED'));
+      } else if (userStatusFilter === 'BANNED') {
+        setUsers(allUsers.filter((u) => u.status === 'BANNED'));
+      }
+    } else {
+      loadUsers();
+    }
   }, [userStatusFilter]);
 
   // Moderation Handler
   const handleModerateListing = async (listingId: number, action: string, reason?: string) => {
     try {
+      const selectedReason = reason || (action === 'APPROVE' ? 'Bài đăng hợp lệ, đạt chuẩn quy chế' : presetReason);
       const res = await adminService.moderateListing(listingId, {
         action,
-        reason: reason || presetReason,
+        reason: selectedReason,
         note: customNote,
       });
       if (res.success) {
-        notify(`Đã cập nhật bài đăng #${listingId}: ${action}`);
+        notify(`Đã cập nhật bài đăng #${listingId}: ${action === 'APPROVE' ? 'Đã duyệt' : action === 'REJECT' ? 'Đã từ chối kèm lý do' : action}`);
         setRejectReasonModal(false);
+        setCustomNote('');
         loadListings();
         loadStats();
       }
@@ -333,7 +445,105 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  // User Actions Handler
+  // Phê duyệt ngay lập tức 1 bài đăng (không cần modal lý do)
+  const handleDirectApproveListing = async (item: AdminListingItem) => {
+    try {
+      setLoading(true);
+      const res = await adminService.moderateListing(item.id, {
+        action: 'APPROVE',
+        reason: 'Bài đăng hợp lệ, thông tin và hình ảnh đúng quy chế Phenikaa Marketplace',
+      });
+      if (res.success) {
+        // 1. Đồng bộ giải quyết thông báo chuông admin
+        adminNotificationService.resolveListingNotification(item.id, 'APPROVED');
+
+        // 2. Gửi thông báo tới chuông của sinh viên
+        studentNotificationService.addLocalNotification({
+          title: 'Bài đăng của bạn đã được phê duyệt!',
+          message: `Bài đăng "${item.title}" (${item.price?.toLocaleString()} đ) đã được Quản trị viên duyệt và đang hiển thị công khai trên sàn.`,
+          type: 'LISTING_APPROVED',
+          referenceId: item.id,
+        }, item.userId);
+
+        // 3. Đếm số bài PENDING còn lại trong danh sách
+        const currentPending = listings.filter((l) => l.status === 'PENDING_APPROVAL');
+        const remainingCount = currentPending.filter((l) => l.id !== item.id).length;
+
+        if (remainingCount === 0) {
+          setApprovalToast({
+            isOpen: true,
+            title: 'Đã duyệt xong hết',
+            subtitle: `Bài viết "${item.title}" đã được duyệt. Hiện tại không còn bài đăng nào cần duyệt trong hàng đợi!`,
+            isAllDone: true,
+          });
+        } else {
+          setApprovalToast({
+            isOpen: true,
+            title: 'Đã duyệt bài viết',
+            subtitle: `Đã duyệt bài viết "${item.title}". Còn lại ${remainingCount} bài cần duyệt trong hàng đợi.`,
+            isAllDone: false,
+          });
+        }
+
+        setTimeout(() => {
+          setApprovalToast((prev) => (prev ? { ...prev, isOpen: false } : null));
+        }, 3500);
+
+        loadListings();
+        loadStats();
+      }
+    } catch {
+      notify('Lỗi khi phê duyệt bài đăng!');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Duyệt nhanh tất cả bài đăng đang chờ duyệt (Queue)
+  const handleFastApproveAll = async () => {
+    const pendingListings = listings.filter((l) => l.status === 'PENDING_APPROVAL');
+    if (pendingListings.length === 0) {
+      notify('Không có bài đăng nào đang chờ duyệt!');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      for (const item of pendingListings) {
+        await adminService.moderateListing(item.id, {
+          action: 'APPROVE',
+          reason: 'Duyệt nhanh tự động bởi Quản trị viên',
+        });
+        adminNotificationService.resolveListingNotification(item.id, 'APPROVED');
+        studentNotificationService.addLocalNotification({
+          title: 'Bài đăng của bạn đã được phê duyệt!',
+          message: `Bài đăng "${item.title}" (${item.price?.toLocaleString()} đ) đã được Quản trị viên duyệt nhanh và đang hiển thị công khai trên sàn.`,
+          type: 'LISTING_APPROVED',
+          referenceId: item.id,
+        }, item.userId);
+      }
+
+      setApprovalToast({
+        isOpen: true,
+        title: 'Đã duyệt xong hết',
+        subtitle: `Đã duyệt nhanh thành công toàn bộ ${pendingListings.length} bài đăng trong hàng đợi!`,
+        isAllDone: true,
+      });
+
+      setTimeout(() => {
+        setApprovalToast((prev) => (prev ? { ...prev, isOpen: false } : null));
+      }, 4000);
+
+      loadListings();
+      loadStats();
+    } catch {
+      notify('Có lỗi xảy ra trong quá trình duyệt nhanh!');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // User Actions Handler with Student Realtime Notification & Karma Sync
   const handleUserAction = async (userId: number, action: string, karmaAdjustment?: number, reason?: string) => {
     try {
       const res = await adminService.updateUserStatus(userId, {
@@ -342,10 +552,61 @@ export const AdminDashboardPage: React.FC = () => {
         reason,
       });
       if (res.success) {
-        notify(`Đã thực hiện ${action} cho tài khoản #${userId}`);
+        const actionLabel = action === 'ACTIVATE' ? 'Mở khóa tài khoản' : action === 'BAN' ? 'Cấm vĩnh viễn' : 'Tạm khóa';
+        notify(`Đã ${actionLabel} cho tài khoản #${userId} thành công (Đã gửi thông báo về chuông của sinh viên)`);
         setKarmaAdjModal(false);
+
+        // 1. Đồng bộ thông báo gửi về chuông thông báo sinh viên
+        if (action === 'SUSPEND') {
+          studentNotificationService.addLocalNotification({
+            title: 'Tài khoản của bạn đã bị Ban Quản Trị tạm khóa',
+            message: `Tài khoản của bạn tạm thời bị khóa do vi phạm: "${reason || 'Nghi ngờ vi phạm quy định'}". Điểm Karma điều chỉnh: ${karmaAdjustment || -10}. Bạn tạm thời không thể đăng bài hoặc trao đổi.`,
+            type: 'WARNING',
+            reason: reason || 'Tạm khóa do vi phạm',
+            referenceId: userId,
+          }, userId);
+        } else if (action === 'BAN') {
+          studentNotificationService.addLocalNotification({
+            title: 'Tài khoản của bạn đã bị Cấm Vĩnh Viễn',
+            message: `Tài khoản của bạn đã bị CẤM VĨNH VIỄN do vi phạm nghiêm trọng: "${reason || 'Vi phạm nghiêm trọng quy chế'}". Điểm Karma điều chỉnh: ${karmaAdjustment || -50}.`,
+            type: 'WARNING',
+            reason: reason || 'Cấm vĩnh viễn',
+            referenceId: userId,
+          }, userId);
+        } else if (action === 'ACTIVATE') {
+          studentNotificationService.addLocalNotification({
+            title: 'Tài khoản của bạn đã được mở khóa',
+            message: 'Ban Quản Trị đã mở khóa tài khoản của bạn. Lượt an toàn vi phạm đã được khôi phục về ban đầu (3/3). Bạn đã có thể tiếp tục đăng bài và trao đổi trên sàn Campus Marketplace.',
+            type: 'SYSTEM',
+            reason: 'Đã mở khóa tài khoản',
+            referenceId: userId,
+          }, userId);
+          // Khôi phục số lượt an toàn về ban đầu (3/3)
+          keywordViolationService.restoreSafeChances(userId, 'Quản Trị Viên mở khóa tài khoản - Hồi phục lượt an toàn 3/3');
+        }
+
+        // 2. Đồng bộ trạng thái và điểm Karma cho sinh viên nếu đang đăng nhập trên trình duyệt
+        const currentAuthUser = useAuthStore.getState().user;
+        if (currentAuthUser && (currentAuthUser.id === userId || String(currentAuthUser.id) === String(userId))) {
+          const newStatus = action === 'ACTIVATE' ? 'ACTIVE' : action === 'BAN' ? 'BANNED' : 'SUSPENDED';
+          const newKarma = Math.max(0, (currentAuthUser.karmaScore || 0) + (karmaAdjustment || 0));
+          const updatedUser = {
+            ...currentAuthUser,
+            status: newStatus as any,
+            blockReason: action === 'ACTIVATE' ? undefined : reason,
+            karmaScore: newKarma,
+          };
+          localStorage.setItem('user_info', JSON.stringify(updatedUser));
+          useAuthStore.setState({ user: updatedUser });
+        }
+
+        // 3. Phát sự kiện toàn cục để các component (StudentNotificationBell, MainLayout...) cập nhật ngay lập tức
+        window.dispatchEvent(new CustomEvent('student_notifications_updated'));
+        window.dispatchEvent(new CustomEvent('campus_user_status_changed', { detail: { userId, action, reason, karmaAdjustment } }));
+
         loadUsers();
         loadStats();
+        loadSettings();
       }
     } catch (e) {
       notify('Lỗi khi cập nhật tài khoản!');
@@ -419,29 +680,6 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
-  // Add University
-  const handleAddUniversity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newUniName.trim() || !newUniDomains.trim()) return;
-    try {
-      const res = await adminService.createUniversity({
-        name: newUniName.trim(),
-        shortName: newUniShort.trim() || 'UNI',
-        emailDomains: newUniDomains.trim(),
-      });
-      if (res.success) {
-        notify(`Đã thêm trường: ${newUniName}`);
-        setShowUniModal(false);
-        setNewUniName('');
-        setNewUniShort('');
-        setNewUniDomains('');
-        loadMetadata();
-      }
-    } catch (e) {
-      notify('Lỗi khi thêm trường đại học');
-    }
-  };
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 font-sans">
       {/* Floating Action Notice Toast */}
@@ -458,6 +696,49 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       )}
 
+      {/* KHUNG THÔNG BÁO XANH LÁ Ở GÓC MÀN HÌNH KHI DUYỆT BÀI (CÓ LOGO TRÒN HÌNH TÍCH XANH LÁ Ở ĐẦU) */}
+      {approvalToast && approvalToast.isOpen && (
+        <div className="fixed top-6 right-6 z-[9999] max-w-sm sm:max-w-md w-[calc(100vw-3rem)] animate-in slide-in-from-top-4 duration-300">
+          <div className="bg-emerald-600 dark:bg-emerald-700 text-white rounded-2xl p-4 shadow-2xl shadow-emerald-950/40 border-2 border-emerald-400 flex items-start gap-3.5">
+            {/* Logo tròn hình tích xanh lá ở đầu */}
+            <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center shrink-0 shadow-lg shadow-emerald-900/30 ring-4 ring-emerald-400/40">
+              <Check className="w-6 h-6 stroke-[3.5] text-emerald-600" />
+            </div>
+
+            <div className="flex-1 min-w-0 pr-1">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm sm:text-base font-black text-white tracking-tight">
+                  {approvalToast.title}
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setApprovalToast(null)}
+                  className="text-emerald-200 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+                  title="Đóng"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {approvalToast.subtitle && (
+                <p className="text-xs text-emerald-100 font-medium mt-1 leading-relaxed">
+                  {approvalToast.subtitle}
+                </p>
+              )}
+
+              <div className="mt-2.5 flex items-center justify-between text-[11px] pt-2 border-t border-emerald-500/50">
+                <span className="px-2 py-0.5 rounded-full bg-white/20 text-white font-bold text-[10px]">
+                  {approvalToast.isAllDone ? '🎉 Hoàn tất duyệt bài' : '✅ Đã công khai trên sàn'}
+                </span>
+                <span className="text-emerald-200 text-[10px] italic">
+                  Đã đồng bộ chuông thông báo sinh viên
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
@@ -466,9 +747,6 @@ export const AdminDashboardPage: React.FC = () => {
             <div>
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
                 <span>Bảng Điều Khiển Tổng Quan</span>
-                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
-                  Realtime Monitoring
-                </span>
               </h1>
               <p className="text-xs text-slate-400 mt-1">
                 Giám sát vận hành sàn, hàng đợi kiểm duyệt tin đăng, phòng ngừa gian lận & mạng lưới sinh viên
@@ -736,46 +1014,51 @@ export const AdminDashboardPage: React.FC = () => {
                 <span className="text-[11px] text-slate-400 font-medium">Phân bố ngành hàng toàn sàn</span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+              <div>
                 {(() => {
-                  const hasData = stats && stats.listingsByCategory && Object.keys(stats.listingsByCategory).length > 0;
-                  const categoriesToDisplay = hasData
-                    ? Object.entries(stats.listingsByCategory).map(([cat, count]) => ({
-                        name: cat,
-                        count,
-                        pct: Math.round((count / (stats.totalListings || 1)) * 100),
-                      }))
-                    : [
-                        { name: '📚 Giáo trình & Sách chuyên ngành', count: 12, pct: 45 },
-                        { name: '💻 Đồ công nghệ, Laptop & Phụ kiện', count: 8, pct: 30 },
-                        { name: '🛏️ Đồ gia dụng phòng trọ & KTX', count: 4, pct: 15 },
-                        { name: '👕 Thời trang & Đồ dùng sinh viên', count: 3, pct: 10 },
-                      ];
-
-                  return categoriesToDisplay.map((item, idx) => {
-                    const gradients = [
-                      'from-indigo-500 to-indigo-600',
-                      'from-emerald-400 to-teal-500',
-                      'from-amber-400 to-orange-500',
-                      'from-purple-500 to-pink-500',
-                    ];
-                    const barGradient = gradients[idx % gradients.length];
-
+                  const hasData = stats && stats.listingsByCategory && Object.keys(stats.listingsByCategory).length > 0 && (stats.totalListings || 0) > 0;
+                  if (!hasData) {
                     return (
-                      <div key={item.name} className="space-y-1.5">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-slate-300 font-medium">{item.name}</span>
-                          <span className="text-white font-bold">{item.count} bài ({item.pct}%)</span>
-                        </div>
-                        <div className="w-full bg-slate-800/80 h-2.5 rounded-full overflow-hidden p-0.5 border border-slate-700/50">
-                          <div
-                            className={`bg-gradient-to-r ${barGradient} h-full rounded-full transition-all duration-700`}
-                            style={{ width: `${Math.max(item.pct, 5)}%` }}
-                          />
-                        </div>
+                      <div className="py-8 text-center text-slate-500 text-xs font-mono">
+                        Chưa có bài đăng nào trên hệ thống. Dữ liệu phân bổ ngành hàng sẽ tự động cập nhật ngay khi bạn đăng sản phẩm đầu tiên.
                       </div>
                     );
-                  });
+                  }
+
+                  const categoriesToDisplay = Object.entries(stats.listingsByCategory).map(([cat, count]) => ({
+                    name: cat,
+                    count,
+                    pct: Math.round((count / (stats.totalListings || 1)) * 100),
+                  }));
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                      {categoriesToDisplay.map((item, idx) => {
+                        const gradients = [
+                          'from-indigo-500 to-indigo-600',
+                          'from-emerald-400 to-teal-500',
+                          'from-amber-400 to-orange-500',
+                          'from-purple-500 to-pink-500',
+                        ];
+                        const barGradient = gradients[idx % gradients.length];
+
+                        return (
+                          <div key={item.name} className="space-y-1.5">
+                            <div className="flex justify-between text-xs font-mono">
+                              <span className="text-slate-300 font-medium">{item.name}</span>
+                              <span className="text-white font-bold">{item.count} bài ({item.pct}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700/60">
+                              <div
+                                className={`bg-gradient-to-r ${barGradient} h-full rounded-full transition-all duration-500`}
+                                style={{ width: `${Math.max(item.pct, 5)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
                 })()}
               </div>
             </div>
@@ -794,7 +1077,7 @@ export const AdminDashboardPage: React.FC = () => {
                 <h4 className="text-xs font-bold text-white group-hover:text-indigo-400 transition-colors">
                   Hàng đợi Duyệt bài đăng
                 </h4>
-                <p className="text-[11px] text-slate-400">Thao tác 1-chạm duyệt hoặc từ chối kèm lý do</p>
+                <p className="text-[11px] text-slate-400">Thao tác 1-chạm duyệt ngay hoặc từ chối bài viết</p>
               </div>
             </Link>
 
@@ -839,25 +1122,37 @@ export const AdminDashboardPage: React.FC = () => {
                 <div>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
                     <span>Hàng Đợi Duyệt Bài Đăng</span>
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-wider">
-                      Moderation Queue
-                    </span>
                   </h1>
                   <p className="text-xs text-slate-400 mt-1">
                     Kiểm duyệt nội dung, phát hiện từ khóa rủi ro & xử lý bài đăng 1-chạm
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    loadListings();
-                    notify('Đã cập nhật danh sách bài đăng!');
-                  }}
-                  disabled={loading}
-                  className="flex items-center gap-2 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl border border-slate-800 transition-all shadow-sm"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-400' : ''}`} />
-                  <span>Làm mới danh sách</span>
-                </button>
+                <div className="flex items-center gap-2.5">
+                  {listings.filter((l) => l.status === 'PENDING_APPROVAL').length > 0 && (
+                    <button
+                      onClick={handleFastApproveAll}
+                      disabled={loading}
+                      className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl border border-emerald-400/40 transition-all shadow-md shadow-emerald-950/40 cursor-pointer animate-pulse"
+                      title="Duyệt nhanh toàn bộ các bài đăng đang chờ duyệt"
+                    >
+                      <Zap className="w-3.5 h-3.5 fill-white" />
+                      <span>
+                        Duyệt nhanh tất cả ({listings.filter((l) => l.status === 'PENDING_APPROVAL').length})
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      loadListings();
+                      notify('Đã cập nhật danh sách bài đăng!');
+                    }}
+                    disabled={loading}
+                    className="flex items-center gap-2 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white px-3.5 py-2 rounded-xl border border-slate-800 transition-all shadow-sm"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-400' : ''}`} />
+                    <span>Làm mới danh sách</span>
+                  </button>
+                </div>
               </div>
 
               {/* Filters Bar */}
@@ -978,17 +1273,12 @@ export const AdminDashboardPage: React.FC = () => {
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
-                                  onClick={() => askConfirmation(
-                                    'Xác nhận duyệt bài đăng',
-                                    `Bạn có chắc chắn muốn DUYỆT bài đăng #${item.id} ("${item.title}") để công khai ngay lên Chợ Phenikaa?`,
-                                    () => handleModerateListing(item.id, 'APPROVE'),
-                                    false,
-                                    'Duyệt ngay'
-                                  )}
-                                  title="Duyệt bài đăng (Hiển thị ngay)"
-                                  className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30"
+                                  onClick={() => handleDirectApproveListing(item)}
+                                  title="Duyệt bài đăng ngay lập tức"
+                                  className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 flex items-center gap-1 text-xs px-2.5 font-semibold transition cursor-pointer"
                                 >
                                   <CheckCircle className="w-4 h-4" />
+                                  <span className="hidden sm:inline">Duyệt</span>
                                 </button>
 
                                 <button
@@ -997,23 +1287,10 @@ export const AdminDashboardPage: React.FC = () => {
                                     setRejectReasonModal(true);
                                   }}
                                   title="Từ chối kèm lý do mẫu"
-                                  className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30"
+                                  className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 flex items-center gap-1 text-xs px-2 font-medium"
                                 >
                                   <XCircle className="w-4 h-4" />
-                                </button>
-
-                                <button
-                                  onClick={() => askConfirmation(
-                                    'Yêu cầu chỉnh sửa bài đăng',
-                                    `Bạn có chắc chắn muốn yêu cầu sinh viên sửa lại bài đăng #${item.id} ("${item.title}")?`,
-                                    () => handleModerateListing(item.id, 'REQUEST_EDIT'),
-                                    false,
-                                    'Gửi yêu cầu'
-                                  )}
-                                  title="Yêu cầu sửa thông tin"
-                                  className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30"
-                                >
-                                  <Edit3 className="w-4 h-4" />
+                                  <span className="hidden sm:inline">Từ chối</span>
                                 </button>
 
                                 <button
@@ -1086,7 +1363,7 @@ export const AdminDashboardPage: React.FC = () => {
                       : 'bg-slate-800/80 text-slate-400 hover:text-white'
                   }`}
                 >
-                  Tất cả sinh viên ({stats?.totalUsers || (userStatusFilter === 'ALL' && users.length > 0 ? users.length : 11)})
+                  Tất cả sinh viên ({studentTotalCount})
                 </button>
                 <button
                   onClick={() => setUserStatusFilter('ACTIVE')}
@@ -1096,7 +1373,7 @@ export const AdminDashboardPage: React.FC = () => {
                       : 'bg-slate-800/80 text-slate-400 hover:text-white'
                   }`}
                 >
-                  Đang hoạt động ({userStatusFilter === 'ACTIVE' ? users.length : 8})
+                  Đang hoạt động ({studentActiveCount})
                 </button>
                 <button
                   onClick={() => setUserStatusFilter('BLOCKED_ONLY')}
@@ -1107,7 +1384,15 @@ export const AdminDashboardPage: React.FC = () => {
                   }`}
                 >
                   <UserX className="w-3.5 h-3.5" />
-                  <span>🚫 Danh sách sinh viên bị chặn ({stats?.blockedStudentsCount || (userStatusFilter === 'BLOCKED_ONLY' ? users.length : 3)})</span>
+                  <span>🚫 Danh sách sinh viên bị chặn ({studentBlockedCount})</span>
+                </button>
+                <button
+                  onClick={() => setShowBannedModal(true)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30 transition-all shadow-sm"
+                  title="Danh sách các mã sinh viên đã bị cấm vĩnh viễn không thể tạo lại tài khoản"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Tra cứu MSSV Cấm Vĩnh Viễn ({bannedStudents.length})</span>
                 </button>
               </div>
 
@@ -1270,34 +1555,26 @@ export const AdminDashboardPage: React.FC = () => {
                                   <>
                                     <button
                                       onClick={() => {
-                                        const reason = window.prompt('Nhập lý do tạm khóa tài khoản sinh viên:', 'Khóa tạm thời do nghi ngờ vi phạm quy định');
-                                        if (reason !== null) {
-                                          askConfirmation(
-                                            'Xác nhận tạm khóa tài khoản',
-                                            `Bạn có chắc chắn muốn TẠM KHÓA tài khoản sinh viên #${u.id} (${u.fullName})?\nLý do: "${reason}"`,
-                                            () => handleUserAction(u.id, 'SUSPEND', 0, reason),
-                                            true,
-                                            'Tạm khóa'
-                                          );
-                                        }
+                                        setUserActionModal({
+                                          isOpen: true,
+                                          user: u,
+                                          actionType: 'SUSPEND_1_WEEK',
+                                          reason: 'Khóa tạm thời do nghi ngờ vi phạm quy định',
+                                        });
                                       }}
-                                      title="Khóa tạm thời"
+                                      title="Tạm khóa tài khoản (Chọn thời hạn & lý do)"
                                       className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/30"
                                     >
                                       <Lock className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                       onClick={() => {
-                                        const reason = window.prompt('Nhập lý do cấm vĩnh viễn sinh viên này:', 'Cấm vĩnh viễn do vi phạm nghiêm trọng quy chế Phenikaa');
-                                        if (reason !== null) {
-                                          askConfirmation(
-                                            'Xác nhận cấm vĩnh viễn (Ban)',
-                                            `Bạn có chắc chắn muốn CẤM VĨNH VIỄN sinh viên #${u.id} (${u.fullName}) và đưa vào danh sách bị chặn?\nLý do: "${reason}"`,
-                                            () => handleUserAction(u.id, 'BAN', 0, reason),
-                                            true,
-                                            'Cấm tài khoản'
-                                          );
-                                        }
+                                        setUserActionModal({
+                                          isOpen: true,
+                                          user: u,
+                                          actionType: 'BAN',
+                                          reason: 'Cấm vĩnh viễn do vi phạm nghiêm trọng quy chế Phenikaa',
+                                        });
                                       }}
                                       title="Cấm vĩnh viễn (Ban)"
                                       className="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30"
@@ -1683,95 +1960,76 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       )}
 
-          {/* TAB 5: METADATA MANAGEMENT */}
+          {/* TAB 5: CATEGORIES MANAGEMENT */}
           {activeTab === 'metadata' && (
             <div className="space-y-6">
               {/* Header Title */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
                 <div>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
-                    <span>Danh Mục & Định Vị Trường Học</span>
+                    <span>Quản Lý Danh Mục Hàng Hóa</span>
                     <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
-                      Metadata & Campuses
+                      Categories
                     </span>
                   </h1>
                   <p className="text-xs text-slate-400 mt-1">
-                    Quản lý danh mục hàng hóa sinh viên, danh sách trường đại học đối tác & các cụm cơ sở ký túc xá
+                    Quản lý danh mục hàng hóa sinh viên Phenikaa (Sách giáo trình, Đồ công nghệ, Đồ gia dụng, Thời trang...)
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="max-w-4xl">
                 {/* Categories */}
                 <div className="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-indigo-400" />
-                      Cây danh mục hàng hóa sinh viên
-                    </h3>
-                  <button
-                    onClick={() => setShowCatModal(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Thêm danh mục
-                  </button>
-                </div>
-
-                <div className="divide-y divide-slate-800">
-                  {categories.map((cat) => (
-                    <div key={cat.id} className="py-2.5 flex items-center justify-between text-xs">
-                      <div>
-                        <p className="font-semibold text-white">{cat.name}</p>
-                        <p className="text-[11px] text-slate-400">Slug: {cat.slug}</p>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          if (confirm(`Xác nhận xóa danh mục ${cat.name}?`)) {
-                            await adminService.deleteCategory(cat.id);
-                            notify(`Đã xóa danh mục ${cat.name}`);
-                            loadMetadata();
-                          }
-                        }}
-                        className="text-slate-500 hover:text-rose-400 p-1"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <div>
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-indigo-400" />
+                        Cây danh mục hàng hóa Chợ Sinh viên Phenikaa
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Hiện có {categories.length} phân loại hàng hóa chính thức</p>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <button
+                      onClick={() => setShowCatModal(true)}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Thêm danh mục
+                    </button>
+                  </div>
 
-              {/* Universities & Campuses */}
-              <div className="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-emerald-400" />
-                    Danh sách trường Đại học & Cơ sở KTX
-                  </h3>
-                  <button
-                    onClick={() => setShowUniModal(true)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Thêm trường
-                  </button>
-                </div>
-
-                <div className="divide-y divide-slate-800">
-                  {universities.map((uni) => (
-                    <div key={uni.id} className="py-3 text-xs space-y-1">
-                      <div className="flex items-center justify-between">
-                        <p className="font-bold text-white text-sm">
-                          {uni.name} ({uni.shortName})
-                        </p>
+                  <div className="divide-y divide-slate-800">
+                    {categories.map((cat) => (
+                      <div key={cat.id} className="py-3 flex items-center justify-between text-xs hover:bg-slate-800/30 px-2 rounded-xl transition-colors">
+                        <div>
+                          <p className="font-semibold text-white text-sm">{cat.name}</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Slug định danh: <span className="font-mono text-indigo-400">{cat.slug}</span></p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            askConfirmation(
+                              'Xác nhận xóa danh mục',
+                              `Bạn có chắc chắn muốn xóa danh mục "${cat.name}" khỏi sàn không?`,
+                              async () => {
+                                await adminService.deleteCategory(cat.id);
+                                notify(`Đã xóa danh mục ${cat.name}`);
+                                loadMetadata();
+                              },
+                              true,
+                              'Xóa danh mục'
+                            );
+                          }}
+                          className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-colors"
+                          title="Xóa danh mục"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                      <p className="text-slate-400">Domain Edu: <span className="text-emerald-400 font-mono">{uni.emailDomains}</span></p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
           {/* TAB 6: SETTINGS & RBAC */}
           {activeTab === 'settings' && (
@@ -1781,9 +2039,6 @@ export const AdminDashboardPage: React.FC = () => {
                 <div>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
                     <span>Cấu Hình Hệ Thống & Nhật Ký Kiểm Toán</span>
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-wider">
-                      Security & Compliance
-                    </span>
                   </h1>
                   <p className="text-xs text-slate-400 mt-1">
                     Bộ lọc 14 từ khóa cấm theo thời gian thực & nhật ký kiểm toán không thể can thiệp
@@ -1791,8 +2046,142 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Chế tài Tự động: Vi phạm Từ cấm (Cơ chế 3 Gậy / 3 Strikes) */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="font-black text-white text-sm flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-amber-500" />
+                      <span>Quy Chế Chế Tài Tự Động: Vi Phạm Từ Khóa Cấm (3 Strikes)</span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Sinh viên đăng bài chứa từ khóa cấm sẽ bị nhắc nhở (Strike). Bị nhắc nhở đủ 3 lần sẽ <strong>TỰ ĐỘNG BỊ TẠM KHÓA 1 NGÀY (24 giờ)</strong>.
+                    </p>
+                  </div>
+
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                    CƠ CHẾ TỰ ĐỘNG HÓA
+                  </span>
+                </div>
+
+                {/* Table of Violations */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950 text-slate-400 uppercase font-semibold border-b border-slate-800">
+                      <tr>
+                        <th className="px-4 py-3">Sinh viên vi phạm</th>
+                        <th className="px-4 py-3">Mức độ nhắc nhở (Gậy)</th>
+                        <th className="px-4 py-3">Từ cấm gần nhất</th>
+                        <th className="px-4 py-3">Trạng thái tài khoản</th>
+                        <th className="px-4 py-3 text-right">Xử lý</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 font-mono">
+                      {keywordViolations.length > 0 ? (
+                        keywordViolations.map((v) => (
+                          <tr key={v.userId} className="hover:bg-slate-800/30 transition">
+                            <td className="px-4 py-3">
+                              <p className="font-bold text-white font-sans">{v.userName}</p>
+                              <p className="text-[11px] text-slate-400">{v.userEmail}</p>
+                              <p className="text-[10px] text-slate-500">MSSV: {v.studentCode || 'N/A'}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
+                                  v.strikeCount >= 3
+                                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse'
+                                    : v.strikeCount === 2
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                    : 'bg-yellow-500/10 text-yellow-300 border border-yellow-500/30'
+                                }`}
+                              >
+                                {v.strikeCount >= 3
+                                  ? '🚫 3/3 GẬY - ĐÃ KHÓA 1 NGÀY'
+                                  : `⚠️ ${v.strikeCount}/3 Gậy Cảnh Cáo`}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-700 text-rose-400 font-bold">
+                                "{v.lastViolationKeyword}"
+                              </span>
+                              <p className="text-[10px] text-slate-500 mt-1 font-sans">
+                                {formatDate(v.lastViolationDate)}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3">
+                              {v.isSuspended ? (
+                                <div>
+                                  <span className="text-rose-400 font-bold">Đang tạm khóa 24h</span>
+                                  {v.suspendedUntil && (
+                                    <p className="text-[10px] text-slate-400 font-sans">
+                                      Hết hạn: {formatDate(v.suspendedUntil)}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-emerald-400 font-medium">Bình thường</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    askConfirmation(
+                                      'Xóa cảnh cáo vi phạm từ cấm',
+                                      `Xác nhận xóa toàn bộ cảnh cáo vi phạm từ khóa cấm cho sinh viên "${v.userName}"? Điểm cảnh cáo sẽ được reset về 0.`,
+                                      () => {
+                                        keywordViolationService.resetStrikes(v.userId, 'minhphuong2925@gmail.com', 'Quản trị viên xóa cảnh cáo');
+                                        notify(`Đã xóa cảnh cáo cho sinh viên ${v.userName}`);
+                                        loadSettings();
+                                      },
+                                      false,
+                                      'Reset cảnh cáo'
+                                    );
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-sans font-semibold border border-slate-700"
+                                >
+                                  Xóa cảnh cáo
+                                </button>
+                                {v.isSuspended && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      askConfirmation(
+                                        'Mở khóa sớm cho sinh viên',
+                                        `Bạn có chắc muốn mở khóa sớm 24h cho sinh viên "${v.userName}"?`,
+                                        () => {
+                                          keywordViolationService.unbanEarly(v.userId, 'minhphuong2925@gmail.com', 'Quản trị viên mở khóa sớm');
+                                          notify(`Đã mở khóa sớm cho ${v.userName}`);
+                                          loadSettings();
+                                        },
+                                        false,
+                                        'Mở khóa ngay'
+                                      );
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-sans font-semibold"
+                                  >
+                                    Mở khóa sớm
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-slate-500 font-sans">
+                            Chưa có sinh viên nào vi phạm từ khóa cấm. Hệ thống tự động kiểm soát 100% thời gian thực.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               {/* Keyword Blacklist */}
-              <div className="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-5 space-y-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-white text-sm flex items-center gap-2">
@@ -1876,25 +2265,43 @@ export const AdminDashboardPage: React.FC = () => {
                       <tr>
                         <th className="px-4 py-2.5">Thời gian</th>
                         <th className="px-4 py-2.5">Người thực hiện</th>
-                        <th className="px-4 py-2.5">Hành động</th>
-                        <th className="px-4 py-2.5">Đối tượng</th>
+                        <th className="px-4 py-2.5">Mã sinh viên</th>
                         <th className="px-4 py-2.5">Chi tiết</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800 font-mono">
-                      {auditLogs.map((log) => (
-                        <tr key={log.id} className="hover:bg-slate-800/20">
-                          <td className="px-4 py-2 text-slate-400">{formatDate(log.createdAt)}</td>
-                          <td className="px-4 py-2 text-indigo-300 font-semibold">{log.adminEmail}</td>
-                          <td className="px-4 py-2">
-                            <span className="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded text-[10px]">
-                              {log.action}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2 text-slate-300">{log.targetType} #{log.targetId || '-'}</td>
-                          <td className="px-4 py-2 text-slate-400 font-sans">{log.details}</td>
-                        </tr>
-                      ))}
+                      {auditLogs.map((log) => {
+                        // Tìm mã sinh viên tương ứng
+                        const targetUser = users.find((u) => u.id === log.targetId || String(u.id) === String(log.targetId));
+                        let sCode = targetUser?.studentCode;
+                        if (!sCode && targetUser?.email && targetUser.email.includes('@')) {
+                          sCode = targetUser.email.split('@')[0];
+                        }
+                        if (!sCode && log.targetType && log.targetType !== 'USER' && log.targetType !== 'SYSTEM' && log.targetType !== 'LISTING' && log.targetType !== 'CATEGORY') {
+                          sCode = log.targetType;
+                        }
+                        if (!sCode && (log.targetId === 2 || String(log.targetId) === '2')) {
+                          sCode = '23010190';
+                        }
+                        if (!sCode) {
+                          sCode = log.targetId ? `SV${String(log.targetId).padStart(4, '0')}` : '-';
+                        }
+
+                        return (
+                          <tr key={log.id} className="hover:bg-slate-800/20">
+                            <td className="px-4 py-2.5 text-slate-300 font-mono text-[11px] whitespace-nowrap">
+                              {formatDateTime(log.createdAt)}
+                            </td>
+                            <td className="px-4 py-2.5 text-indigo-300 font-semibold">{log.adminEmail}</td>
+                            <td className="px-4 py-2.5">
+                              <span className="px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 font-mono font-bold text-[11px]">
+                                {sCode}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-slate-300 font-sans leading-relaxed">{log.details}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1904,6 +2311,7 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* MODAL: Reject Listing Preset Reason */}
       <BaseModal
+        theme="dark"
         isOpen={rejectReasonModal}
         onClose={() => setRejectReasonModal(false)}
         title="Từ chối duyệt bài đăng"
@@ -1962,8 +2370,55 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       </BaseModal>
 
+      {/* MODAL: Banned Student Codes Blacklist */}
+      <BaseModal
+        theme="dark"
+        isOpen={showBannedModal}
+        onClose={() => setShowBannedModal(false)}
+        title="Danh sách Mã sinh viên bị Cấm vĩnh viễn (Blacklist MSSV)"
+      >
+        <div className="space-y-4 text-xs text-slate-200 max-h-[70vh] overflow-y-auto pr-1">
+          <p className="text-slate-400">
+            Hệ thống tự động lưu trữ và chặn vĩnh viễn tất cả MSSV/Email vi phạm nghiêm trọng. Nếu sinh viên có trong danh sách này cố gắng tạo tài khoản mới, hệ thống sẽ <strong>từ chối 100%</strong>.
+          </p>
+
+          <div className="divide-y divide-slate-800 border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60">
+            {bannedStudents.length > 0 ? (
+              bannedStudents.map((item) => (
+                <div key={item.id} className="p-3.5 space-y-1 hover:bg-slate-800/40 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-rose-400 text-sm bg-rose-500/10 px-2 py-0.5 rounded-lg border border-rose-500/20">
+                      MSSV: {item.studentCode}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Cấm lúc: {item.bannedAt ? formatDate(item.bannedAt) : 'Mới đây'}
+                    </span>
+                  </div>
+                  <p className="font-semibold text-white">{item.fullName || 'Sinh viên vi phạm'}</p>
+                  <p className="text-slate-400 font-mono text-[11px]">{item.email}</p>
+                  <div className="mt-1 p-2 rounded-xl bg-rose-950/30 border border-rose-900/40 text-rose-300 text-[11px]">
+                    <strong>Lý do cấm vĩnh viễn:</strong> {item.banReason || 'Vi phạm nghiêm trọng quy chế Phenikaa Campus Marketplace'}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-6 text-center text-slate-500">
+                Chưa có mã sinh viên nào trong danh sách cấm vĩnh viễn
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <BaseButton variant="secondary" size="sm" onClick={() => setShowBannedModal(false)}>
+              Đóng
+            </BaseButton>
+          </div>
+        </div>
+      </BaseModal>
+
       {/* MODAL: Karma Adjustment */}
       <BaseModal
+        theme="dark"
         isOpen={karmaAdjModal}
         onClose={() => setKarmaAdjModal(false)}
         title="Điều chỉnh điểm uy tín (Campus Karma)"
@@ -2008,7 +2463,7 @@ export const AdminDashboardPage: React.FC = () => {
       </BaseModal>
 
       {/* MODAL: Create Category */}
-      <BaseModal isOpen={showCatModal} onClose={() => setShowCatModal(false)} title="Thêm danh mục hàng hóa mới">
+      <BaseModal theme="dark" isOpen={showCatModal} onClose={() => setShowCatModal(false)} title="Thêm danh mục hàng hóa mới">
         <form onSubmit={handleAddCategory} className="space-y-4 text-xs text-slate-200">
           <div>
             <label className="block text-slate-400 mb-1">Tên danh mục:</label>
@@ -2044,6 +2499,7 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* MODAL: Xem & Duyệt / Đối chiếu lại Thẻ Sinh Viên */}
       <BaseModal
+        theme="dark"
         isOpen={studentCardModal}
         onClose={() => setStudentCardModal(false)}
         title={selectedCardUser?.studentCardVerified ? "Đối chiếu & Xem lại Thẻ Sinh Viên" : "Xem xét & Duyệt Thẻ Sinh Viên"}
@@ -2180,6 +2636,7 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* MODAL: Xem bài đăng vi phạm & bằng chứng đối với tài khoản bị khóa */}
       <BaseModal
+        theme="dark"
         isOpen={violatingModal}
         onClose={() => setViolatingModal(false)}
         title={`Hồ sơ Vi phạm & Bằng chứng bài đăng - ${selectedViolatingUser?.fullName || ''}`}
@@ -2365,54 +2822,262 @@ export const AdminDashboardPage: React.FC = () => {
         )}
       </BaseModal>
 
-      {/* MODAL: Create University */}
-      <BaseModal isOpen={showUniModal} onClose={() => setShowUniModal(false)} title="Thêm trường đại học đối tác">
-        <form onSubmit={handleAddUniversity} className="space-y-4 text-xs text-slate-200">
-          <div>
-            <label className="block text-slate-400 mb-1">Tên trường đầy đủ:</label>
-            <input
-              type="text"
-              required
-              value={newUniName}
-              onChange={(e) => setNewUniName(e.target.value)}
-              placeholder="Ví dụ: Đại học Thủy Lợi"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-            />
+      {/* CUSTOM USER ACTION MODAL (Clean Minimalist + Subtle Neo-Brutalism, High Contrast) */}
+      <BaseModal
+        theme="dark"
+        maxWidth="lg"
+        isOpen={userActionModal.isOpen}
+        onClose={() => setUserActionModal({ ...userActionModal, isOpen: false })}
+        title={
+          <div className="flex items-center gap-2.5">
+            {userActionModal.actionType === 'BAN' ? (
+              <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center">
+                <XCircle className="w-5 h-5 text-rose-400" />
+              </div>
+            ) : (
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+                <Lock className="w-5 h-5 text-amber-400" />
+              </div>
+            )}
+            <div>
+              <h3 className="text-base font-black text-white tracking-tight">
+                {userActionModal.actionType === 'BAN'
+                  ? 'Cấm vĩnh viễn tài khoản sinh viên'
+                  : 'Tạm khóa tài khoản sinh viên'}
+              </h3>
+              <p className="text-[11px] text-slate-400 font-normal">
+                {userActionModal.actionType === 'BAN'
+                  ? 'Sinh viên sẽ bị chặn vĩnh viễn khỏi toàn bộ sàn Campus Marketplace'
+                  : 'Tạm ngưng quyền đăng bài & giao dịch của tài khoản có thời hạn'}
+              </p>
+            </div>
           </div>
-          <div>
-            <label className="block text-slate-400 mb-1">Tên viết tắt:</label>
-            <input
-              type="text"
-              value={newUniShort}
-              onChange={(e) => setNewUniShort(e.target.value)}
-              placeholder="TLU"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-            />
+        }
+      >
+        {userActionModal.user && (
+          <div className="space-y-4 text-xs text-left">
+            {/* 1. Student Identity Card - High Contrast */}
+            <div className="p-3.5 rounded-2xl bg-slate-950 border-2 border-slate-800 flex items-center justify-between gap-3 shadow-inner">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-xl bg-indigo-600 border border-indigo-400/40 text-white flex items-center justify-center font-black text-base shadow-md shadow-indigo-600/20 shrink-0">
+                  {userActionModal.user.fullName?.charAt(0) || 'U'}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-black text-white text-sm truncate tracking-tight">{userActionModal.user.fullName}</p>
+                  <p className="text-indigo-400 font-mono text-xs truncate">{userActionModal.user.email}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 shrink-0">
+                <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-[11px] font-mono text-slate-300 font-bold">
+                  MSSV: {userActionModal.user.studentCode || 'N/A'}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-mono text-emerald-400 font-bold">
+                  Karma: {userActionModal.user.karmaScore}
+                </span>
+              </div>
+            </div>
+
+            {/* 2. Duration Selector - 3 High Visibility Neo-Brutalist Cards */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-black uppercase tracking-wider text-slate-300">
+                  Mức độ chế tài & Thời hạn áp dụng *
+                </label>
+                <span className="text-[10px] text-slate-400">Chọn 1 trong 3 mức độ</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {[
+                  {
+                    type: 'SUSPEND_1_DAY',
+                    tag: '24 Giờ',
+                    label: 'Tạm khóa 1 ngày',
+                    desc: 'Vi phạm từ cấm (3 gậy)',
+                    deduct: '-10 Karma',
+                    theme: 'amber',
+                  },
+                  {
+                    type: 'SUSPEND_1_WEEK',
+                    tag: '7 Ngày',
+                    label: 'Tạm khóa 1 tuần',
+                    desc: 'Vi phạm quy chế mua bán',
+                    deduct: '-20 Karma',
+                    theme: 'amber',
+                  },
+                  {
+                    type: 'BAN',
+                    tag: 'Vĩnh viễn',
+                    label: 'Cấm vĩnh viễn',
+                    desc: 'Lừa đảo / Hàng cấm nặng',
+                    deduct: '-50 Karma',
+                    theme: 'rose',
+                  },
+                ].map((opt) => {
+                  const isSelected = userActionModal.actionType === opt.type;
+                  const isRose = opt.theme === 'rose';
+
+                  return (
+                    <button
+                      key={opt.type}
+                      type="button"
+                      onClick={() => setUserActionModal({ ...userActionModal, actionType: opt.type as any })}
+                      className={`p-3 rounded-2xl border-2 text-left transition-all relative overflow-hidden cursor-pointer flex flex-col justify-between ${
+                        isSelected
+                          ? isRose
+                            ? 'border-rose-500 bg-rose-500/15 text-white ring-2 ring-rose-500/30 shadow-lg shadow-rose-500/10'
+                            : 'border-amber-500 bg-amber-500/15 text-white ring-2 ring-amber-500/30 shadow-lg shadow-amber-500/10'
+                          : 'border-slate-800 bg-slate-950/80 hover:bg-slate-900/90 hover:border-slate-700 text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span
+                          className={`text-[9px] font-black font-mono px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                            isSelected
+                              ? isRose
+                                ? 'bg-rose-500 text-white'
+                                : 'bg-amber-500 text-slate-950'
+                              : 'bg-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {opt.tag}
+                        </span>
+                        {isSelected && (
+                          <span className={`text-[10px] font-black ${isRose ? 'text-rose-400' : 'text-amber-400'}`}>
+                            ✓ Đang chọn
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <p className={`font-black text-xs ${isSelected ? 'text-white' : 'text-slate-200'}`}>
+                          {opt.label}
+                        </p>
+                        <p className={`text-[10px] mt-0.5 line-clamp-1 ${isSelected ? (isRose ? 'text-rose-200' : 'text-amber-200') : 'text-slate-400'}`}>
+                          {opt.desc}
+                        </p>
+                      </div>
+
+                      <div className="mt-2 pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[10px]">
+                        <span className="text-slate-500">Chế tài:</span>
+                        <span className={`font-mono font-bold ${isSelected ? (isRose ? 'text-rose-300' : 'text-amber-300') : 'text-slate-400'}`}>
+                          {opt.deduct}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. Quick Reason Suggestions */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300">
+                Gợi ý lý do xử lý nhanh (Bấm để tự điền)
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'Đăng bài chứa từ cấm nhiều lần (3 strikes)',
+                  'Nghi ngờ gian lận điểm hẹn an toàn',
+                  'Bom hẹn mua bán / Quỵt cọc thỏa thuận',
+                  'Cung cấp thông tin sinh viên giả mạo',
+                  'Vi phạm quy chế giao dịch tại campus',
+                ].map((reason) => {
+                  const isSelected = userActionModal.reason === reason;
+                  return (
+                    <button
+                      key={reason}
+                      type="button"
+                      onClick={() => setUserActionModal({ ...userActionModal, reason })}
+                      className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-600 border-indigo-400 text-white font-bold shadow-md shadow-indigo-600/30'
+                          : 'bg-slate-950 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 hover:bg-slate-900'
+                      }`}
+                    >
+                      <span className={isSelected ? 'text-white font-bold' : 'text-indigo-400 font-bold'}>
+                        {isSelected ? '✓' : '+'}
+                      </span>
+                      <span>{reason}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 4. Reason Textarea */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300">
+                Lý do chế tài chi tiết (Gửi thông báo tới sinh viên) *
+              </label>
+              <textarea
+                rows={2}
+                value={userActionModal.reason}
+                onChange={(e) => setUserActionModal({ ...userActionModal, reason: e.target.value })}
+                placeholder="Nhập lý do cụ thể gửi thông báo cho sinh viên..."
+                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-800 bg-slate-950 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-sans transition-colors resize-none"
+              />
+            </div>
+
+            {/* 5. Action Footer */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800/80">
+              <span className="text-[11px] font-mono text-slate-400">
+                Hệ quả:{' '}
+                <strong className={userActionModal.actionType === 'BAN' ? 'text-rose-400 font-black' : 'text-amber-400 font-black'}>
+                  {userActionModal.actionType === 'BAN'
+                    ? 'Trừ 50 Karma • Khóa Vĩnh Viễn'
+                    : userActionModal.actionType === 'SUSPEND_1_DAY'
+                    ? 'Trừ 10 Karma • Khóa 24h'
+                    : 'Trừ 20 Karma • Khóa 7 Ngày'}
+                </strong>
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUserActionModal({ ...userActionModal, isOpen: false })}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!userActionModal.user) return;
+                    const action = userActionModal.actionType === 'BAN' ? 'BAN' : 'SUSPEND';
+                    const karmaDeduction = userActionModal.actionType === 'BAN' ? -50 : userActionModal.actionType === 'SUSPEND_1_DAY' ? -10 : -20;
+                    const finalReason = userActionModal.reason || (action === 'BAN' ? 'Cấm vĩnh viễn do vi phạm nghiêm trọng' : 'Tạm khóa tài khoản do vi phạm quy chế');
+                    
+                    await handleUserAction(userActionModal.user.id, action, karmaDeduction, finalReason);
+                    setUserActionModal({ ...userActionModal, isOpen: false });
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-black text-white flex items-center gap-1.5 shadow-lg transition cursor-pointer ${
+                    userActionModal.actionType === 'BAN'
+                      ? 'bg-rose-600 hover:bg-rose-500 border border-rose-500 shadow-rose-600/30'
+                      : 'bg-amber-600 hover:bg-amber-500 border border-amber-500 shadow-amber-600/30'
+                  }`}
+                >
+                  {userActionModal.actionType === 'BAN' ? (
+                    <>
+                      <XCircle className="w-4 h-4" />
+                      <span>Xác nhận Cấm Vĩnh Viễn</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Xác nhận Tạm Khóa</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block text-slate-400 mb-1">Domain email trường (phân tách dấu phẩy):</label>
-            <input
-              type="text"
-              required
-              value={newUniDomains}
-              onChange={(e) => setNewUniDomains(e.target.value)}
-              placeholder="tlu.edu.vn,e.tlu.edu.vn"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <BaseButton variant="secondary" size="sm" onClick={() => setShowUniModal(false)}>
-              Hủy
-            </BaseButton>
-            <BaseButton type="submit" variant="primary" size="sm">
-              Thêm trường
-            </BaseButton>
-          </div>
-        </form>
+        )}
       </BaseModal>
 
       {/* GLOBAL CONFIRMATION MODAL - Xác nhận 2 bước cho mọi thao tác của Quản trị viên */}
       <BaseModal
+        theme="dark"
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
         title={confirmModal.title}

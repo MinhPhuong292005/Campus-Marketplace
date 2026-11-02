@@ -22,4 +22,7 @@ public interface RentalContractRepository extends JpaRepository<RentalContractEn
     List<RentalContractEntity> findByListingId(Long listingId);
 
     long countByStatus(String status);
+
+    @Query("SELECT COUNT(r) > 0 FROM RentalContractEntity r WHERE (r.renter.id = :u1 AND r.owner.id = :u2) OR (r.renter.id = :u2 AND r.owner.id = :u1)")
+    boolean existsContractBetweenUsers(@Param("u1") Long u1, @Param("u2") Long u2);
 }

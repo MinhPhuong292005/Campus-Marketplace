@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { User, School, MapPin, Building, GraduationCap, Calendar, FileText, Image, Phone } from 'lucide-react';
+import { User, School, MapPin, Building, GraduationCap, Calendar, FileText, Phone, Lock } from 'lucide-react';
 import { BaseModal } from '../base/BaseModal';
 import { BaseInput } from '../base/BaseInput';
 import { BaseButton } from '../base/BaseButton';
+import { AvatarUpload } from './AvatarUpload';
 import { UserProfileFormData, profileService } from '../../services/profileService';
 import { University, Campus, User as UserType } from '../../types';
+import { PHENIKAA_MAJORS, PHENIKAA_ACADEMIC_YEARS } from '../../constants/phenikaaData';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -25,7 +27,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const { register, handleSubmit, watch } = useForm<UserProfileFormData>({
+  const { register, handleSubmit, watch, setValue, reset } = useForm<UserProfileFormData>({
     defaultValues: {
       fullName: currentUser.fullName,
       phone: currentUser.phone || '',
@@ -39,6 +41,21 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       bio: currentUser.bio || '',
     },
   });
+
+  useEffect(() => {
+    reset({
+      fullName: currentUser.fullName,
+      phone: currentUser.phone || '',
+      avatarUrl: currentUser.avatarUrl || '',
+      universityId: currentUser.universityId || 1,
+      campusId: currentUser.campusId || 1,
+      dormitory: currentUser.dormitory || '',
+      studentCode: currentUser.studentCode || '',
+      major: currentUser.major || '',
+      academicYear: currentUser.academicYear || '',
+      bio: currentUser.bio || '',
+    });
+  }, [currentUser, reset]);
 
   const selectedUniversityId = watch('universityId');
 
@@ -121,6 +138,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </div>
         )}
 
+        {/* Avatar Upload with Drag & Drop and strict image validation */}
+        <AvatarUpload
+          currentAvatarUrl={watch('avatarUrl')}
+          onAvatarChange={(newUrl) => setValue('avatarUrl', newUrl, { shouldDirty: true })}
+          fullName={currentUser.fullName}
+          email={currentUser.email}
+        />
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <BaseInput
             label="Họ và tên"
@@ -176,40 +201,68 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <BaseInput
-            label="Ký túc xá / Trọ"
-            placeholder="vd: KTX Nhà B5 P.302"
+            label="Ký túc xá / Nơi ở"
+            placeholder="vd: KTX Nhà A P.302 / Trọ Yên Nghĩa"
             leftIcon={<Building className="w-4 h-4" />}
             {...register('dormitory')}
           />
 
-          <BaseInput
-            label="Khoa / Ngành"
-            placeholder="vd: Khoa CNTT"
-            leftIcon={<GraduationCap className="w-4 h-4" />}
-            {...register('major')}
-          />
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
+              Ngành học (Phenikaa)
+            </label>
+            <select
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white"
+              {...register('major')}
+            >
+              <option value="">-- Chọn ngành học chính quy --</option>
+              {PHENIKAA_MAJORS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <BaseInput
-            label="Niên khóa"
-            placeholder="vd: K66 (2021-2025)"
-            leftIcon={<Calendar className="w-4 h-4" />}
-            {...register('academicYear')}
-          />
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-blue-600" />
+              Niên khóa
+            </label>
+            <select
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white"
+              {...register('academicYear')}
+            >
+              <option value="">-- Chọn khóa học --</option>
+              {PHENIKAA_ACADEMIC_YEARS.map((y) => (
+                <option key={y.id} value={y.label}>
+                  {y.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <BaseInput
-          label="Mã số sinh viên (MSSV)"
-          placeholder="vd: 20210001"
-          helperText="MSSV luôn được ẩn trên trang công khai"
-          {...register('studentCode')}
-        />
-
-        <BaseInput
-          label="Đường dẫn ảnh đại diện (Avatar URL)"
-          placeholder="https://..."
-          leftIcon={<Image className="w-4 h-4" />}
-          {...register('avatarUrl')}
-        />
+        <div>
+          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              Mã số sinh viên (MSSV)
+            </span>
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">🔒 Cố định theo tài khoản trường</span>
+          </label>
+          <input
+            type="text"
+            readOnly
+            disabled
+            value={currentUser.studentCode || currentUser.email?.split('@')[0] || ''}
+            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/60 text-sm font-mono text-slate-500 dark:text-slate-400 cursor-not-allowed select-none"
+          />
+          <p className="text-[11px] text-slate-400 mt-1">
+            MSSV được gắn liền tự động với tài khoản email Phenikaa đã cấp và không thể tự ý thay đổi.
+          </p>
+        </div>
 
         <div>
           <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">

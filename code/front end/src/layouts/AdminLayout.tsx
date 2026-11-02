@@ -10,8 +10,6 @@ import {
   LogOut,
   ExternalLink,
   ShieldCheck,
-  Activity,
-  CheckCircle2,
 } from 'lucide-react';
 import { useAdminAuthStore } from '../store/useAdminAuthStore';
 import { adminService } from '../services/adminService';
@@ -73,14 +71,14 @@ export const AdminLayout: React.FC = () => {
     },
     {
       path: '/admin/metadata',
-      label: '5. Danh mục & Trường',
+      label: '5. Quản lý Danh mục',
       icon: Layers,
       badge: null,
       badgeColor: '',
     },
     {
       path: '/admin/settings',
-      label: '6. Cấu hình & RBAC',
+      label: '6. Cấu hình & Nhật ký',
       icon: Settings,
       badge: null,
       badgeColor: '',
@@ -91,57 +89,57 @@ export const AdminLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30">
-      {/* Top Header */}
-      <header className="h-16 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 px-6 flex items-center justify-between">
+      {/* Top Header - Clean Minimalist Neo-Brutalism */}
+      <header className="h-16 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-6 flex items-center justify-between">
         {/* Left: Brand */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-emerald-400 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
+          <div className="w-9 h-9 rounded-xl bg-indigo-600 border border-indigo-400/40 flex items-center justify-center font-bold text-white shadow-sm">
             <ShieldCheck className="w-5 h-5 text-white" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-extrabold text-white text-base tracking-tight">
+              <span className="font-black text-white text-base tracking-tight">
                 CAMPUS<span className="text-indigo-400">ADMIN</span>
               </span>
-              <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Live System
+              <span className="text-[10px] text-slate-400 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-800 bg-slate-950">
+                CONSOLE
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 -mt-0.5">Trung tâm Điều hành & Kiểm duyệt Tập trung</p>
+            <p className="text-[11px] text-slate-400 -mt-0.5 hidden sm:block">Trung tâm Điều hành & Kiểm duyệt Tập trung</p>
           </div>
         </div>
 
         {/* Right: Actions & User Info */}
-        <div className="flex items-center gap-3">
-          {/* Notification Bell (Quả chuông thông báo cho Admin) */}
-          <AdminNotificationBell />
-
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* External Marketplace Link */}
           <a
             href="/"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 px-3.5 py-1.5 rounded-xl transition-all font-medium"
-            title="Mở giao diện khách hàng sinh viên ở tab mới"
+            className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700/80 border border-slate-700 px-3 py-1.5 rounded-xl transition-all font-semibold"
+            title="Mở giao diện chợ sinh viên ở tab mới"
           >
-            <span>Mở sàn Sinh viên</span>
+            <span className="hidden sm:inline">Mở sàn Sinh viên</span>
+            <span className="sm:hidden">Sàn chợ</span>
             <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
           </a>
 
+          {/* Notification Bell */}
+          <AdminNotificationBell />
+
           {/* Admin User Profile Pill */}
-          <div className="flex items-center gap-2.5 pl-3 border-l border-slate-800">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center font-bold text-xs shadow-md shadow-indigo-600/20">
+          <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-slate-800">
+            <div className="w-8 h-8 rounded-xl bg-indigo-600 border border-indigo-400/30 text-white flex items-center justify-center font-black text-xs">
               AD
             </div>
-            <div className="hidden sm:block text-left text-xs">
-              <p className="font-semibold text-white leading-tight">{adminUser?.email || 'admin@gmail.com'}</p>
-              <p className="text-[10px] text-indigo-400 font-medium">{adminUser?.role || 'ROLE_SUPER_ADMIN'}</p>
+            <div className="hidden md:block text-left text-xs">
+              <p className="font-bold text-white leading-tight font-mono">{adminUser?.email || 'minhphuong2925@gmail.com'}</p>
+              <p className="text-[10px] text-indigo-400 font-mono font-semibold">{adminUser?.role || 'ROLE_SUPER_ADMIN'}</p>
             </div>
 
             <button
               onClick={handleLogout}
-              className="p-2 ml-1 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+              className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors border border-transparent hover:border-rose-500/30"
               title="Đăng xuất khỏi Cổng Quản trị"
             >
               <LogOut className="w-4 h-4" />
@@ -153,11 +151,10 @@ export const AdminLayout: React.FC = () => {
       {/* Main Container: Sidebar + Outlet */}
       <div className="flex-1 flex flex-col md:flex-row">
         {/* Single Left Sidebar */}
-        <aside className="w-full md:w-64 bg-slate-900/60 border-r border-slate-800/80 p-4 flex flex-col justify-between flex-shrink-0">
+        <aside className="w-full md:w-64 bg-slate-900/70 border-r border-slate-800 p-4 flex flex-col justify-between flex-shrink-0">
           <div className="space-y-1">
-            <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+            <div className="px-3 py-2 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
               <span>ĐIỀU HÀNH & KIỂM DUYỆT</span>
-              <Activity className="w-3.5 h-3.5 text-indigo-400" />
             </div>
 
             {navItems.map((item) => {
@@ -171,10 +168,10 @@ export const AdminLayout: React.FC = () => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     isActive
-                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-600/30'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      ? 'bg-indigo-600 text-white shadow-sm border border-indigo-500'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/70 border border-transparent hover:border-slate-800'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -183,7 +180,7 @@ export const AdminLayout: React.FC = () => {
                   </div>
                   {item.badge !== null && (
                     <span
-                      className={`min-w-[22px] h-[22px] px-1.5 flex items-center justify-center rounded-full text-xs font-black shadow-inner transition-transform ${item.badgeColor}`}
+                      className={`min-w-[20px] h-[20px] px-1.5 flex items-center justify-center rounded-full text-[11px] font-black ${item.badgeColor}`}
                     >
                       {item.badge}
                     </span>
@@ -193,25 +190,14 @@ export const AdminLayout: React.FC = () => {
             })}
           </div>
 
-          {/* Bottom Sidebar Info Card */}
-          <div className="pt-4 mt-6 border-t border-slate-800/80 space-y-2">
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 text-[11px] text-slate-400 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-300">Trạng thái Cơ sở dữ liệu</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              </div>
-              <p className="text-[10px] text-slate-400">PostgreSQL: 5432 (Connected)</p>
-              <div className="pt-1 border-t border-slate-800 flex items-center justify-between text-[10px]">
-                <span className="text-indigo-400 font-medium">Phiên Admin Độc Lập</span>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-400 text-center">Campus Marketplace • v1.0.0</p>
+          {/* Clean minimal footer without database status card */}
+          <div className="pt-4 mt-6 border-t border-slate-800/80 text-center">
+            <p className="text-[10px] font-mono text-slate-400">Campus Marketplace Admin Console</p>
           </div>
         </aside>
 
         {/* Content Outlet */}
-        <main className="flex-1 p-6 lg:p-8 overflow-y-auto bg-slate-950/40">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto bg-slate-950/60">
           <Outlet />
         </main>
       </div>

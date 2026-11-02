@@ -37,6 +37,7 @@ export const API_ROUTES = {
   AUTH_LOGOUT: '/auth/logout',
   AUTH_ME: '/auth/me',
   STUDENT_PROFILE: '/student/profile',
+  CHANGE_PASSWORD: '/student/profile/change-password',
   PUBLIC_PROFILE: '/public/profile',
   LISTINGS: '/student/listings',
   MY_LISTINGS: '/student/my-listings',

@@ -7,6 +7,7 @@ import com.ioc.internship.dto.request.CreateChatRoomReq;
 import com.ioc.internship.dto.response.ApiResponse;
 import com.ioc.internship.dto.response.ChatMessageRes;
 import com.ioc.internship.dto.response.ChatRoomRes;
+import com.ioc.internship.dto.response.UserDetailRes;
 import com.ioc.internship.service.ChatService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -57,5 +58,11 @@ public class StudentChatController extends BaseController {
             @PathVariable Long roomId) {
         chatService.markRoomAsRead(principal.getUserId(), roomId);
         return success(null, "Đã đánh dấu đã đọc");
+    }
+
+    @GetMapping("/student/chat/contacts")
+    public ResponseEntity<ApiResponse<List<UserDetailRes>>> getContacts(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return success(chatService.getAvailableContacts(principal.getUserId()));
     }
 }

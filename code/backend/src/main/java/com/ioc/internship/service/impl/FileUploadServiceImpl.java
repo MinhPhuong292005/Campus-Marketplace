@@ -21,8 +21,9 @@ import java.util.UUID;
 @Service
 public class FileUploadServiceImpl implements FileUploadService {
 
-    private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per AC
-    private static final List<String> ALLOWED_EXTENSIONS = List.of(".jpg", ".jpeg", ".png", ".webp", ".mp4");
+    private static final long MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB per image
+    private static final long MAX_VIDEO_SIZE = 25 * 1024 * 1024; // 25MB for short video
+    private static final List<String> ALLOWED_EXTENSIONS = List.of(".jpg", ".jpeg", ".png", ".webp", ".mp4", ".webm", ".mov");
     private final Path uploadPath = Paths.get("uploads").toAbsolutePath().normalize();
 
     public FileUploadServiceImpl() {
@@ -39,10 +40,6 @@ public class FileUploadServiceImpl implements FileUploadService {
             throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST, "Tệp tải lên không được để trống");
         }
 
-        if (file.getSize() > MAX_FILE_SIZE) {
-            throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST, "Dung lượng tệp vượt quá 5MB");
-        }
-
         String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "file");
         String extension = "";
         int dotIdx = originalFilename.lastIndexOf(".");
@@ -51,7 +48,25 @@ public class FileUploadServiceImpl implements FileUploadService {
         }
 
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
-            throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST, "Định dạng file không hỗ trợ (chỉ chấp nhận jpg, png, webp, mp4)");
+            throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST,
+                    "Định dạng tệp \"" + extension + "\" không được hỗ trợ! Chỉ chấp nhận hình ảnh (.jpg, .jpeg, .png, .webp) và video (.mp4, .webm, .mov). Không hỗ trợ tệp nén hoặc slide/tài liệu (.zip, .pptx, .pdf, .docx,...)");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType != null) {
+            String lowerType = contentType.toLowerCase();
+            boolean isValidMime = lowerType.startsWith("image/") || lowerType.startsWith("video/") || lowerType.equals("application/octet-stream");
+            if (!isValidMime) {
+                throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST,
+                        "Loại tệp không hợp lệ (" + contentType + ")! Hệ thống chỉ chấp nhận tệp hình ảnh hoặc video ngắn.");
+            }
+        }
+
+        boolean isVideo = extension.equals(".mp4") || extension.equals(".webm") || extension.equals(".mov");
+        long maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+        if (file.getSize() > maxSize) {
+            String limitMsg = isVideo ? "Dung lượng video vượt quá 25MB" : "Dung lượng hình ảnh vượt quá 5MB";
+            throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST, limitMsg);
         }
 
         String uniqueFileName = UUID.randomUUID().toString() + extension;

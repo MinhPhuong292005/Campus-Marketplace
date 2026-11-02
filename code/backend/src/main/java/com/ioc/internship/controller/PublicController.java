@@ -21,6 +21,7 @@ public class PublicController extends BaseController {
     private final PublicService publicService;
     private final ListingService listingService;
     private final StudentProfileService studentProfileService;
+    private final com.ioc.internship.service.ReviewService reviewService;
 
     @GetMapping("/universities")
     public ResponseEntity<ApiResponse<List<UniversityRes>>> getUniversities() {
@@ -67,9 +68,23 @@ public class PublicController extends BaseController {
         return success(listingService.getListingDetails(id));
     }
 
+    @GetMapping("/listings/{id}/reviews")
+    public ResponseEntity<ApiResponse<List<ReviewRes>>> getListingReviews(@PathVariable Long id) {
+        return success(reviewService.getReviewsForListing(id));
+    }
+
     @GetMapping("/profile/{userId}")
     public ResponseEntity<ApiResponse<PublicProfileRes>> getPublicProfile(@PathVariable Long userId) {
         // Decree 13/2023/ND-CP compliance
         return success(studentProfileService.getPublicProfile(userId));
+    }
+
+    @GetMapping("/users/{userId}/listings")
+    public ResponseEntity<ApiResponse<Page<ListingDetailRes>>> getUserPublicListings(
+            @PathVariable Long userId,
+            @RequestParam(required = false) String transactionType,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "30") int size) {
+        return success(listingService.getUserPublicListings(userId, transactionType, PageRequest.of(page, size)));
     }
 }

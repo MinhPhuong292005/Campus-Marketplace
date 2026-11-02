@@ -6,7 +6,7 @@ import { authService } from '../../services/authService';
 import { useAdminAuthStore } from '../../store/useAdminAuthStore';
 
 export const AdminLoginPage: React.FC = () => {
-  const [email, setEmail] = useState('admin@gmail.com');
+  const [email, setEmail] = useState('minhphuong2925@gmail.com');
   const [password, setPassword] = useState('Aa123');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export const AdminLoginPage: React.FC = () => {
   };
 
   const handleFillDemo = () => {
-    setEmail('admin@gmail.com');
+    setEmail('minhphuong2925@gmail.com');
     setPassword('Aa123');
   };
 
@@ -101,7 +101,7 @@ export const AdminLoginPage: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@gmail.com"
+                placeholder="minhphuong2925@gmail.com"
                 className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
@@ -132,7 +132,7 @@ export const AdminLoginPage: React.FC = () => {
               className="w-full py-1.5 px-3 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 rounded-xl text-[11px] text-indigo-300 font-medium flex items-center justify-center gap-1.5 transition-colors"
             >
               <KeyRound className="w-3.5 h-3.5" />
-              <span>Điền tài khoản Admin: admin@gmail.com / Aa123</span>
+              <span>Điền tài khoản Admin: minhphuong2925@gmail.com / Aa123</span>
             </button>
           </div>
 

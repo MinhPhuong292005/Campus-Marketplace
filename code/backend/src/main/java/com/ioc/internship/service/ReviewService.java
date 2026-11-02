@@ -11,4 +11,6 @@ public interface ReviewService {
     ReviewRes createReview(Long reviewerId, ReviewCreateReq req);
     List<ReviewRes> getReviewsForUser(Long userId);
     Page<ReviewRes> getReviewsForUser(Long userId, Pageable pageable);
+    List<ReviewRes> getReviewsForListing(Long listingId);
+    com.ioc.internship.dto.response.ReviewEligibilityRes checkEligibility(Long userId, Long listingId);
 }

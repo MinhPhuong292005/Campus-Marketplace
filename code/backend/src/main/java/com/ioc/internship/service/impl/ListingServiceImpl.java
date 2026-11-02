@@ -14,6 +14,8 @@ import com.ioc.internship.repository.CategoryRepository;
 import com.ioc.internship.repository.ListingImageRepository;
 import com.ioc.internship.repository.ListingRepository;
 import com.ioc.internship.repository.UserRepository;
+import com.ioc.internship.entity.NotificationEntity;
+import com.ioc.internship.repository.NotificationRepository;
 import com.ioc.internship.service.ListingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,7 @@ public class ListingServiceImpl implements ListingService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final com.ioc.internship.repository.KeywordBlacklistRepository keywordBlacklistRepository;
+    private final NotificationRepository notificationRepository;
 
     private List<String> scanBannedKeywords(String text) {
         if (text == null || text.isBlank()) return java.util.Collections.emptyList();
@@ -87,20 +90,22 @@ public class ListingServiceImpl implements ListingService {
         String combinedContent = req.getTitle().trim() + " " + req.getDescription().trim();
         List<String> detectedBannedKeywords = scanBannedKeywords(combinedContent);
 
-        String initialStatus;
+        String initialStatus = "PENDING_APPROVAL";
         boolean isRiskFlagged;
         String riskReason;
+        String moderationReason;
+        java.time.LocalDateTime moderatedAt = null;
 
         if (!detectedBannedKeywords.isEmpty()) {
-            // Tự động không duyệt do chứa từ khóa cấm trong danh mục của Quản trị viên
-            initialStatus = "REJECTED";
+            // Phát hiện từ khóa nhạy cảm -> Đánh dấu cảnh báo rủi ro để Quản trị viên kiểm tra kỹ
             isRiskFlagged = true;
-            riskReason = "Tự động từ chối duyệt: Chứa từ khóa bị cấm [" + String.join(", ", detectedBannedKeywords) + "]";
+            riskReason = "Cảnh báo từ khóa nhạy cảm: [" + String.join(", ", detectedBannedKeywords) + "] - Cần Quản trị viên kiểm duyệt kỹ";
+            moderationReason = riskReason;
         } else {
-            // Bài đăng hợp lệ: Bắt buộc Quản trị viên duyệt thì mới được phép hiển thị ACTIVE
-            initialStatus = "PENDING_APPROVAL";
+            // Tất cả các bài đăng mới đều phải qua kiểm duyệt thủ công bởi Quản trị viên (bỏ duyệt tự động)
             isRiskFlagged = false;
             riskReason = null;
+            moderationReason = "Chờ Quản trị viên kiểm duyệt trước khi hiển thị công khai trên Chợ Sinh viên Phenikaa";
         }
 
         ListingEntity listing = ListingEntity.builder()
@@ -112,10 +117,14 @@ public class ListingServiceImpl implements ListingService {
                 .transactionType(req.getTransactionType().toUpperCase())
                 .conditionStatus(req.getConditionStatus())
                 .rentalTerms(req.getRentalTerms())
+                .depositAmount(req.getDepositAmount())
                 .swapTarget(req.getSwapTarget())
+                .safeMeetingPoint(req.getSafeMeetingPoint())
                 .status(initialStatus)
                 .isRiskFlagged(isRiskFlagged)
                 .riskReason(riskReason)
+                .moderationReason(moderationReason)
+                .moderatedAt(moderatedAt)
                 .build();
 
         ListingEntity savedListing = listingRepository.save(listing);
@@ -128,12 +137,34 @@ public class ListingServiceImpl implements ListingService {
                 images.add(ListingImageEntity.builder()
                         .listing(savedListing)
                         .mediaUrl(url)
-                        .mediaType(url.endsWith(".mp4") ? "VIDEO" : "IMAGE")
+                        .mediaType((url.endsWith(".mp4") || url.endsWith(".webm") || url.endsWith(".mov")) ? "VIDEO" : "IMAGE")
                         .sortOrder(i)
                         .build());
             }
             listingImageRepository.saveAll(images);
             savedListing.setImages(images);
+        }
+
+        // Tạo thông báo kết quả duyệt bài cho sinh viên (Tất cả bài đăng đều chờ duyệt bởi Quản trị viên)
+        try {
+            String notifType = "LISTING_PENDING";
+            String notifTitle = "Bài đăng \"" + savedListing.getTitle() + "\" đang chờ Quản trị viên duyệt";
+            String notifMsg = isRiskFlagged
+                    ? "Bài đăng của bạn đã được ghi nhận và đang chờ Quản trị viên kiểm duyệt do có từ khóa nhạy cảm: " + riskReason
+                    : "Bài đăng của bạn đã được gửi thành công và đang chờ Quản trị viên kiểm duyệt trước khi hiển thị công khai trên Chợ Sinh viên Phenikaa.";
+
+            NotificationEntity notif = NotificationEntity.builder()
+                    .user(user)
+                    .title(notifTitle)
+                    .message(notifMsg)
+                    .type(notifType)
+                    .referenceId(savedListing.getId())
+                    .reason(moderationReason)
+                    .isRead(false)
+                    .build();
+            notificationRepository.save(notif);
+        } catch (Exception ex) {
+            log.warn("Failed to create student notification for listing #{}: {}", savedListing.getId(), ex.getMessage());
         }
 
         return mapToDetailRes(savedListing);
@@ -177,6 +208,7 @@ public class ListingServiceImpl implements ListingService {
         listing.setPrice(price);
         listing.setConditionStatus(req.getConditionStatus());
         listing.setRentalTerms(req.getRentalTerms());
+        listing.setDepositAmount(req.getDepositAmount());
         listing.setSwapTarget(req.getSwapTarget());
 
         // Kiểm tra lại từ khóa cấm khi cập nhật
@@ -201,7 +233,7 @@ public class ListingServiceImpl implements ListingService {
                 listing.getImages().add(ListingImageEntity.builder()
                         .listing(listing)
                         .mediaUrl(url)
-                        .mediaType(url.endsWith(".mp4") ? "VIDEO" : "IMAGE")
+                        .mediaType((url.endsWith(".mp4") || url.endsWith(".webm") || url.endsWith(".mov")) ? "VIDEO" : "IMAGE")
                         .sortOrder(i)
                         .build());
             }
@@ -321,13 +353,27 @@ public class ListingServiceImpl implements ListingService {
                 .transactionType(listing.getTransactionType())
                 .conditionStatus(listing.getConditionStatus())
                 .rentalTerms(listing.getRentalTerms())
+                .depositAmount(listing.getDepositAmount())
                 .swapTarget(listing.getSwapTarget())
+                .safeMeetingPoint(listing.getSafeMeetingPoint() != null ? listing.getSafeMeetingPoint() : (author != null && author.getDormitory() != null ? author.getDormitory() : "Sảnh Tòa A2 (Khu Giảng đường Phenikaa)"))
                 .status(listing.getStatus())
                 .isRiskFlagged(listing.getIsRiskFlagged())
                 .riskReason(listing.getRiskReason())
                 .imageUrls(imageUrls)
+                .moderationReason(listing.getModerationReason())
+                .moderatedAt(listing.getModeratedAt())
                 .createdAt(listing.getCreatedAt())
                 .updatedAt(listing.getUpdatedAt())
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ListingDetailRes> getUserPublicListings(Long userId, String transactionType, Pageable pageable) {
+        String type = (transactionType != null && !transactionType.isBlank() && !"ALL".equalsIgnoreCase(transactionType))
+                ? transactionType.toUpperCase()
+                : null;
+        Page<ListingEntity> page = listingRepository.findActiveByUserIdAndTransactionType(userId, type, pageable);
+        return page.map(this::mapToDetailRes);
     }
 }

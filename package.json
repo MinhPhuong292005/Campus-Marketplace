@@ -1,0 +1,11 @@
+{
+  "name": "campus-marketplace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Campus Marketplace Root Helper Scripts",
+  "scripts": {
+    "dev": "npm --prefix \"code/front end\" run dev",
+    "build": "npm --prefix \"code/front end\" run build",
+    "lint": "npm --prefix \"code/front end\" run lint"
+  }
+}

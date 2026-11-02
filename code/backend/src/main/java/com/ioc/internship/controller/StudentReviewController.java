@@ -36,11 +36,17 @@ public class StudentReviewController extends BaseController {
         return success(reviewService.getReviewsForUser(userId));
     }
 
-    @GetMapping("/student/reviews/user/{userId}/page")
-    public ResponseEntity<ApiResponse<Page<ReviewRes>>> getReviewsForUserPaged(
-            @PathVariable Long userId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return success(reviewService.getReviewsForUser(userId, PageRequest.of(page, size)));
+    @GetMapping("/student/reviews/listing/{listingId}")
+    public ResponseEntity<ApiResponse<List<ReviewRes>>> getReviewsForListing(
+            @PathVariable Long listingId) {
+        return success(reviewService.getReviewsForListing(listingId));
+    }
+
+    @GetMapping("/student/reviews/listing/{listingId}/eligibility")
+    public ResponseEntity<ApiResponse<com.ioc.internship.dto.response.ReviewEligibilityRes>> checkEligibility(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long listingId) {
+        Long userId = (principal != null) ? principal.getUserId() : null;
+        return success(reviewService.checkEligibility(userId, listingId));
     }
 }

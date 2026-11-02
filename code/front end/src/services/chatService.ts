@@ -1,4 +1,6 @@
 import api from './api';
+import { apiClient } from '../lib/axios';
+import { PHENIKAA_SAFE_MEETING_POINTS } from '../constants/phenikaaData';
 
 export interface ChatMessage {
   id: number;
@@ -59,44 +61,7 @@ export interface SafeMeetingPoint {
   isCctvMonitored: boolean;
 }
 
-const mockMeetingPoints: SafeMeetingPoint[] = [
-  {
-    id: 1,
-    name: 'Thư viện Tạ Quang Bửu / Thư viện Trung Tâm',
-    address: 'Tầng 1 sảnh chính, có bảo vệ và camera giám sát',
-    campusName: 'Khuôn viên chính',
-    description: 'Không gian yên tĩnh, an ninh cao, có bàn ghế kiểm tra máy móc thiết bị',
-    recommendedHours: '08:00 - 18:00 (Thứ 2 - Thứ 7)',
-    isCctvMonitored: true,
-  },
-  {
-    id: 2,
-    name: 'Sảnh Lễ tân Ký túc xá (KTX B5)',
-    address: 'Sảnh tòa B5 KTX Sinh viên',
-    campusName: 'Khu KTX Sinh viên',
-    description: 'Điểm hẹn đông người qua lại, gần phòng trực ban quản lý KTX',
-    recommendedHours: '07:00 - 21:00 hàng ngày',
-    isCctvMonitored: true,
-  },
-  {
-    id: 3,
-    name: 'Căng tin Trung Tâm Trường',
-    address: 'Khu nhà Căng tin sinh viên cơ sở chính',
-    campusName: 'Khu dịch vụ sinh viên',
-    description: 'Địa điểm sáng sủa, thoải mái trò chuyện trao đổi sách vở và giáo trình',
-    recommendedHours: '07:30 - 19:30 hàng ngày',
-    isCctvMonitored: true,
-  },
-  {
-    id: 4,
-    name: 'Phòng tự học Chung Nhà A2',
-    address: 'Tầng 2 tòa nhà A2',
-    campusName: 'Khu giảng đường',
-    description: 'Có ổ cắm điện, wifi trường để test laptop, thiết bị điện tử',
-    recommendedHours: '08:00 - 21:00 hàng ngày',
-    isCctvMonitored: true,
-  },
-];
+const mockMeetingPoints: SafeMeetingPoint[] = PHENIKAA_SAFE_MEETING_POINTS;
 
 export const chatService = {
   getRooms: async (): Promise<{ success: boolean; data: ChatRoom[] }> => {
@@ -128,11 +93,40 @@ export const chatService = {
     });
   },
 
+  uploadChatImage: async (file: File): Promise<{ success: boolean; data?: { url: string } }> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await apiClient.post<any>('/student/media/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      if (res && res.data && res.data.data?.url) {
+        return { success: true, data: { url: res.data.data.url } };
+      }
+      return { success: false };
+    } catch (err) {
+      // Local fallback object url if server storage unavailable
+      const localUrl = URL.createObjectURL(file);
+      return { success: true, data: { url: localUrl } };
+    }
+  },
+
   markRoomAsRead: async (roomId: number): Promise<{ success: boolean }> => {
     try {
       return await api.patch(`/student/chat/rooms/${roomId}/read`);
     } catch {
       return { success: false };
+    }
+  },
+
+  getContacts: async (): Promise<{ success: boolean; data: any[] }> => {
+    try {
+      const res = await api.get<any[]>('/student/chat/contacts');
+      return res;
+    } catch {
+      return { success: true, data: [] };
     }
   },
 

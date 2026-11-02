@@ -37,8 +37,20 @@ export interface AdminListingItem {
   status: string;
   isRiskFlagged?: boolean;
   riskReason?: string;
+  moderationReason?: string;
+  moderatedAt?: string;
   imageUrls: string[];
   createdAt: string;
+}
+
+export interface BannedStudentItem {
+  id: number;
+  studentCode: string;
+  email?: string;
+  fullName?: string;
+  banReason?: string;
+  bannedBy?: string;
+  bannedAt?: string;
 }
 
 export interface AdminUserItem {
@@ -105,214 +117,22 @@ export interface AuditLogItem {
   createdAt: string;
 }
 
-const LOCAL_STORAGE_USERS_KEY = 'campus_admin_users_phenikaa_v9';
+const LOCAL_STORAGE_USERS_KEY = 'campus_admin_users_fresh_v10';
 
-// Xóa triệt để các cache cũ từng chứa dữ liệu trường ngoài (HUST, NEU, VNU,...)
 try {
-  ['campus_admin_users', 'campus_admin_users_v2', 'campus_admin_users_v3', 'campus_admin_users_v4', 'campus_admin_users_v5', 'campus_admin_users_phenikaa_v6', 'campus_admin_users_phenikaa_v7', 'campus_admin_users_phenikaa_v8'].forEach((k) => {
+  ['campus_admin_users', 'campus_admin_users_v2', 'campus_admin_users_v3', 'campus_admin_users_v4', 'campus_admin_users_v5', 'campus_admin_users_phenikaa_v6', 'campus_admin_users_phenikaa_v7', 'campus_admin_users_phenikaa_v8', 'campus_admin_users_phenikaa_v9'].forEach((k) => {
     localStorage.removeItem(k);
   });
 } catch {}
 
-export const INITIAL_ADMIN_USERS: AdminUserItem[] = [
-  {
-    id: 1,
-    fullName: 'Hoàng Minh Đức (Phenikaa K17)',
-    email: '1@st.phenikaa-uni.edu.vn',
-    studentCode: '23010001',
-    phone: '0981000001',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Phenikaa, Tòa K1 - Phòng 302',
-    karmaScore: 45,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-09-01T08:00:00Z',
-  },
-  {
-    id: 2,
-    fullName: 'Vũ Hải Đăng (Phenikaa K17)',
-    email: '2@st.phenikaa-uni.edu.vn',
-    studentCode: '23010002',
-    phone: '0981000002',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Phenikaa, Tòa K2 - Phòng 405',
-    karmaScore: 35,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-09-01T11:00:00Z',
-  },
-  {
-    id: 3,
-    fullName: 'Trần Tuấn Cường (Phenikaa K17)',
-    email: '3@st.phenikaa-uni.edu.vn',
-    studentCode: '23010003',
-    phone: '0981000003',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Phenikaa, Tòa K1 - Phòng 510',
-    karmaScore: 30,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-09-01T14:20:00Z',
-  },
-  {
-    id: 4,
-    fullName: 'Lê Thu Hà (Phenikaa K16)',
-    email: '4@st.phenikaa-uni.edu.vn',
-    studentCode: '23010004',
-    phone: '0981000004',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Nữ Phenikaa - Phòng 204',
-    karmaScore: 40,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-09-02T09:30:00Z',
-  },
-  {
-    id: 5,
-    fullName: 'Đỗ Gia Huy (Phenikaa K17)',
-    email: '5@st.phenikaa-uni.edu.vn',
-    studentCode: '23010005',
-    phone: '0981000005',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Phenikaa, Tòa K3 - Phòng 108',
-    karmaScore: 35,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-09-03T10:15:00Z',
-  },
-  {
-    id: 6,
-    fullName: 'Trần Đức Anh (Phenikaa K16)',
-    email: 'anh.td22@st.phenikaa-uni.edu.vn',
-    studentCode: '22010156',
-    phone: '0981000066',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Phenikaa, Tòa K2 - Phòng 301',
-    karmaScore: 65,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-08-15T08:00:00Z',
-  },
-  {
-    id: 7,
-    fullName: 'Nguyễn Thị Mai (Phenikaa K17)',
-    email: 'mai.nt23@st.phenikaa-uni.edu.vn',
-    studentCode: '23010345',
-    phone: '0981000077',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Nữ Phenikaa - Phòng 412',
-    karmaScore: 48,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-08-20T09:00:00Z',
-  },
-  {
-    id: 8,
-    fullName: 'Phạm Tuấn Minh (Phenikaa K18)',
-    email: 'minh.pt24@st.phenikaa-uni.edu.vn',
-    studentCode: '24010190',
-    phone: '0981000055',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Phenikaa, Tòa K1 - Phòng 105',
-    karmaScore: 50,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-08-22T14:00:00Z',
-  },
-  {
-    id: 9,
-    fullName: 'Lê Hoàng Long (Phenikaa K17)',
-    email: 'long.lh23@st.phenikaa-uni.edu.vn',
-    studentCode: '23010567',
-    phone: '0981000044',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Phenikaa, Tòa K3 - Phòng 204',
-    karmaScore: 42,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-08-25T11:00:00Z',
-  },
-  {
-    id: 10,
-    fullName: 'Nguyễn Văn Nam (Phenikaa K18)',
-    email: 'nam.nv24@st.phenikaa-uni.edu.vn',
-    studentCode: '24010892',
-    phone: '0981000088',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Phenikaa, Tòa K1 - Phòng 212',
-    karmaScore: 40,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-09-05T15:30:00Z',
-  },
-  {
-    id: 11,
-    fullName: 'Bùi Phương Nga (Phenikaa K17)',
-    email: 'nga.bp23@st.phenikaa-uni.edu.vn',
-    studentCode: '23010088',
-    phone: '0981000099',
-    universityName: 'Trường Đại học Phenikaa',
-    campusName: 'Cơ sở Yên Nghĩa (Trụ sở chính)',
-    dormitory: 'KTX Nữ Phenikaa - Phòng 305',
-    karmaScore: 55,
-    studentCardVerified: true,
-    studentCardImageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&q=80',
-    role: 'ROLE_STUDENT',
-    status: 'ACTIVE',
-    createdAt: '2026-09-06T16:00:00Z',
-  },
-];
+export const INITIAL_ADMIN_USERS: AdminUserItem[] = [];
 
 const getStoredUsers = (): AdminUserItem[] => {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_USERS_KEY);
-    if (!raw) {
-      localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(INITIAL_ADMIN_USERS));
-      return INITIAL_ADMIN_USERS;
-    }
-    const parsed: AdminUserItem[] = JSON.parse(raw);
-    const phenikaaOnly = parsed.filter(
-      (u) =>
-        u.email.toLowerCase().includes('phenikaa-uni.edu.vn') ||
-        u.universityName?.toLowerCase().includes('phenikaa')
-    );
-    if (phenikaaOnly.length === 0) {
-      localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(INITIAL_ADMIN_USERS));
-      return INITIAL_ADMIN_USERS;
-    }
-    return phenikaaOnly;
+    return raw ? JSON.parse(raw) : [];
   } catch {
-    return INITIAL_ADMIN_USERS;
+    return [];
   }
 };
 
@@ -332,17 +152,12 @@ const getFallbackStats = (): ApiResponse<AdminStats> => {
     data: {
       totalUsers: users.length,
       blockedStudentsCount: blockedCount,
-      totalListings: 27,
-      completedTransactionsCount: 15,
-      pendingListingsCount: 3,
-      openReportsCount: 2,
-      todayNewUsersCount: 1,
-      listingsByCategory: {
-        'Giáo trình & Sách chuyên ngành': 12,
-        'Đồ công nghệ, Laptop & Phụ kiện': 8,
-        'Đồ gia dụng phòng trọ & KTX': 4,
-        'Thời trang & Đồ dùng sinh viên': 3,
-      },
+      totalListings: 0,
+      completedTransactionsCount: 0,
+      pendingListingsCount: 0,
+      openReportsCount: 0,
+      todayNewUsersCount: 0,
+      listingsByCategory: {},
       usersByUniversity: {
         'Trường Đại học Phenikaa': users.length,
       },
@@ -387,9 +202,9 @@ export const adminService = {
   // 1. Dashboard
   getStats: async (): Promise<ApiResponse<AdminStats>> => {
     try {
-      const res = await apiClient.get<ApiResponse<AdminStats>>('/admin/dashboard/stats');
+      const res: any = await apiClient.get('/admin/dashboard/stats');
       if (res && res.data && res.data.totalUsers > 0) {
-        return res;
+        return res as ApiResponse<AdminStats>;
       }
       return getFallbackStats();
     } catch {
@@ -440,13 +255,13 @@ export const adminService = {
     size?: number;
   }): Promise<ApiResponse<PaginatedResult<AdminUserItem>>> => {
     try {
-      const res = await apiClient.get<ApiResponse<PaginatedResult<AdminUserItem>>>('/admin/users', {
+      const res: any = await apiClient.get('/admin/users', {
         params,
       });
-      if (res && res.data && res.data.items && res.data.items.length > 0) {
+      if (res && res.data && res.data.items && Array.isArray(res.data.items) && res.data.items.length > 0) {
         // Enforce STRICT Phenikaa-only filter
         const phenikaaOnly = res.data.items.filter(
-          (u) =>
+          (u: AdminUserItem) =>
             (u.email && (u.email.toLowerCase().includes('phenikaa-uni.edu.vn') || u.email.toLowerCase().includes('phenikaa.edu.vn'))) ||
             (u.universityName && u.universityName.toLowerCase().includes('phenikaa'))
         );
@@ -685,6 +500,14 @@ export const adminService = {
           totalPages: 0,
         },
       };
+    }
+  },
+
+  getBannedStudents: async (): Promise<ApiResponse<BannedStudentItem[]>> => {
+    try {
+      return await apiClient.get('/admin/banned-students');
+    } catch {
+      return { success: true, data: [] };
     }
   },
 };

@@ -25,6 +25,12 @@ import java.util.List;
 public class AdminController extends BaseController {
 
     private final AdminService adminService;
+    private final com.ioc.internship.repository.BannedStudentCodeRepository bannedStudentCodeRepository;
+
+    @GetMapping("/banned-students")
+    public ResponseEntity<ApiResponse<List<com.ioc.internship.entity.BannedStudentCodeEntity>>> getBannedStudents() {
+        return success(bannedStudentCodeRepository.findAll());
+    }
 
     // 1. Dashboard Overview & Realtime KPIs
     @GetMapping("/dashboard/stats")
@@ -53,7 +59,7 @@ public class AdminController extends BaseController {
             @PathVariable Long id,
             @Valid @RequestBody ListingModerationReq req) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         ListingDetailRes res = adminService.moderateListing(adminId, adminEmail, id, req);
         return success(res, "Cập nhật trạng thái kiểm duyệt bài đăng thành công");
     }
@@ -77,7 +83,7 @@ public class AdminController extends BaseController {
             @PathVariable Long id,
             @Valid @RequestBody UserStatusUpdateReq req) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         UserDetailRes res = adminService.updateUserStatus(adminId, adminEmail, id, req);
         return success(res, "Cập nhật trạng thái tài khoản thành công");
     }
@@ -88,7 +94,7 @@ public class AdminController extends BaseController {
             @PathVariable Long id,
             @Valid @RequestBody StudentCardReviewReq req) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         UserDetailRes res = adminService.reviewStudentCard(adminId, adminEmail, id, req);
         return success(res, "Xử lý duyệt thẻ sinh viên thành công");
     }
@@ -104,7 +110,7 @@ public class AdminController extends BaseController {
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody CategoryReq req) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         CategoryEntity res = adminService.createCategory(adminId, adminEmail, req);
         return created(res, "Tạo danh mục mới thành công");
     }
@@ -115,7 +121,7 @@ public class AdminController extends BaseController {
             @PathVariable Long id,
             @Valid @RequestBody CategoryReq req) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         CategoryEntity res = adminService.updateCategory(adminId, adminEmail, id, req);
         return success(res, "Cập nhật danh mục thành công");
     }
@@ -125,7 +131,7 @@ public class AdminController extends BaseController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long id) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         adminService.deleteCategory(adminId, adminEmail, id);
         return success(null, "Đã xóa danh mục thành công");
     }
@@ -141,7 +147,7 @@ public class AdminController extends BaseController {
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody UniversityReq req) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         UniversityEntity res = adminService.createUniversity(adminId, adminEmail, req);
         return created(res, "Thêm trường đại học mới thành công");
     }
@@ -152,7 +158,7 @@ public class AdminController extends BaseController {
             @PathVariable Long id,
             @Valid @RequestBody UniversityReq req) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         UniversityEntity res = adminService.updateUniversity(adminId, adminEmail, id, req);
         return success(res, "Cập nhật trường đại học thành công");
     }
@@ -162,7 +168,7 @@ public class AdminController extends BaseController {
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody CampusReq req) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         CampusEntity res = adminService.createCampus(adminId, adminEmail, req);
         return created(res, "Thêm cơ sở / KTX mới thành công");
     }
@@ -178,7 +184,7 @@ public class AdminController extends BaseController {
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody KeywordBlacklistReq req) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         KeywordBlacklistEntity res = adminService.addBlacklistKeyword(adminId, adminEmail, req);
         return created(res, "Thêm từ khóa cấm thành công");
     }
@@ -188,7 +194,7 @@ public class AdminController extends BaseController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long id) {
         Long adminId = principal != null ? principal.getUserId() : 1L;
-        String adminEmail = principal != null ? principal.getEmail() : "admin@gmail.com";
+        String adminEmail = principal != null ? principal.getEmail() : "minhphuong2925@gmail.com";
         adminService.deleteBlacklistKeyword(adminId, adminEmail, id);
         return success(null, "Đã xóa từ khóa khỏi danh sách cấm");
     }

@@ -47,14 +47,14 @@ class ReviewServiceTest {
     @BeforeEach
     void setUp() {
         reviewer = UserEntity.builder()
-                .email("reviewer@hust.edu.vn")
+                .email("reviewer@st.phenikaa-uni.edu.vn")
                 .fullName("Nguyễn Văn A")
                 .karmaScore(20)
                 .build();
         reviewer.setId(1L);
 
         targetUser = UserEntity.builder()
-                .email("target@hust.edu.vn")
+                .email("target@st.phenikaa-uni.edu.vn")
                 .fullName("Trần Thị B")
                 .karmaScore(30)
                 .build();

@@ -8,6 +8,12 @@ interface AuthState {
   login: (user: User, token: string) => void;
   logout: () => void;
   updateKarma: (newScore: number) => void;
+  updateUser: (fields: Partial<User>) => void;
+  updateUserStatus: (
+    status: 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'BLOCKED',
+    blockReason?: string,
+    suspendedUntil?: string
+  ) => void;
 }
 
 const getInitialUser = (): User | null => {
@@ -42,4 +48,25 @@ export const useAuthStore = create<AuthState>((set) => ({
     set((state) => ({
       user: state.user ? { ...state.user, karmaScore: newScore } : null,
     })),
+
+  updateUser: (fields) =>
+    set((state) => {
+      if (!state.user) return state;
+      const updatedUser: User = { ...state.user, ...fields };
+      localStorage.setItem('user_info', JSON.stringify(updatedUser));
+      return { user: updatedUser };
+    }),
+
+  updateUserStatus: (status, blockReason, suspendedUntil) =>
+    set((state) => {
+      if (!state.user) return state;
+      const updatedUser: User = {
+        ...state.user,
+        status: status as any,
+        blockReason: status === 'ACTIVE' ? undefined : (blockReason || state.user.blockReason),
+        suspendedUntil: status === 'ACTIVE' ? undefined : (suspendedUntil || state.user.suspendedUntil),
+      };
+      localStorage.setItem('user_info', JSON.stringify(updatedUser));
+      return { user: updatedUser };
+    }),
 }));

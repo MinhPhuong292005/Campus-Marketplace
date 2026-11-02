@@ -4,6 +4,7 @@ import com.ioc.internship.dto.request.ChatMessageReq;
 import com.ioc.internship.dto.request.CreateChatRoomReq;
 import com.ioc.internship.dto.response.ChatMessageRes;
 import com.ioc.internship.dto.response.ChatRoomRes;
+import com.ioc.internship.dto.response.UserDetailRes;
 
 import java.util.List;
 
@@ -13,4 +14,5 @@ public interface ChatService {
     List<ChatMessageRes> getRoomMessages(Long currentUserId, Long roomId);
     ChatMessageRes sendMessage(Long currentUserId, ChatMessageReq req);
     void markRoomAsRead(Long currentUserId, Long roomId);
+    List<UserDetailRes> getAvailableContacts(Long currentUserId);
 }

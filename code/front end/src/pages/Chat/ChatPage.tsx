@@ -4,10 +4,7 @@ import {
   Search,
   MoreHorizontal,
   SquarePen,
-  Phone,
-  Video,
   Info,
-  ShieldCheck,
   ShieldAlert,
   MapPin,
   ImagePlus,
@@ -21,12 +18,19 @@ import {
   AlertTriangle,
   ArrowLeft,
   Lock,
+  PackageCheck,
+  ShieldCheck,
+  X,
 } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
+import { PHENIKAA_SAFE_MEETING_POINTS } from '../../constants/phenikaaData';
 import { chatService, ChatRoom, ChatMessage, SafeMeetingPoint } from '../../services/chatService';
 import { ReportModal } from '../../components/features/ReportModal';
 import { SafeMeetingPointsModal } from '../../components/features/SafeMeetingPointsModal';
 import { KarmaBadge } from '../../components/features/KarmaBadge';
+import { studentNotificationService } from '../../services/studentNotificationService';
+import { orderService } from '../../services/orderService';
 
 export const ChatPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -42,11 +46,90 @@ export const ChatPage: React.FC = () => {
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [fraudWarning, setFraudWarning] = useState<string | null>(null);
+  const [selectedSafePointId, setSelectedSafePointId] = useState<number | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const routeState = location.state as {
+    sellerId?: number;
+    sellerName?: string;
+    listingId?: number;
+    listingTitle?: string;
+  } | null;
+
+
+  const deduplicateRooms = (roomList: ChatRoom[]): ChatRoom[] => {
+    const map = new Map<number, ChatRoom>();
+    for (const r of roomList) {
+      if (!map.has(r.peerUserId)) {
+        map.set(r.peerUserId, r);
+      } else {
+        const existing = map.get(r.peerUserId)!;
+        if (!existing.lastMessage && r.lastMessage) {
+          map.set(r.peerUserId, r);
+        }
+      }
+    }
+    return Array.from(map.values());
+  };
+
+  useEffect(() => {
+    if (!routeState?.sellerId) return;
+
+    let isMounted = true;
+    const openSellerChat = async () => {
+      try {
+        setIsLoadingRooms(true);
+        const res = await chatService.createOrGetRoom(routeState.sellerId!, routeState.listingId);
+        if (isMounted && res && res.data && res.data.id) {
+          const targetRoom = res.data;
+          setRooms((prev) => deduplicateRooms([targetRoom, ...prev]));
+          setActiveRoomId(targetRoom.id);
+          if (routeState.listingTitle) {
+            setInputText((prev) => prev || `Chào bạn, mình quan tâm đến sản phẩm "${routeState.listingTitle}" của bạn!`);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to open chat with seller:', err);
+      } finally {
+        if (isMounted) setIsLoadingRooms(false);
+      }
+    };
+
+    openSellerChat();
+    return () => {
+      isMounted = false;
+    };
+  }, [routeState?.sellerId, routeState?.listingId]);
 
   // Modals
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isSafePointModalOpen, setIsSafePointModalOpen] = useState(false);
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+
+  useEffect(() => {
+    if (isNewChatModalOpen) {
+      setIsLoadingContacts(true);
+      chatService
+        .getContacts()
+        .then((res) => {
+          if (res && res.data) {
+            const studentContacts = res.data.filter(
+              (c: any) =>
+                c.id !== 1 &&
+                !c.role?.toUpperCase().includes('ADMIN') &&
+                !c.fullName?.toLowerCase().includes('quản trị viên') &&
+                !c.email?.toLowerCase().includes('minhphuong2925@gmail.com')
+            );
+            setContacts(studentContacts);
+          }
+        })
+        .finally(() => setIsLoadingContacts(false));
+    }
+  }, [isNewChatModalOpen]);
 
   // Accordion state in right sidebar
   const [openSections, setOpenSections] = useState({
@@ -63,9 +146,29 @@ export const ChatPage: React.FC = () => {
     try {
       const res = await chatService.getRooms();
       if (res && res.data) {
-        setRooms(res.data);
-        if (res.data.length > 0 && !activeRoomId) {
-          setActiveRoomId(res.data[0].id);
+        const studentRooms = res.data.filter(
+          (r) =>
+            r.peerUserId !== 1 &&
+            !r.peerName?.toLowerCase().includes('quản trị viên') &&
+            !r.peerName?.toLowerCase().includes('admin')
+        );
+        const deduped = deduplicateRooms(studentRooms);
+        setRooms(deduped);
+
+        if (routeState?.sellerId) {
+          const match = deduped.find((r) => r.peerUserId === routeState.sellerId);
+          if (match) {
+            setActiveRoomId(match.id);
+            return;
+          }
+        }
+
+        if (deduped.length > 0 && (!activeRoomId || !deduped.some((r) => r.id === activeRoomId))) {
+          if (!routeState?.sellerId) {
+            setActiveRoomId(deduped[0].id);
+          }
+        } else if (deduped.length === 0 && !routeState?.sellerId) {
+          setActiveRoomId(null);
         }
       }
     } catch (err) {
@@ -178,6 +281,10 @@ export const ChatPage: React.FC = () => {
 
   // Create room with second test user
   const handleStartChatWithPeer = async (peerId: number) => {
+    if (peerId === 1) {
+      alert('Không thể nhắn tin trực tiếp cho Quản trị viên hệ thống.');
+      return;
+    }
     try {
       const res = await chatService.createOrGetRoom(peerId);
       if (res && res.data) {
@@ -185,9 +292,104 @@ export const ChatPage: React.FC = () => {
         setActiveRoomId(res.data.id);
         setIsNewChatModalOpen(false);
       }
-    } catch (err) {
-      console.error('Failed to create chat room:', err);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Không thể tạo cuộc trò chuyện');
     }
+  };
+
+  const [toastNotice, setToastNotice] = useState<string | null>(null);
+
+  // Xác nhận bán sản phẩm cho người đang chat và gửi thông báo giao hàng
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeRoomId) return;
+
+    try {
+      setIsUploadingImage(true);
+      const res = await chatService.uploadChatImage(file);
+      if (res.success && res.data?.url) {
+        const newMsgRes = await chatService.sendMessage(activeRoomId, res.data.url, 'IMAGE');
+        if (newMsgRes && newMsgRes.data) {
+          setMessages((prev) => [...prev, newMsgRes.data]);
+          loadRooms();
+        }
+      }
+    } catch (err) {
+      console.error('Failed to upload chat image:', err);
+    } finally {
+      setIsUploadingImage(false);
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Sale Confirmation Modal in Chat
+  const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
+  const [saleItemTitle, setSaleItemTitle] = useState('');
+  const [salePrice, setSalePrice] = useState<number>(0);
+  const [saleMeetingPoint, setSaleMeetingPoint] = useState(
+    'Sảnh Tòa A8 (Khu Thực hành Công nghệ & Mô phỏng Y khoa)'
+  );
+  const [saleMeetingTime, setSaleMeetingTime] = useState('14h30 chiều nay');
+  const [saleNote, setSaleNote] = useState('Gặp trực tiếp kiểm tra đồ trước khi thanh toán.');
+
+  const openSaleModal = () => {
+    if (!activeRoom) return;
+    setSaleItemTitle(activeRoom.listingTitle || 'Máy tính Casio');
+    setSalePrice(activeRoom.listingPrice || 50000);
+    const pt = PHENIKAA_SAFE_MEETING_POINTS[0]?.name || 'Sảnh Tòa A8';
+    setSaleMeetingPoint(pt);
+    setSaleMeetingTime('14h30 chiều nay');
+    setSaleNote('Gặp trực tiếp kiểm tra đồ trước khi thanh toán.');
+    setIsSaleModalOpen(true);
+  };
+
+  const handleSubmitSaleConfirmation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeRoom || !saleItemTitle.trim()) return;
+
+    const sellerName = user?.fullName || 'Người bán';
+    const peerName = activeRoom.peerName;
+
+    const confirmMessage = `📦 [XÁC NHẬN CHỐT BÁN HÀNG]
+• Món đồ: ${saleItemTitle.trim()}
+• Giá thỏa thuận: ${salePrice.toLocaleString('vi-VN')} đ
+• Điểm hẹn: ${saleMeetingPoint}
+• Thời gian hẹn: ${saleMeetingTime.trim() || 'Thỏa thuận qua chat'}
+${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
+
+✓ Người bán (${sellerName}) đã xác nhận bán món đồ cho bạn (${peerName}). Món đồ sẽ được chuẩn bị và giao trực tiếp an toàn tại khuôn viên trường Phenikaa!`;
+
+    // 1. Send message in chat thread
+    handleSendMessage(undefined, confirmMessage);
+
+    // 2. Send notification to buyer
+    studentNotificationService.notifyBuyerDeliveryScheduled({
+      buyerId: activeRoom.peerUserId,
+      listingTitle: saleItemTitle.trim(),
+      sellerName,
+      meetingPoint: saleMeetingPoint,
+    });
+
+    // 3. Update order in orderService
+    if (activeRoom.listingId) {
+      orderService.createOrder({
+        listingId: activeRoom.listingId,
+        listingTitle: saleItemTitle.trim(),
+        listingImage: activeRoom.listingImage || '',
+        sellerId: user?.id || 0,
+        sellerName,
+        buyerId: activeRoom.peerUserId,
+        buyerName: peerName,
+        price: salePrice,
+      });
+    }
+
+    setIsSaleModalOpen(false);
+    setToastNotice(`🎉 Đã tạo đơn xác nhận bán thành công! Tin nhắn và thông báo đã được gửi tới ${peerName}.`);
+    setTimeout(() => setToastNotice(null), 3500);
   };
 
   // Find active room object
@@ -195,6 +397,13 @@ export const ChatPage: React.FC = () => {
 
   // Filter rooms
   const filteredRooms = rooms.filter((r) => {
+    if (
+      r.peerUserId === 1 ||
+      r.peerName?.toLowerCase().includes('quản trị viên') ||
+      r.peerName?.toLowerCase().includes('admin')
+    ) {
+      return false;
+    }
     const matchesSearch =
       r.peerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (r.lastMessage && r.lastMessage.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -282,10 +491,6 @@ export const ChatPage: React.FC = () => {
           >
             Chưa đọc
           </button>
-          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 ml-auto font-medium flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Realtime
-          </span>
         </div>
 
         {/* Rooms Scrollable List */}
@@ -388,19 +593,6 @@ export const ChatPage: React.FC = () => {
             })
           )}
         </div>
-
-        {/* Current logged-in user summary */}
-        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-500 flex items-center justify-between">
-          <span>
-            Đang đăng nhập: <strong>{user?.fullName || 'Sinh Viên'}</strong>
-          </span>
-          <button
-            onClick={() => setIsNewChatModalOpen(true)}
-            className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
-          >
-            Đổi bạn chat
-          </button>
-        </div>
       </div>
 
       {/* ======================================================== */}
@@ -464,22 +656,8 @@ export const ChatPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Top Right Action Icons (Messenger Call, Video, Info) */}
+            {/* Top Right Action Icons */}
             <div className="flex items-center gap-1.5 text-blue-600">
-              <button
-                onClick={() => alert('📞 Tính năng thoại âm thanh qua mạng P2P đang kích hoạt!')}
-                className="p-2.5 rounded-full hover:bg-blue-50 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 transition"
-                title="Bắt đầu gọi thoại"
-              >
-                <Phone className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => alert('📹 Tính năng Video Call kiểm tra đồ trực tiếp đang kích hoạt!')}
-                className="p-2.5 rounded-full hover:bg-blue-50 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 transition"
-                title="Bắt đầu gọi video"
-              >
-                <Video className="w-5 h-5" />
-              </button>
               <button
                 onClick={() => setIsRightSidebarOpen((prev) => !prev)}
                 className={`p-2.5 rounded-full transition ${
@@ -494,23 +672,7 @@ export const ChatPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Campus Marketplace Anti-Fraud Shield Banner */}
-          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 dark:from-slate-800/80 dark:to-slate-800/80 border-b border-blue-100 dark:border-slate-800 px-4 py-2 flex items-center justify-between gap-2 text-[11px]">
-            <div className="flex items-center gap-2 text-blue-800 dark:text-blue-200 truncate">
-              <ShieldCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
-              <span className="truncate">
-                <strong>Anti-Fraud Shield:</strong> Không chuyển cọc ngoài app. Luôn gặp mặt kiểm
-                tra hàng tại Điểm hẹn an toàn trong trường.
-              </span>
-            </div>
-            <button
-              onClick={() => setIsSafePointModalOpen(true)}
-              className="text-blue-700 dark:text-blue-300 hover:text-blue-900 font-bold whitespace-nowrap flex items-center gap-1 hover:underline"
-            >
-              <MapPin className="w-3.5 h-3.5 text-blue-600" />
-              Chọn điểm hẹn
-            </button>
-          </div>
+
 
           {/* Messages Stream Container */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#ffffff] dark:bg-[#0b141a]">
@@ -580,16 +742,48 @@ export const ChatPage: React.FC = () => {
                         isMe ? 'items-end' : 'items-start'
                       }`}
                     >
-                      {/* Message Bubble (Messenger Colors) */}
-                      <div
-                        className={`px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed shadow-2xs whitespace-pre-line ${
-                          isMe
-                            ? 'bg-[#0084ff] text-white rounded-br-xs'
-                            : 'bg-[#f0f2f5] dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-xs'
-                        }`}
-                      >
-                        {msg.content || msg.text}
-                      </div>
+                      {/* Message Bubble (Text, Image, or Transaction Confirmation Card) */}
+                      {msg.messageType === 'IMAGE' || (msg.content && (msg.content.startsWith('http') || msg.content.startsWith('blob:') || msg.content.startsWith('data:image') || msg.content.startsWith('/')) && /\.(jpg|jpeg|png|webp|gif)/i.test(msg.content)) ? (
+                        <div className="rounded-2xl overflow-hidden max-w-xs border border-slate-200 dark:border-slate-700 bg-black/5 shadow-xs">
+                          <img
+                            src={msg.content}
+                            alt="Ảnh đính kèm"
+                            className="w-full max-h-64 object-cover cursor-pointer hover:opacity-95 transition"
+                            onClick={() => window.open(msg.content, '_blank')}
+                          />
+                        </div>
+                      ) : msg.content && (msg.content.includes('[XÁC NHẬN CHỐT BÁN HÀNG]') || msg.content.includes('[XÁC NHẬN BÁN HÀNG]')) ? (
+                        <div className="rounded-2xl border-2 border-emerald-400/80 dark:border-emerald-600/80 bg-white dark:bg-slate-900 p-4 shadow-md text-left max-w-sm sm:max-w-md space-y-2.5 animate-in fade-in">
+                          <div className="flex items-center justify-between gap-2 pb-2 border-b border-emerald-100 dark:border-emerald-900/60">
+                            <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs">
+                              <PackageCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span>XÁC NHẬN CHỐT ĐƠN GIAO DỊCH</span>
+                            </div>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              Đã xác nhận chốt ✓
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed font-sans">
+                            {msg.content}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>Giao dịch trực tiếp tại ĐH Phenikaa • Người mua đã nhận thông báo</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className={`px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed shadow-2xs whitespace-pre-line ${
+                            isMe
+                              ? 'bg-[#0084ff] text-white rounded-br-xs'
+                              : 'bg-[#f0f2f5] dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-xs'
+                          }`}
+                        >
+                          {msg.content || msg.text}
+                        </div>
+                      )}
 
                       {/* Timestamp & Read Receipt */}
                       <div className="flex items-center gap-1 text-[10px] text-slate-400 px-1 opacity-80 group-hover:opacity-100 transition">
@@ -637,9 +831,73 @@ export const ChatPage: React.FC = () => {
             </div>
           ) : (
             <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              {/* Ô chọn điểm hẹn giao dịch tại khuôn viên ĐH Phenikaa & Nút tạo chốt bán */}
+              <div className="mb-2.5 px-3 py-2 rounded-2xl bg-blue-50/80 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold shrink-0">
+                  <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>Chọn điểm hẹn giao dịch:</span>
+                </div>
+                <div className="flex items-center gap-2 flex-1 min-w-[220px]">
+                  <select
+                    value={selectedSafePointId || ''}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      setSelectedSafePointId(id || null);
+                      if (id) {
+                        const pt = PHENIKAA_SAFE_MEETING_POINTS.find((p) => p.id === id);
+                        if (pt) {
+                          setInputText(`📍 Mình hẹn gặp giao dịch tại: ${pt.name} (${pt.address}) nhé!`);
+                        }
+                      }
+                    }}
+                    className="flex-1 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                  >
+                    <option value="">-- Bấm để chọn điểm hẹn tại Trường ĐH Phenikaa --</option>
+                    {PHENIKAA_SAFE_MEETING_POINTS.map((pt) => (
+                      <option key={pt.id} value={pt.id}>
+                        {pt.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedSafePointId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pt = PHENIKAA_SAFE_MEETING_POINTS.find((p) => p.id === selectedSafePointId);
+                        if (pt) {
+                          handleSelectSafePoint(pt);
+                          setSelectedSafePointId(null);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shrink-0 shadow-xs transition"
+                      title="Gửi ngay tin nhắn điểm hẹn"
+                    >
+                      Gửi điểm hẹn
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={openSaleModal}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 shadow-xs transition flex items-center gap-1.5"
+                    title="Mở form xác nhận chốt bán món đồ cho người này"
+                  >
+                    <PackageCheck className="w-4 h-4" />
+                    <span>Tạo chốt đơn bán</span>
+                  </button>
+                </div>
+              </div>
+
               <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                 {/* Left Action Icons */}
                 <div className="flex items-center text-blue-600 dark:text-blue-400">
+                  <button
+                    type="button"
+                    onClick={openSaleModal}
+                    className="p-2 rounded-full hover:bg-emerald-50 dark:hover:bg-slate-800 transition text-emerald-600 dark:text-emerald-400"
+                    title="Tạo đơn chốt bán hàng"
+                  >
+                    <PackageCheck className="w-5 h-5" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => setIsSafePointModalOpen(true)}
@@ -648,13 +906,19 @@ export const ChatPage: React.FC = () => {
                   >
                     <MapPin className="w-5 h-5" />
                   </button>
+                  <input
+                    type="file"
+                    ref={imageInputRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
                   <button
                     type="button"
-                    onClick={() =>
-                      alert('🖼️ Bạn có thể tải lên ảnh chụp sản phẩm hoặc ảnh biên lai cọc!')
-                    }
-                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                    title="Gửi hình ảnh"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={isUploadingImage}
+                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition text-blue-600 disabled:opacity-50"
+                    title="Tải ảnh từ máy tính lên"
                   >
                     <ImagePlus className="w-5 h-5" />
                   </button>
@@ -740,11 +1004,19 @@ export const ChatPage: React.FC = () => {
 
             {/* Quick Action Circle Buttons (Trang cá nhân, Tắt thông báo, Tìm kiếm) */}
             <div className="flex items-center justify-center gap-6 mt-5">
-              <div className="flex flex-col items-center gap-1 cursor-pointer group">
-                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-slate-200 transition">
-                  <User className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+              <div
+                onClick={() => {
+                  if (activeRoom.peerUserId) {
+                    navigate(`/seller/${activeRoom.peerUserId}`);
+                  }
+                }}
+                className="flex flex-col items-center gap-1 cursor-pointer group"
+                title="Xem trang cá nhân & kho đồ của người này"
+              >
+                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-blue-50 group-hover:text-blue-600 transition">
+                  <User className="w-4 h-4 text-slate-700 dark:text-slate-300 group-hover:text-blue-600" />
                 </div>
-                <span className="text-[10px] text-slate-500">Trang cá nhân</span>
+                <span className="text-[10px] text-slate-500 group-hover:text-blue-600 font-medium">Trang cá nhân</span>
               </div>
               <div className="flex flex-col items-center gap-1 cursor-pointer group">
                 <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-slate-200 transition">
@@ -858,136 +1130,56 @@ export const ChatPage: React.FC = () => {
       {isNewChatModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-xl border border-slate-200 dark:border-slate-800">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
               Bắt đầu đoạn chat mới
             </h3>
             <p className="text-xs text-slate-500 mb-4">
-              Chọn tài khoản bạn học để bắt đầu trao đổi hoặc kiểm thử tin nhắn 2 chiều:
+              Chỉ có thể nhắn tin với các tài khoản sinh viên Phenikaa đã đăng ký:
             </p>
 
-            <div className="space-y-2">
-              {/* Option 1: Hoàng Minh Đức (ID 22 - Tài khoản bị tạm khóa 1 tuần) */}
-              <div
-                onClick={() => handleStartChatWithPeer(22)}
-                className="p-3 rounded-2xl border border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 hover:border-amber-500 cursor-pointer transition flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-sm">
-                    ĐỨC
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                        Hoàng Minh Đức
-                      </h4>
-                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-200 text-amber-900 font-bold">
-                        Tạm khóa
-                      </span>
+            {isLoadingContacts ? (
+              <div className="py-8 text-center text-xs text-slate-500">
+                Đang tải danh sách tài khoản đã đăng ký...
+              </div>
+            ) : contacts.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-4">
+                Hiện chưa có tài khoản sinh viên nào khác đăng ký trên hệ thống.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {contacts.map((contact) => (
+                  <div
+                    key={contact.id}
+                    onClick={() => handleStartChatWithPeer(contact.id)}
+                    className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0 uppercase">
+                        {contact.fullName ? contact.fullName.charAt(0) : 'U'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {contact.fullName}
+                          </h4>
+                          {contact.status === 'SUSPENDED' && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-200 text-amber-900 font-bold shrink-0">
+                              Tạm khóa
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-mono truncate">
+                          {contact.email}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-slate-500">
-                      1@st.phenikaa-uni.edu.vn • K17 Phenikaa
-                    </p>
+                    <span className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-full font-semibold shrink-0 ml-2">
+                      Nhắn tin
+                    </span>
                   </div>
-                </div>
-                <span className="text-xs bg-amber-600 text-white px-2.5 py-1 rounded-full font-semibold">
-                  Xem chat
-                </span>
+                ))}
               </div>
-
-              {/* Option 2: Lê Thu Hà (ID 25 - Phenikaa K16) */}
-              <div
-                onClick={() => handleStartChatWithPeer(25)}
-                className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-sm">
-                    HÀ
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                      Lê Thu Hà (Phenikaa K16)
-                    </h4>
-                    <p className="text-[11px] text-slate-400">
-                      4@st.phenikaa-uni.edu.vn • K16 Phenikaa
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-full font-semibold">
-                  Nhắn tin
-                </span>
-              </div>
-
-              {/* Option 3: Hoài Thương (ID 12) */}
-              <div
-                onClick={() => handleStartChatWithPeer(12)}
-                className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&q=80"
-                    alt="Hoài Thương"
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                      Hoài Thương
-                    </h4>
-                    <p className="text-[11px] text-slate-400">
-                      23010191@st.phenikaa-uni.edu.vn • K17 Phenikaa
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-full font-semibold">
-                  Nhắn tin
-                </span>
-              </div>
-
-              {/* Option 2: Sinh Viên Phenikaa (ID 11) */}
-              <div
-                onClick={() => handleStartChatWithPeer(11)}
-                className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
-                    SV
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                      Sinh Viên Phenikaa
-                    </h4>
-                    <p className="text-[11px] text-slate-400">
-                      23010190@st.phenikaa-uni.edu.vn • K17 Phenikaa
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-full font-semibold">
-                  Nhắn tin
-                </span>
-              </div>
-
-              {/* Option 3: Hoàng Minh Đức (Phenikaa - ID 1) */}
-              <div
-                onClick={() => handleStartChatWithPeer(1)}
-                className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-slate-800 cursor-pointer transition flex items-center justify-between"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
-                    ĐỨC
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                      Hoàng Minh Đức
-                    </h4>
-                    <p className="text-[11px] text-slate-400">
-                      1@st.phenikaa-uni.edu.vn • ĐH Phenikaa
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full font-semibold">
-                  Nhắn tin
-                </span>
-              </div>
-            </div>
+            )}
 
             <button
               onClick={() => setIsNewChatModalOpen(false)}
@@ -1012,6 +1204,137 @@ export const ChatPage: React.FC = () => {
         onClose={() => setIsSafePointModalOpen(false)}
         onSelectPoint={handleSelectSafePoint}
       />
+
+      {/* Modal Form: Tạo đơn chốt bán hàng trong tin nhắn */}
+      {isSaleModalOpen && activeRoom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-left">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <PackageCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Tạo chốt đơn bán hàng
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Gửi thẻ xác nhận chốt đơn trực tiếp vào đoạn chat với {activeRoom.peerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSaleModalOpen(false)}
+                className="p-1 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitSaleConfirmation} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Món đồ / Sản phẩm giao dịch *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={saleItemTitle}
+                  onChange={(e) => setSaleItemTitle(e.target.value)}
+                  placeholder="vd: Máy tính Casio fx 580 VNX, Túi tote, ..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Giá chốt bán (VNĐ) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={0}
+                  step={1000}
+                  value={salePrice}
+                  onChange={(e) => setSalePrice(Number(e.target.value))}
+                  placeholder="vd: 50000"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Điểm hẹn giao nhận an toàn (Khuôn viên Phenikaa) *
+                </label>
+                <select
+                  value={saleMeetingPoint}
+                  onChange={(e) => setSaleMeetingPoint(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                >
+                  {PHENIKAA_SAFE_MEETING_POINTS.map((pt) => (
+                    <option key={pt.id} value={`${pt.name} (${pt.address})`}>
+                      {pt.name} - {pt.address}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Thời gian hẹn gặp *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={saleMeetingTime}
+                  onChange={(e) => setSaleMeetingTime(e.target.value)}
+                  placeholder="vd: 14h30 chiều nay, 9h sáng mai..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Ghi chú thỏa thuận (tùy chọn)
+                </label>
+                <textarea
+                  rows={2}
+                  value={saleNote}
+                  onChange={(e) => setSaleNote(e.target.value)}
+                  placeholder="vd: Kiểm tra đồ trực tiếp trước khi thanh toán..."
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsSaleModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5"
+                >
+                  <PackageCheck className="w-4 h-4" />
+                  <span>Xác nhận gửi chốt đơn</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Toast thông báo xác nhận giao hàng */}
+      {toastNotice && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
+          <CheckCheck className="w-4 h-4" />
+          <span>{toastNotice}</span>
+        </div>
+      )}
     </div>
   );
 };

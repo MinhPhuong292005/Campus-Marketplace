@@ -249,4 +249,36 @@ export const listingService = {
   getCategories: async (): Promise<ApiResponse<Array<{ id: number; name: string; slug: string; icon?: string }>>> => {
     return getRequest<Array<{ id: number; name: string; slug: string; icon?: string }>>(API_ROUTES.CATEGORIES);
   },
+
+  getUserPublicListings: async (userId: number, transactionType?: string): Promise<ApiResponse<PaginatedResult<Listing>>> => {
+    try {
+      const params: Record<string, unknown> = { page: 0, size: 50 };
+      if (transactionType && transactionType !== 'ALL') {
+        params.transactionType = transactionType;
+      }
+      const res = await getRequest<PaginatedResult<any>>(`/public/users/${userId}/listings`, params);
+      if (res?.data) {
+        const rawItems = res.data.content || res.data.items || [];
+        const normalizedItems = rawItems.map(normalizeListing);
+        return {
+          ...res,
+          data: {
+            ...res.data,
+            content: normalizedItems,
+            items: normalizedItems,
+          },
+        };
+      }
+      return {
+        success: true,
+        data: { content: [], items: [], totalElements: 0, totalPages: 0, page: 0, size: 50 },
+      };
+    } catch {
+      return {
+        success: false,
+        message: 'Không thể tải danh sách sản phẩm của người bán',
+        data: { content: [], items: [], totalElements: 0, totalPages: 0, page: 0, size: 50 },
+      };
+    }
+  },
 };

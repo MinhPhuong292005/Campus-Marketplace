@@ -48,6 +48,22 @@ public class StudentRentalController extends BaseController {
         return success(contract);
     }
 
+    @PutMapping("/{id}/approve")
+    public ResponseEntity<ApiResponse<RentalContractRes>> approveRentalContract(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id) {
+        RentalContractRes contract = rentalContractService.approveRentalContract(principal.getUserId(), id);
+        return success(contract, "Đã chấp thuận yêu cầu thuê đồ. Hai bạn có thể hẹn giờ giao nhận.");
+    }
+
+    @PutMapping("/{id}/handover")
+    public ResponseEntity<ApiResponse<RentalContractRes>> confirmHandover(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id) {
+        RentalContractRes contract = rentalContractService.confirmHandover(principal.getUserId(), id);
+        return success(contract, "Đã xác nhận giao nhận đồ. Hợp đồng chuyển sang trạng thái Đang giao dịch!");
+    }
+
     @PutMapping("/{id}/proof")
     public ResponseEntity<ApiResponse<RentalContractRes>> uploadProofImages(
             @AuthenticationPrincipal UserPrincipal principal,

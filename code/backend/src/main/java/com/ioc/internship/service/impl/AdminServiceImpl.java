@@ -35,6 +35,8 @@ public class AdminServiceImpl implements AdminService {
     private final CampusRepository campusRepository;
     private final AuditLogRepository auditLogRepository;
     private final KeywordBlacklistRepository keywordBlacklistRepository;
+    private final NotificationRepository notificationRepository;
+    private final BannedStudentCodeRepository bannedStudentCodeRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -135,19 +137,59 @@ public class AdminServiceImpl implements AdminService {
                 .orElseThrow(() -> new CustomBusinessException(ErrorCodes.NOT_FOUND, HttpStatus.NOT_FOUND));
 
         String action = req.getAction().toUpperCase();
+        String finalReason = req.getReason() != null && !req.getReason().isBlank() ? req.getReason().trim() : null;
+        if (req.getNote() != null && !req.getNote().isBlank()) {
+            finalReason = (finalReason != null ? finalReason + " - " : "") + req.getNote().trim();
+        }
+
         switch (action) {
             case "APPROVE":
+                if (finalReason == null) {
+                    finalReason = "Bài đăng đầy đủ thông tin, sản phẩm hợp lệ, đúng quy chế Phenikaa Marketplace";
+                }
                 listing.setStatus("ACTIVE");
                 listing.setIsRiskFlagged(false);
+                listing.setModerationReason(finalReason);
+                listing.setModeratedAt(LocalDateTime.now());
+
+                if (listing.getUser() != null) {
+                    NotificationEntity notif = NotificationEntity.builder()
+                            .user(listing.getUser())
+                            .title("Bài đăng \"" + listing.getTitle() + "\" đã được duyệt")
+                            .message("Bài đăng của bạn đã được Ban quản trị phê duyệt và công khai trên Chợ Sinh viên Phenikaa.")
+                            .type("LISTING_APPROVED")
+                            .referenceId(listing.getId())
+                            .reason(finalReason)
+                            .isRead(false)
+                            .build();
+                    notificationRepository.save(notif);
+                }
                 break;
             case "REJECT":
+                if (finalReason == null) {
+                    finalReason = "Ảnh chụp mờ hoặc vi phạm quy chuẩn niêm yết Chợ Sinh viên Phenikaa";
+                }
                 listing.setStatus("REJECTED");
-                break;
-            case "REQUEST_EDIT":
-                listing.setStatus("NEEDS_EDIT");
+                listing.setModerationReason(finalReason);
+                listing.setModeratedAt(LocalDateTime.now());
+
+                if (listing.getUser() != null) {
+                    NotificationEntity notif = NotificationEntity.builder()
+                            .user(listing.getUser())
+                            .title("Bài đăng \"" + listing.getTitle() + "\" không được phê duyệt")
+                            .message("Bài đăng của bạn đã bị từ chối phê duyệt trên Chợ Sinh viên Phenikaa.")
+                            .type("LISTING_REJECTED")
+                            .referenceId(listing.getId())
+                            .reason(finalReason)
+                            .isRead(false)
+                            .build();
+                    notificationRepository.save(notif);
+                }
                 break;
             case "HIDE":
                 listing.setStatus("ARCHIVED");
+                listing.setModerationReason(finalReason != null ? finalReason : "Gỡ/Ẩn bởi Quản trị viên");
+                listing.setModeratedAt(LocalDateTime.now());
                 break;
             default:
                 throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST);
@@ -157,7 +199,7 @@ public class AdminServiceImpl implements AdminService {
 
         // Record Audit Log
         recordAudit(adminId, adminEmail, action + "_LISTING", "LISTING", listingId,
-                "Lý do: " + (req.getReason() != null ? req.getReason() : "N/A") + " | Ghi chú: " + (req.getNote() != null ? req.getNote() : ""));
+                "Lý do: " + (finalReason != null ? finalReason : "N/A"));
 
         return mapToListingDetailRes(listing);
     }
@@ -171,7 +213,7 @@ public class AdminServiceImpl implements AdminService {
 
         Page<UserEntity> userPage = userRepository.adminSearchUsers(kw, universityId, finalStatus, verified, pageable);
         List<UserDetailRes> items = userPage.getContent().stream()
-                .filter(u -> u.getEmail() != null && (u.getEmail().toLowerCase().contains("phenikaa-uni.edu.vn") || u.getEmail().toLowerCase().contains("phenikaa.edu.vn") || "admin@gmail.com".equalsIgnoreCase(u.getEmail())))
+                .filter(u -> u.getEmail() != null && (u.getEmail().toLowerCase().contains("phenikaa-uni.edu.vn") || u.getEmail().toLowerCase().contains("phenikaa.edu.vn") || "minhphuong2925@gmail.com".equalsIgnoreCase(u.getEmail()) || "admin@gmail.com".equalsIgnoreCase(u.getEmail())))
                 .map(this::mapToUserDetailRes)
                 .collect(Collectors.toList());
 
@@ -196,15 +238,76 @@ public class AdminServiceImpl implements AdminService {
                 user.setStatus("SUSPENDED");
                 user.setBlockReason(req.getReason() != null && !req.getReason().isBlank() ? req.getReason() : "Tài khoản bị khóa tạm thời bởi Quản trị viên");
                 user.setSuspendedUntil(LocalDateTime.now().plusDays(7));
+                int suspendDeduct = req.getKarmaAdjustment() != null ? req.getKarmaAdjustment() : -10;
+                user.setKarmaScore(Math.max(0, user.getKarmaScore() + suspendDeduct));
+
+                NotificationEntity suspendNotif = NotificationEntity.builder()
+                        .user(user)
+                        .title("Tài khoản của bạn đã bị Ban Quản Trị tạm khóa")
+                        .message("Tài khoản của bạn đã bị tạm khóa do vi phạm: " + user.getBlockReason() + ". Điểm Karma điều chỉnh: " + suspendDeduct)
+                        .type("WARNING")
+                        .referenceId(user.getId())
+                        .reason(user.getBlockReason())
+                        .isRead(false)
+                        .build();
+                notificationRepository.save(suspendNotif);
                 break;
             case "BAN":
                 user.setStatus("BANNED");
-                user.setBlockReason(req.getReason() != null && !req.getReason().isBlank() ? req.getReason() : "Tài khoản bị cấm vĩnh viễn do vi phạm nghiêm trọng");
+                String banReason = req.getReason() != null && !req.getReason().isBlank() ? req.getReason() : "Tài khoản bị cấm vĩnh viễn do vi phạm nghiêm trọng";
+                user.setBlockReason(banReason);
+                int banDeduct = req.getKarmaAdjustment() != null ? req.getKarmaAdjustment() : -50;
+                user.setKarmaScore(Math.max(0, user.getKarmaScore() + banDeduct));
+
+                // Lưu mã sinh viên vào danh sách cấm vĩnh viễn
+                String sCode = user.getStudentCode();
+                if (sCode == null || sCode.trim().isEmpty()) {
+                    if (user.getEmail() != null && user.getEmail().contains("@")) {
+                        sCode = user.getEmail().split("@")[0].trim();
+                    }
+                }
+                if (sCode != null && !sCode.isBlank()) {
+                    String finalCode = sCode.trim();
+                    BannedStudentCodeEntity bannedEntity = bannedStudentCodeRepository.findByStudentCode(finalCode)
+                            .orElseGet(() -> BannedStudentCodeEntity.builder().studentCode(finalCode).build());
+                    bannedEntity.setEmail(user.getEmail());
+                    bannedEntity.setFullName(user.getFullName());
+                    bannedEntity.setBanReason(banReason);
+                    bannedEntity.setBannedBy(adminEmail != null ? adminEmail : "admin@phenikaa-uni.edu.vn");
+                    bannedEntity.setBannedAt(LocalDateTime.now());
+                    bannedStudentCodeRepository.save(bannedEntity);
+                }
+
+                NotificationEntity banNotif = NotificationEntity.builder()
+                        .user(user)
+                        .title("Tài khoản của bạn đã bị Cấm Vĩnh Viễn")
+                        .message("Tài khoản của bạn đã bị cấm vĩnh viễn trên Chợ Sinh Viên do vi phạm nghiêm trọng quy chế Phenikaa. Lý do: " + banReason)
+                        .type("WARNING")
+                        .referenceId(user.getId())
+                        .reason(banReason)
+                        .isRead(false)
+                        .build();
+                notificationRepository.save(banNotif);
                 break;
             case "ACTIVATE":
                 user.setStatus("ACTIVE");
                 user.setBlockReason(null);
                 user.setSuspendedUntil(null);
+                if (user.getStudentCode() != null) {
+                    bannedStudentCodeRepository.findByStudentCode(user.getStudentCode())
+                            .ifPresent(bannedStudentCodeRepository::delete);
+                }
+
+                NotificationEntity activateNotif = NotificationEntity.builder()
+                        .user(user)
+                        .title("Tài khoản của bạn đã được mở khóa")
+                        .message("Ban Quản Trị đã mở khóa tài khoản của bạn. Bạn đã có thể tiếp tục đăng bài và trao đổi trên sàn Campus Marketplace.")
+                        .type("SYSTEM")
+                        .referenceId(user.getId())
+                        .reason("Tài khoản đã được mở khóa hoạt động trở lại")
+                        .isRead(false)
+                        .build();
+                notificationRepository.save(activateNotif);
                 break;
             case "WARN":
                 user.setKarmaScore(Math.max(0, user.getKarmaScore() - 5));
@@ -232,7 +335,16 @@ public class AdminServiceImpl implements AdminService {
             }
         }
 
-        recordAudit(adminId, adminEmail, action + "_USER", "USER", targetUserId,
+        String studentCode = user.getStudentCode();
+        if (studentCode == null || studentCode.isBlank()) {
+            if (user.getEmail() != null && user.getEmail().contains("@")) {
+                studentCode = user.getEmail().split("@")[0].trim();
+            } else {
+                studentCode = "SV" + targetUserId;
+            }
+        }
+
+        recordAudit(adminId, adminEmail, action + "_USER", studentCode, targetUserId,
                 "Lý do: " + (req.getReason() != null ? req.getReason() : "N/A") + " | Karma điều chỉnh: " + req.getKarmaAdjustment());
 
         return mapToUserDetailRes(user);
@@ -466,6 +578,8 @@ public class AdminServiceImpl implements AdminService {
                 .categoryId(l.getCategory() != null ? l.getCategory().getId() : null)
                 .categoryName(l.getCategory() != null ? l.getCategory().getName() : null)
                 .imageUrls(l.getImages() != null ? l.getImages().stream().map(ListingImageEntity::getMediaUrl).collect(Collectors.toList()) : Collections.emptyList())
+                .moderationReason(l.getModerationReason())
+                .moderatedAt(l.getModeratedAt())
                 .createdAt(l.getCreatedAt())
                 .build();
     }

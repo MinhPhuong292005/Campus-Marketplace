@@ -1,6 +1,7 @@
 import React from 'react';
-import { Filter, RotateCcw, Tag, DollarSign, MapPin } from 'lucide-react';
+import { Filter, RotateCcw, Tag, DollarSign } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
+import { APP_CATEGORIES } from '../../constants/categories';
 
 export interface FilterState {
   category: string;
@@ -23,13 +24,7 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
   onReset,
   totalResults,
 }) => {
-  const categories = [
-    { id: 'ALL', label: 'Tất cả danh mục' },
-    { id: 'BOOKS', label: 'Giáo trình & Tài liệu' },
-    { id: 'TECH', label: 'Thiết bị công nghệ' },
-    { id: 'ROOM', label: 'Đồ dùng phòng trọ' },
-    { id: 'TOOLS', label: 'Dụng cụ chuyên ngành' },
-  ];
+  const categories = APP_CATEGORIES;
 
   const transactionTypes = [
     { id: 'ALL', label: 'Tất cả hình thức' },
@@ -45,15 +40,6 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
     { id: 'LIKE_NEW_99', label: 'Như mới (99%)' },
     { id: 'GOOD_90', label: 'Tốt (90%)' },
     { id: 'FAIR_70', label: 'Khá (70%)' },
-  ];
-
-  const campuses = [
-    { id: 'ALL', label: 'Tất cả cơ sở / KTX' },
-    { id: 'KTX_K1', label: 'KTX Phenikaa Tòa K1' },
-    { id: 'KTX_K2', label: 'KTX Phenikaa Tòa K2' },
-    { id: 'KTX_K3', label: 'KTX Phenikaa Tòa K3' },
-    { id: 'KTX_NU', label: 'KTX Nữ Phenikaa' },
-    { id: 'CO_SO_CHINH', label: 'Cơ sở Yên Nghĩa (Trụ sở chính)' },
   ];
 
   return (
@@ -157,25 +143,6 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
           {conditions.map((cond) => (
             <option key={cond.id} value={cond.id}>
               {cond.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Campus Location */}
-      <div className="space-y-2">
-        <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-          <MapPin className="w-3.5 h-3.5 text-blue-600" />
-          <span>Cơ sở / KTX lân cận</span>
-        </label>
-        <select
-          value={filters.campus}
-          onChange={(e) => onChange({ ...filters, campus: e.target.value })}
-          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-slate-200"
-        >
-          {campuses.map((camp) => (
-            <option key={camp.id} value={camp.id}>
-              {camp.label}
             </option>
           ))}
         </select>

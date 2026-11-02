@@ -1,74 +1,86 @@
 import { getRequest, postRequest, putRequest } from './api';
 import { RentalContract, ApiResponse, PaginatedResult } from '../types';
 import { API_ROUTES } from '../constants';
+import { studentNotificationService } from './studentNotificationService';
+import { listingService } from './listingService';
 
 export interface CreateRentalContractPayload {
   listingId: number;
+  listingTitle?: string;
+  rentalTerms?: string;
   ownerId: number;
+  ownerName?: string;
+  renterId?: number;
+  renterName?: string;
   startDate: string;
   endDate: string;
   totalRentAmount: number;
   depositAmount: number;
 }
 
-export const initialMockRentals: RentalContract[] = [
-  {
-    id: 1,
-    listingId: 2,
-    listingTitle: 'Cho thuê máy tính Casio fx-580VNX ôn thi cấp tốc 2 tuần',
-    renterId: 1,
-    renterName: 'Nguyễn Văn An',
-    renterKarma: 85,
-    ownerId: 102,
-    ownerName: 'Lê Thuỳ Linh',
-    ownerKarma: 40,
-    startDate: '2026-10-01T08:00:00Z',
-    endDate: '2026-10-15T18:00:00Z',
-    totalRentAmount: 40000,
-    depositAmount: 300000,
-    proofImages: [
-      'https://images.unsplash.com/photo-1594980596870-8aa52a78d8cd?w=600&q=80',
-      'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600&q=80',
-    ],
-    status: 'ACTIVE',
-    createdAt: '2026-10-01T08:00:00Z',
-    updatedAt: '2026-10-01T08:15:00Z',
-  },
-  {
-    id: 2,
-    listingId: 12,
-    listingTitle: 'Thuê bộ lễ phục tốt nghiệp cử nhân ĐH Phenikaa (Kèm mũ & dải băng)',
-    renterId: 1,
-    renterName: 'Hoàng Minh Đức',
-    renterKarma: 85,
-    ownerId: 105,
-    ownerName: 'Trần Minh Đức',
-    ownerKarma: 65,
-    startDate: '2026-10-10T07:00:00Z',
-    endDate: '2026-10-11T19:00:00Z',
-    totalRentAmount: 120000,
-    depositAmount: 500000,
-    proofImages: [],
-    status: 'PENDING',
-    createdAt: '2026-10-08T10:00:00Z',
-    updatedAt: '2026-10-08T10:00:00Z',
-  },
-];
+export const initialMockRentals: RentalContract[] = [];
 
-let localRentals = [...initialMockRentals];
+const RENTAL_STORAGE_KEY = 'campus_rentals_fresh_v2';
+
+const getStoredRentals = (): RentalContract[] => {
+  try {
+    const raw = localStorage.getItem(RENTAL_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveStoredRentals = (items: RentalContract[]) => {
+  try {
+    localStorage.setItem(RENTAL_STORAGE_KEY, JSON.stringify(items));
+    window.dispatchEvent(new CustomEvent('campus_rentals_updated', { detail: items }));
+  } catch {}
+};
 
 export const rentalService = {
   getMyRentals: async (status = 'ALL', page = 0, size = 10): Promise<ApiResponse<PaginatedResult<RentalContract>>> => {
+    let serverItems: RentalContract[] = [];
     try {
       const res = await getRequest<PaginatedResult<RentalContract>>(API_ROUTES.RENTALS, { status, page, size });
-      if (res.data?.items?.length) return res;
+      if (res.data?.items) {
+        serverItems = res.data.items;
+      } else if ((res.data as any)?.content) {
+        serverItems = (res.data as any).content;
+      }
     } catch {
       // fallback
     }
 
+    // Merge server items and local storage
+    const local = getStoredRentals();
+    const contractMap = new Map<number, RentalContract>();
+    local.forEach((c) => contractMap.set(c.id, c));
+    serverItems.forEach((c) => contractMap.set(c.id, c));
+    const merged = Array.from(contractMap.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    // Keep cache fresh
+    try {
+      localStorage.setItem(RENTAL_STORAGE_KEY, JSON.stringify(merged));
+    } catch {}
+
+    // Get current user id
+    let currentUserId: number | null = null;
+    try {
+      const u = localStorage.getItem('user_info');
+      if (u) currentUserId = JSON.parse(u)?.id;
+    } catch {}
+
+    // Filter by user if logged in (or all if not logged in or in test mode)
+    const userFiltered = currentUserId
+      ? merged.filter((r) => r.ownerId === currentUserId || r.renterId === currentUserId)
+      : merged;
+
     const filtered = status === 'ALL'
-      ? localRentals
-      : localRentals.filter((r) => r.status === status);
+      ? userFiltered
+      : userFiltered.filter((r) => r.status === status);
 
     return {
       success: true,
@@ -77,39 +89,54 @@ export const rentalService = {
         page,
         size,
         totalElements: filtered.length,
-        totalPages: 1,
+        totalPages: Math.max(1, Math.ceil(filtered.length / size)),
       },
     };
   },
 
   getRentalById: async (id: number): Promise<ApiResponse<RentalContract>> => {
     try {
-      return await getRequest<RentalContract>(`${API_ROUTES.RENTALS}/${id}`);
-    } catch {
-      const found = localRentals.find((r) => r.id === id) || localRentals[0];
-      return {
-        success: true,
-        data: found,
-      };
+      const res = await getRequest<RentalContract>(`${API_ROUTES.RENTALS}/${id}`);
+      if (res?.data) return res;
+    } catch {}
+
+    const all = getStoredRentals();
+    const found = all.find((r) => r.id === id);
+    if (found) {
+      return { success: true, data: found };
     }
+    throw new Error('Không tìm thấy hợp đồng thuê');
   },
 
   createRentalContract: async (payload: CreateRentalContractPayload): Promise<ApiResponse<RentalContract>> => {
+    const formattedPayload = {
+      ...payload,
+      startDate: payload.startDate.includes('T') ? payload.startDate : `${payload.startDate}T00:00:00`,
+      endDate: payload.endDate.includes('T') ? payload.endDate : `${payload.endDate}T23:59:59`,
+    };
+
+    let createdContract: RentalContract;
     try {
-      return await postRequest<RentalContract>(API_ROUTES.RENTALS, payload);
+      const res = await postRequest<RentalContract>(API_ROUTES.RENTALS, formattedPayload);
+      if (res?.data) {
+        createdContract = res.data;
+      } else {
+        throw new Error('No data returned');
+      }
     } catch {
-      const newContract: RentalContract = {
+      createdContract = {
         id: Date.now(),
         listingId: payload.listingId,
-        listingTitle: 'Thiết bị học tập & thực hành thuê',
-        renterId: 1,
-        renterName: 'Nguyễn Văn An',
-        renterKarma: 85,
+        listingTitle: payload.listingTitle || 'Thiết bị học tập & thực hành thuê',
+        rentalTerms: payload.rentalTerms,
+        renterId: payload.renterId || 1,
+        renterName: payload.renterName || 'Bạn Sinh Viên',
+        renterKarma: 50,
         ownerId: payload.ownerId,
-        ownerName: 'Bạn Sinh Viên',
+        ownerName: payload.ownerName || 'Chủ thiết bị',
         ownerKarma: 50,
-        startDate: payload.startDate,
-        endDate: payload.endDate,
+        startDate: formattedPayload.startDate,
+        endDate: formattedPayload.endDate,
         totalRentAmount: payload.totalRentAmount,
         depositAmount: payload.depositAmount,
         proofImages: [],
@@ -117,60 +144,213 @@ export const rentalService = {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      localRentals = [newContract, ...localRentals];
-      return {
-        success: true,
-        data: newContract,
-        message: 'Tạo hợp đồng thuê thành công!',
-      };
     }
+
+    // Always ensure it is saved locally too
+    const all = [createdContract, ...getStoredRentals().filter((r) => r.id !== createdContract.id)];
+    saveStoredRentals(all);
+
+    // Notify the owner so they get the bell notification
+    studentNotificationService.notifyOwnerRentalRequested({
+      ownerId: payload.ownerId,
+      renterName: payload.renterName || 'Bạn Sinh Viên',
+      listingTitle: payload.listingTitle || 'Thiết bị',
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      contractId: createdContract.id,
+    });
+
+    return {
+      success: true,
+      data: createdContract,
+      message: 'Gửi yêu cầu thuê thành công! Đang chờ người cho thuê duyệt.',
+    };
+  },
+
+  approveContract: async (contractId: number): Promise<ApiResponse<RentalContract>> => {
+    let updated: RentalContract | null = null;
+    try {
+      const res = await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/approve`);
+      if (res?.data) updated = res.data;
+    } catch {}
+
+    const all = getStoredRentals().map((r) =>
+      r.id === contractId ? { ...r, status: 'APPROVED' as const } : r
+    );
+    saveStoredRentals(all);
+    if (!updated) {
+      updated = all.find((r) => r.id === contractId)!;
+    }
+
+    if (updated) {
+      // Notify the renter
+      studentNotificationService.notifyRenterRentalApproved({
+        renterId: updated.renterId,
+        ownerName: updated.ownerName || 'Chủ thiết bị',
+        listingTitle: updated.listingTitle || 'Thiết bị học tập',
+        contractId: updated.id,
+      });
+    }
+
+    return {
+      success: true,
+      data: updated,
+      message: 'Đã xác nhận cho thuê! Vui lòng trao đổi với người thuê về thời gian và địa điểm hẹn gặp.',
+    };
+  },
+
+  updateMeetingDetails: async (
+    contractId: number,
+    details: { meetingPoint?: string; meetingTime?: string }
+  ): Promise<ApiResponse<RentalContract>> => {
+    let updated: RentalContract | null = null;
+    const all = getStoredRentals().map((r) => {
+      if (r.id === contractId) {
+        const item = {
+          ...r,
+          meetingPoint: details.meetingPoint !== undefined ? details.meetingPoint : r.meetingPoint,
+          meetingTime: details.meetingTime !== undefined ? details.meetingTime : r.meetingTime,
+          updatedAt: new Date().toISOString(),
+        };
+        updated = item;
+        return item;
+      }
+      return r;
+    });
+    saveStoredRentals(all);
+    return {
+      success: true,
+      data: updated!,
+      message: 'Đã cập nhật lịch hẹn và điểm gặp mặt an toàn!',
+    };
+  },
+
+  confirmHandover: async (contractId: number, role?: 'owner' | 'renter'): Promise<ApiResponse<RentalContract>> => {
+    let updated: RentalContract | null = null;
+    try {
+      const res = await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/handover`);
+      if (res?.data) updated = res.data;
+    } catch {}
+
+    const all = getStoredRentals().map((r) => {
+      if (r.id === contractId) {
+        const ownerConf = role === 'owner' ? true : r.ownerHandoverConfirmed ?? false;
+        const renterConf = role === 'renter' ? true : r.renterHandoverConfirmed ?? false;
+        // Nếu cả hai bên đã bấm hoặc không truyền role cụ thể -> chuyển status sang ACTIVE
+        const isBothConfirmed = (ownerConf && renterConf) || !role;
+
+        const item: RentalContract = {
+          ...r,
+          ownerHandoverConfirmed: ownerConf || isBothConfirmed,
+          renterHandoverConfirmed: renterConf || isBothConfirmed,
+          status: isBothConfirmed ? ('ACTIVE' as const) : r.status,
+          updatedAt: new Date().toISOString(),
+        };
+        updated = item;
+        return item;
+      }
+      return r;
+    });
+    saveStoredRentals(all);
+    if (!updated) {
+      updated = all.find((r) => r.id === contractId)!;
+    }
+
+    return {
+      success: true,
+      data: updated,
+      message: updated?.status === 'ACTIVE'
+        ? 'Cả hai bên đã xác nhận bàn giao thiết bị thành công! Hợp đồng chuyển sang "Đang trong thời hạn thuê".'
+        : 'Đã ghi nhận xác nhận bàn giao của bạn. Đang chờ đối phương xác nhận để kích hoạt thời gian thuê.',
+    };
   },
 
   uploadProofImages: async (contractId: number, images: string[]): Promise<ApiResponse<RentalContract>> => {
+    let updated: RentalContract | null = null;
     try {
-      return await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/proof`, { proofImages: images });
-    } catch {
-      localRentals = localRentals.map((r) =>
-        r.id === contractId ? { ...r, proofImages: images, status: 'ACTIVE' as const } : r
-      );
-      const updated = localRentals.find((r) => r.id === contractId)!;
-      return {
-        success: true,
-        data: updated,
-        message: 'Đã lưu ảnh hiện trạng bàn giao. Hợp đồng chuyển sang ACTIVE!',
-      };
+      const res = await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/proof`, { proofImages: images });
+      if (res?.data) updated = res.data;
+    } catch {}
+
+    // Lưu ảnh hiện trạng mà không tự ý đổi status sang ACTIVE trước khi hai bên bấm xác nhận
+    const all = getStoredRentals().map((r) =>
+      r.id === contractId ? { ...r, proofImages: images, updatedAt: new Date().toISOString() } : r
+    );
+    saveStoredRentals(all);
+    if (!updated) {
+      updated = all.find((r) => r.id === contractId)!;
     }
+
+    return {
+      success: true,
+      data: updated,
+      message: `Đã lưu biên bản ${images.length} ảnh đối chiếu hiện trạng thiết bị thành công!`,
+    };
   },
 
-  confirmReturnAndRefund: async (contractId: number): Promise<ApiResponse<RentalContract>> => {
+  confirmReturnAndRefund: async (contractId: number, role?: 'owner' | 'renter'): Promise<ApiResponse<RentalContract>> => {
+    let updated: RentalContract | null = null;
     try {
-      return await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/return`);
-    } catch {
-      localRentals = localRentals.map((r) =>
-        r.id === contractId ? { ...r, status: 'RETURNED' as const } : r
-      );
-      const updated = localRentals.find((r) => r.id === contractId)!;
-      return {
-        success: true,
-        data: updated,
-        message: 'Xác nhận trả đồ & hoàn cọc thành công! Cả 2 bên nhận +5 Karma.',
-      };
+      const res = await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/return`);
+      if (res?.data) updated = res.data;
+    } catch {}
+
+    const all = getStoredRentals().map((r) => {
+      if (r.id === contractId) {
+        const ownerRet = role === 'owner' ? true : r.ownerReturnConfirmed ?? false;
+        const renterRet = role === 'renter' ? true : r.renterReturnConfirmed ?? false;
+        const isBothReturned = (ownerRet && renterRet) || !role;
+
+        const item: RentalContract = {
+          ...r,
+          ownerReturnConfirmed: ownerRet || isBothReturned,
+          renterReturnConfirmed: renterRet || isBothReturned,
+          status: isBothReturned ? ('RETURNED' as const) : r.status,
+          updatedAt: new Date().toISOString(),
+        };
+        updated = item;
+        return item;
+      }
+      return r;
+    });
+    saveStoredRentals(all);
+    if (!updated) {
+      updated = all.find((r) => r.id === contractId)!;
     }
+
+    // Sau khi trả đồ & hoàn cọc thành công, món đồ tự động sẵn sàng (ACTIVE) để cho người khác thuê tiếp
+    if (updated?.listingId && updated.status === 'RETURNED') {
+      listingService.updateListingStatus(updated.listingId, 'ACTIVE').catch(() => {});
+    }
+
+    return {
+      success: true,
+      data: updated,
+      message: updated?.status === 'RETURNED'
+        ? 'Xác nhận trả đồ & hoàn cọc 100% thành công! Cả 2 bên nhận +5 Campus Karma.'
+        : 'Đã ghi nhận xác nhận hoàn trả đồ của bạn.',
+    };
   },
 
   reportDispute: async (contractId: number, reason: string): Promise<ApiResponse<RentalContract>> => {
+    let updated: RentalContract | null = null;
     try {
-      return await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/dispute`, { disputeReason: reason });
-    } catch {
-      localRentals = localRentals.map((r) =>
-        r.id === contractId ? { ...r, status: 'DISPUTED' as const, disputeReason: reason } : r
-      );
-      const updated = localRentals.find((r) => r.id === contractId)!;
-      return {
-        success: true,
-        data: updated,
-        message: 'Đã gửi báo cáo tranh chấp cọc đến ban quản trị.',
-      };
+      const res = await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/dispute`, { disputeReason: reason });
+      if (res?.data) updated = res.data;
+    } catch {}
+
+    const all = getStoredRentals().map((r) =>
+      r.id === contractId ? { ...r, status: 'DISPUTED' as const, disputeReason: reason } : r
+    );
+    saveStoredRentals(all);
+    if (!updated) {
+      updated = all.find((r) => r.id === contractId)!;
     }
+
+    return {
+      success: true,
+      data: updated,
+      message: 'Đã gửi báo cáo tranh chấp cọc đến ban quản trị.',
+    };
   },
 };

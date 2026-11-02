@@ -1,6 +1,9 @@
+import { adminService } from './adminService';
+import { reportService } from './reportService';
+
 export interface AdminNotification {
   id: string;
-  type: 'APPEAL' | 'REPORT' | 'CARD_VERIFY' | 'SYSTEM';
+  type: 'LISTING_PENDING' | 'REPORT' | 'DISPUTE' | 'APPEAL' | 'CARD_VERIFY' | 'SYSTEM';
   title: string;
   studentId?: number;
   studentName: string;
@@ -12,6 +15,7 @@ export interface AdminNotification {
   karmaScore?: number;
   currentStatus?: 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'BLOCKED';
   violationReason?: string;
+  reportedListingId?: number;
   reportedListingTitle?: string;
   reportedListingPrice?: number;
   reporterName?: string;
@@ -24,154 +28,182 @@ export interface AdminNotification {
   resolvedAt?: string;
 }
 
-const STORAGE_KEY = 'campus_admin_notifications_v3';
+const STORAGE_KEY = 'campus_admin_notifications_fresh_v5';
 
-export const INITIAL_NOTIFICATIONS: AdminNotification[] = [
-  {
-    id: 'notif-1',
-    type: 'APPEAL',
-    title: 'Đơn khiếu nại mở khóa tài khoản - Hoàng Minh Đức',
-    studentId: 22,
-    studentName: 'Hoàng Minh Đức (Tố cáo Scam)',
-    studentEmail: '1@st.phenikaa-uni.edu.vn',
-    studentCode: '23010001',
-    phone: '0981000001',
-    universityName: 'Trường Đại học Phenikaa',
-    dormitory: 'KTX Phenikaa, Tòa K1 - Phòng 302',
-    karmaScore: 20,
-    currentStatus: 'BANNED',
-    violationReason: 'Tố cáo quỵt cọc 200.000đ giữ máy tính Casio & sách chuyên ngành',
-    message: 'Em chào Ban quản trị Phenikaa, tài khoản em bị tố cáo hiểu nhầm do người mua chuyển nhầm số tài khoản và tưởng em scam cọc. Em đã đối soát và chủ động hoàn trả 100% tiền cọc 200.000đ qua Vietcombank. Kính mong thầy cô Admin xem xét hóa đơn đối chứng đính kèm và mở khóa tài khoản giúp em ạ.',
-    imageUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=800&q=80',
-    createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    isRead: false,
-    status: 'PENDING',
-  },
-  {
-    id: 'notif-2',
-    type: 'REPORT',
-    title: 'Cảnh báo vi phạm: Rao bán Vape Pod trong KTX - Vũ Hải Đăng',
-    studentId: 23,
-    studentName: 'Vũ Hải Đăng (Bán Vape Pod)',
-    studentEmail: '2@st.phenikaa-uni.edu.vn',
-    studentCode: '23010002',
-    phone: '0981000002',
-    universityName: 'Trường Đại học Phenikaa',
-    dormitory: 'KTX Phenikaa, Tòa K2 - Phòng 405',
-    karmaScore: 18,
-    currentStatus: 'SUSPENDED',
-    violationReason: 'Rao bán thuốc lá điện tử vape pod trái quy chế Bộ GD&ĐT và Đại học Phenikaa',
-    reportedListingTitle: 'Bán máy Vape Pod mini siêu khói giá rẻ',
-    reportedListingPrice: 200000,
-    reporterName: 'Đội Tự quản KTX Phenikaa (Ẩn danh)',
-    message: 'Hệ thống tự động phát hiện bài đăng chứa từ khóa cấm [vape, pod] và nhận được phản ánh từ sinh viên KTX Tòa K2. Bài đăng đã bị chặn tự động, tài khoản đang trong diện xem xét chế tài.',
-    imageUrl: 'https://images.unsplash.com/photo-1527661591475-527312dd65f5?w=800&q=80',
-    createdAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    isRead: false,
-    status: 'PENDING',
-  },
-  {
-    id: 'notif-3',
-    type: 'REPORT',
-    title: 'Báo cáo khẩn cấp: Rao bán chất cấm Cần Sa - Trần Tuấn Cường',
-    studentId: 24,
-    studentName: 'Trần Tuấn Cường (Bán Cần Sa)',
-    studentEmail: '3@st.phenikaa-uni.edu.vn',
-    studentCode: '23010003',
-    phone: '0981000003',
-    universityName: 'Trường Đại học Phenikaa',
-    dormitory: 'KTX Phenikaa, Tòa K1 - Phòng 510',
-    karmaScore: 15,
-    currentStatus: 'BANNED',
-    violationReason: 'Rao bán chất cấm cần sa CBD trong khuôn viên trường đại học',
-    reportedListingTitle: 'Pass lại tinh dầu cần sa cbd thư giãn giảm stress',
-    reportedListingPrice: 350000,
-    reporterName: 'Cán bộ Quản lý KTX Phenikaa',
-    message: 'Sinh viên cố tình rao bán tinh dầu cần sa trong diễn đàn sinh viên. Mức độ vi phạm nghiêm trọng (CRITICAL). Đề xuất cấm vĩnh viễn và chuyển hồ sơ về Phòng Công tác Sinh viên.',
-    imageUrl: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=800&q=80',
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    isRead: false,
-    status: 'PENDING',
-  },
-  {
-    id: 'notif-4',
-    type: 'CARD_VERIFY',
-    title: 'Yêu cầu xác thực thẻ SV Phenikaa K16 - Lê Thu Hà',
-    studentId: 25,
-    studentName: 'Lê Thu Hà (SV Phenikaa K16)',
-    studentEmail: '4@st.phenikaa-uni.edu.vn',
-    studentCode: '23010004',
-    phone: '0981000004',
-    universityName: 'Trường Đại học Phenikaa',
-    dormitory: 'KTX Nữ Phenikaa - Phòng 204',
-    karmaScore: 30,
-    currentStatus: 'ACTIVE',
-    message: 'Sinh viên ngành Ngôn ngữ Anh Phenikaa K16 đã hoàn tất tải ảnh 2 mặt thẻ sinh viên qua hệ thống OCR tự động. Thông tin khớp 100% cơ sở dữ liệu trường. Yêu cầu cấp tích xanh uy tín và thưởng +15 điểm Karma.',
-    imageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&q=80',
-    createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-    isRead: false,
-    status: 'PENDING',
-  },
-  {
-    id: 'notif-5',
-    type: 'CARD_VERIFY',
-    title: 'Yêu cầu xác thực thẻ SV Phenikaa K17 - Đỗ Gia Huy',
-    studentId: 26,
-    studentName: 'Đỗ Gia Huy (SV Phenikaa K17)',
-    studentEmail: '5@st.phenikaa-uni.edu.vn',
-    studentCode: '23010005',
-    phone: '0981000005',
-    universityName: 'Trường Đại học Phenikaa',
-    dormitory: 'KTX Phenikaa, Tòa K3 - Phòng 108',
-    karmaScore: 25,
-    currentStatus: 'ACTIVE',
-    message: 'Sinh viên Khoa Dược K17 Phenikaa tải lên ảnh thẻ sinh viên để mở khóa tính năng trao đổi giáo trình & dụng cụ thực hành. Đề nghị Quản trị viên duyệt cấp tích xanh bảo chứng trường.',
-    imageUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&q=80',
-    createdAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    isRead: false,
-    status: 'PENDING',
-  },
-  {
-    id: 'notif-6',
-    type: 'APPEAL',
-    title: 'Khiếu nại đối soát giao dịch bàn giao tại Safe Point Sảnh A',
-    studentId: 27,
-    studentName: 'Nguyễn Văn Nam (Phenikaa K18)',
-    studentEmail: 'nam.nv24@st.phenikaa-uni.edu.vn',
-    studentCode: '24010892',
-    phone: '0981000088',
-    universityName: 'Trường Đại học Phenikaa',
-    dormitory: 'KTX Phenikaa, Tòa K1 - Phòng 212',
-    karmaScore: 40,
-    currentStatus: 'ACTIVE',
-    message: 'Em đã giao đủ sách Giải tích và biên nhận tại Safe Meeting Point Sảnh Tòa A Phenikaa, có ảnh chụp đối chứng với người nhận, nhưng đối tác chưa xác nhận hoàn tất trên web. Kính nhờ Admin kiểm tra hóa đơn và duyệt giao dịch giúp em.',
-    imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=800&q=80',
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    isRead: true,
-    status: 'APPROVED',
-  },
-];
+try {
+  localStorage.removeItem('campus_admin_notifications_v4');
+  localStorage.removeItem('campus_admin_notifications_v3');
+  localStorage.removeItem('campus_admin_notifications_v2');
+  localStorage.removeItem('campus_admin_notifications');
+} catch {}
+
+export const INITIAL_NOTIFICATIONS: AdminNotification[] = [];
 
 export const adminNotificationService = {
   getNotifications: (): AdminNotification[] => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_NOTIFICATIONS));
-        return INITIAL_NOTIFICATIONS;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+        return [];
       }
-      const parsed: AdminNotification[] = JSON.parse(raw);
-      // Auto-merge with INITIAL_NOTIFICATIONS to ensure all core sample items exist
-      if (parsed.length < INITIAL_NOTIFICATIONS.length) {
-        const existingIds = new Set(parsed.map((item) => item.id));
-        const missing = INITIAL_NOTIFICATIONS.filter((item) => !existingIds.has(item.id));
-        const merged = [...parsed, ...missing];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-        return merged;
-      }
-      return parsed;
+      return JSON.parse(raw);
     } catch {
-      return INITIAL_NOTIFICATIONS;
+      return [];
+    }
+  },
+
+  // Connect & sync with real backend pending listings & reports
+  syncWithBackend: async (): Promise<AdminNotification[]> => {
+    const currentList = adminNotificationService.getNotifications();
+    let hasChanges = false;
+    let updatedList = [...currentList];
+
+    try {
+      // 1. Fetch real pending listings from backend
+      const listingsRes = await adminService.getListings({ status: 'PENDING_APPROVAL' });
+      const rawListings: any[] =
+        (listingsRes.data as any)?.items || (listingsRes.data as any)?.content || [];
+
+      if (listingsRes.success) {
+        const pendingListingIds = new Set(rawListings.map((l) => l.id));
+
+        for (const item of rawListings) {
+          const notifId = `notif-backend-listing-${item.id}`;
+          const existingIdx = updatedList.findIndex(
+            (n) => n.id === notifId || (n.type === 'LISTING_PENDING' && n.reportedListingId === item.id)
+          );
+
+          if (existingIdx === -1) {
+            const newNotif: AdminNotification = {
+              id: notifId,
+              type: 'LISTING_PENDING',
+              title: `Duyệt bài đăng mới: ${item.title}`,
+              studentId: item.userId,
+              studentName: item.authorName || 'Sinh viên đăng bài',
+              studentEmail: `${item.userId}@st.phenikaa-uni.edu.vn`,
+              reportedListingId: item.id,
+              reportedListingTitle: item.title,
+              reportedListingPrice: item.price,
+              violationReason: item.moderationReason || 'Bài đăng mới cần Quản trị viên duyệt',
+              message: `Bài viết "${item.title}" được đăng tải với giá ${item.price?.toLocaleString()} đ. Chờ Quản trị viên kiểm tra hình ảnh và nội dung.`,
+              imageUrl: item.imageUrls?.[0] || '',
+              createdAt: item.createdAt || new Date().toISOString(),
+              isRead: false,
+              status: 'PENDING',
+            };
+            updatedList = [newNotif, ...updatedList];
+            hasChanges = true;
+          } else {
+            // Nếu bài đăng đang ở hàng đợi duyệt thì đảm bảo notification luôn ở trạng thái PENDING
+            if (updatedList[existingIdx].status !== 'PENDING') {
+              updatedList[existingIdx] = {
+                ...updatedList[existingIdx],
+                status: 'PENDING',
+                isRead: false,
+                title: `Duyệt bài đăng: ${item.title}`,
+                reportedListingTitle: item.title,
+                reportedListingPrice: item.price,
+              };
+              hasChanges = true;
+            }
+          }
+        }
+
+        // Đánh dấu các thông báo bài đăng đã được duyệt xong
+        updatedList = updatedList.map((n) => {
+          if (
+            n.type === 'LISTING_PENDING' &&
+            n.reportedListingId &&
+            !pendingListingIds.has(n.reportedListingId) &&
+            n.status === 'PENDING'
+          ) {
+            hasChanges = true;
+            return { ...n, status: 'APPROVED', isRead: true };
+          }
+          return n;
+        });
+      }
+
+      // 2. Fetch real reports from backend
+      const reportsRes = await reportService.getReports();
+      const rawReports: any[] =
+        (reportsRes.data as any)?.items || (reportsRes.data as any)?.content || [];
+
+      if (reportsRes.success && rawReports.length > 0) {
+        for (const rep of rawReports) {
+          const notifId = `notif-backend-report-${rep.id}`;
+          const existingIdx = updatedList.findIndex(
+            (n) => n.id === notifId || (n.type === 'REPORT' && (n as any).reportId === rep.id)
+          );
+
+          if (existingIdx === -1 && (rep.status === 'PENDING' || rep.status === 'OPEN')) {
+            const isDispute =
+              rep.reason === 'BOM_HEN' || rep.reason === 'SCAM_COC' || rep.reason === 'HANG_GIA';
+            const newNotif: AdminNotification = {
+              id: notifId,
+              type: isDispute ? 'DISPUTE' : 'REPORT',
+              title: isDispute
+                ? `Khiếu nại giao dịch #${rep.id}: ${rep.reason}`
+                : `Báo cáo nội dung bài viết #${rep.id}`,
+              studentId: rep.reportedUserId,
+              studentName: rep.reportedUserName || 'Người dùng bị báo cáo',
+              studentEmail: rep.reportedUserId
+                ? `${rep.reportedUserId}@st.phenikaa-uni.edu.vn`
+                : 'sinhvien@st.phenikaa-uni.edu.vn',
+              reportedListingId: rep.reportedListingId,
+              reportedListingTitle: rep.reportedListingTitle,
+              reporterName: rep.reporterName,
+              violationReason: `Lý do vi phạm: ${rep.reason}`,
+              message: rep.description,
+              imageUrl: rep.evidenceUrl,
+              createdAt: rep.createdAt,
+              isRead: false,
+              status: 'PENDING',
+            };
+            updatedList = [newNotif, ...updatedList];
+            hasChanges = true;
+          }
+        }
+      }
+    } catch {
+      // Backend sync fallback
+    }
+
+    if (hasChanges) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+      window.dispatchEvent(new CustomEvent('admin_notifications_updated', { detail: updatedList }));
+    }
+
+    return updatedList;
+  },
+
+  resolveListingNotification: (
+    listingId: number,
+    status: 'APPROVED' | 'REJECTED' = 'APPROVED',
+    reason?: string
+  ) => {
+    const list = adminNotificationService.getNotifications();
+    let hasChanges = false;
+    const updated = list.map((n) => {
+      if (
+        n.type === 'LISTING_PENDING' &&
+        (n.reportedListingId === listingId || n.id === `notif-backend-listing-${listingId}`)
+      ) {
+        hasChanges = true;
+        return {
+          ...n,
+          status,
+          isRead: true,
+          adminNotes: reason || n.adminNotes,
+          resolvedAt: new Date().toISOString(),
+        };
+      }
+      return n;
+    });
+    if (hasChanges) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('admin_notifications_updated', { detail: updated }));
     }
   },
 
