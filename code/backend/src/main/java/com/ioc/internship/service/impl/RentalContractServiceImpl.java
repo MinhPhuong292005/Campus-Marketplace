@@ -41,6 +41,7 @@ public class RentalContractServiceImpl implements RentalContractService {
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final ObjectMapper objectMapper;
+    private final com.ioc.internship.service.KarmaService karmaService;
 
     @Override
     @Transactional
@@ -273,6 +274,44 @@ public class RentalContractServiceImpl implements RentalContractService {
 
         RentalContractEntity updated = rentalContractRepository.save(contract);
         log.warn("Dispute reported on contract #{}: {}", contractId, req.getDisputeReason());
+        return mapToRes(updated);
+    }
+
+    @Override
+    @Transactional
+    public RentalContractRes cancelRentalContract(Long userId, Long contractId, String reason) {
+        RentalContractEntity contract = getAuthorizedContract(userId, contractId);
+        contract.setStatus("CANCELLED");
+        contract.setDisputeReason(reason);
+
+        // TỰ ĐỘNG HỒI PHỤC LẠI BÀI ĐĂNG THUÊ VỀ ACTIVE
+        ListingEntity listing = contract.getListing();
+        if (listing != null && !"DELETED".equalsIgnoreCase(listing.getStatus())) {
+            listing.setStatus("ACTIVE");
+            listingRepository.save(listing);
+            log.info("Listing #{} automatically RESTORED to ACTIVE after cancelled rental contract #{}", listing.getId(), contractId);
+        }
+
+        // Áp dụng trừ 10 điểm Karma cho bên báo hủy / hủy hẹn
+        UserEntity canceller = userId.equals(contract.getRenter().getId()) ? contract.getRenter() : contract.getOwner();
+        UserEntity otherUser = userId.equals(contract.getRenter().getId()) ? contract.getOwner() : contract.getRenter();
+        karmaService.adjustKarma(canceller, -10, "Hủy giao dịch thuê đồ: " + (reason != null ? reason : "Hủy hợp đồng thuê"));
+
+        try {
+            NotificationEntity cancelNotif = NotificationEntity.builder()
+                    .user(otherUser)
+                    .title("Hợp đồng thuê đồ đã bị hủy")
+                    .message("Hợp đồng thuê món đồ \"" + contract.getListing().getTitle() + "\" đã bị hủy bởi " + canceller.getFullName() + ". Lý do: " + (reason != null ? reason : "Hủy giao dịch") + ". Bài đăng đã được tự động mở lại trạng thái hoạt động.")
+                    .type("RENTAL_CANCELLED")
+                    .referenceId(contract.getId())
+                    .isRead(false)
+                    .build();
+            notificationRepository.save(cancelNotif);
+        } catch (Exception e) {
+            log.warn("Failed to notify on rental cancellation", e);
+        }
+
+        RentalContractEntity updated = rentalContractRepository.save(contract);
         return mapToRes(updated);
     }
 

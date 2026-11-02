@@ -23,4 +23,6 @@ public interface RentalContractService {
     RentalContractRes confirmReturnAndRefundDeposit(Long userId, Long contractId);
 
     RentalContractRes reportDispute(Long userId, Long contractId, RentalDisputeReq req);
+
+    RentalContractRes cancelRentalContract(Long userId, Long contractId, String reason);
 }

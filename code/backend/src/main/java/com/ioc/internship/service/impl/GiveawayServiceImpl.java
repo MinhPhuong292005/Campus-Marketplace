@@ -271,8 +271,23 @@ public class GiveawayServiceImpl implements GiveawayService {
 
         claim.setStatus("CANCELLED");
         ListingEntity listing = claim.getListing();
-        listing.setStatus("APPROVED"); // Mở lại cho người khác xin
-        listingRepository.save(listing);
+        if (listing != null && !"DELETED".equalsIgnoreCase(listing.getStatus())) {
+            // Tự động hồi phục lại bài đăng để các bạn sinh viên khác có thể tiếp tục xem và xin nhận đồ
+            listing.setStatus("ACTIVE");
+            listingRepository.save(listing);
+            log.info("Listing #{} automatically RESTORED to ACTIVE after unsuccessful transaction", listing.getId());
+        }
+
+        // Tự động hồi phục các đơn xin khác về trạng thái PENDING để chủ bài đăng có thể chọn lại bạn khác hoặc quay vòng quay
+        if (listing != null) {
+            List<GiveawayClaimEntity> allClaims = giveawayClaimRepository.findByListingIdOrderByCreatedAtDesc(listing.getId());
+            for (GiveawayClaimEntity c : allClaims) {
+                if (!c.getId().equals(claimId) && "REJECTED".equalsIgnoreCase(c.getStatus())) {
+                    c.setStatus("PENDING");
+                    giveawayClaimRepository.save(c);
+                }
+            }
+        }
 
         UserEntity atFaultUser = userId.equals(giver.getId()) ? giver : receiver;
         UserEntity otherUser = userId.equals(giver.getId()) ? receiver : giver;

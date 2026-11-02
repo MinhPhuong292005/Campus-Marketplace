@@ -89,4 +89,13 @@ public class StudentRentalController extends BaseController {
         RentalContractRes contract = rentalContractService.reportDispute(principal.getUserId(), id, req);
         return success(contract, "Đã gửi báo cáo tranh chấp cọc đến ban quản trị.");
     }
+
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse<RentalContractRes>> cancelRentalContract(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id,
+            @RequestParam(required = false, defaultValue = "Hủy hợp đồng thuê / Không giao dịch") String reason) {
+        RentalContractRes contract = rentalContractService.cancelRentalContract(principal.getUserId(), id, reason);
+        return success(contract, "Đã hủy hợp đồng thuê. Bài đăng đã được tự động hồi phục về trạng thái hoạt động.");
+    }
 }

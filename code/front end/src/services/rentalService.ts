@@ -339,18 +339,62 @@ export const rentalService = {
       if (res?.data) updated = res.data;
     } catch {}
 
-    const all = getStoredRentals().map((r) =>
-      r.id === contractId ? { ...r, status: 'DISPUTED' as const, disputeReason: reason } : r
-    );
+    const all = getStoredRentals().map((r) => {
+      if (r.id === contractId) {
+        const item = { ...r, status: 'DISPUTED' as const, disputeReason: reason };
+        updated = item;
+        return item;
+      }
+      return r;
+    });
     saveStoredRentals(all);
     if (!updated) {
       updated = all.find((r) => r.id === contractId)!;
+    }
+
+    // Tự động khôi phục bài đăng về ACTIVE khi có sự cố/tranh chấp để đồ không bị kẹt
+    if (updated?.listingId) {
+      listingService.updateListingStatus(updated.listingId, 'ACTIVE').catch(() => {});
     }
 
     return {
       success: true,
       data: updated,
       message: 'Đã gửi báo cáo tranh chấp cọc đến ban quản trị.',
+    };
+  },
+
+  cancelRental: async (contractId: number, reason: string): Promise<ApiResponse<RentalContract>> => {
+    let updated: RentalContract | null = null;
+    try {
+      const res = await postRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/cancel?reason=${encodeURIComponent(reason)}`);
+      if (res?.data) updated = res.data;
+    } catch {}
+
+    const all = getStoredRentals().map((r) => {
+      if (r.id === contractId) {
+        const item: RentalContract = {
+          ...r,
+          status: 'CANCELLED' as any,
+          disputeReason: reason,
+          updatedAt: new Date().toISOString(),
+        };
+        updated = item;
+        return item;
+      }
+      return r;
+    });
+    saveStoredRentals(all);
+
+    // Tự động khôi phục bài đăng về ACTIVE khi giao dịch thuê không thành công
+    if (updated?.listingId) {
+      listingService.updateListingStatus(updated.listingId, 'ACTIVE').catch(() => {});
+    }
+
+    return {
+      success: true,
+      data: updated!,
+      message: 'Đã hủy hợp đồng thuê đồ và tự động khôi phục lại bài đăng hoạt động.',
     };
   },
 };

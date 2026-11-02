@@ -1,5 +1,6 @@
 import { reportService } from './reportService';
 import { adminNotificationService } from './adminNotificationService';
+import { listingService } from './listingService';
 
 export interface PurchaseOrder {
   id: string; // e.g. 'ORD-2026-9021'
@@ -216,5 +217,38 @@ export const orderService = {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('campus_orders_updated', { detail: updated }));
     return { success: true };
+  },
+
+  cancelOrder: async (orderId: string, reason: string): Promise<{ success: boolean; message: string }> => {
+    const orders = orderService.getMyOrders();
+    const targetOrder = orders.find((o) => o.id === orderId);
+    if (!targetOrder) {
+      return { success: false, message: 'Không tìm thấy đơn hàng' };
+    }
+
+    // 1. Cập nhật trạng thái đơn hàng thành DISPUTED / Hủy
+    const updated = orders.map((o) =>
+      o.id === orderId
+        ? {
+            ...o,
+            status: 'DISPUTED' as const,
+            disputeReason: `Đã hủy giao dịch: ${reason}`,
+          }
+        : o
+    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('campus_orders_updated', { detail: updated }));
+
+    // 2. Tự động hồi phục lại bài đăng về trạng thái ACTIVE
+    try {
+      if (targetOrder.listingId) {
+        await listingService.updateListingStatus(targetOrder.listingId, 'ACTIVE');
+      }
+    } catch {}
+
+    return {
+      success: true,
+      message: 'Đã hủy đơn hàng và tự động khôi phục lại bài đăng hoạt động.',
+    };
   },
 };

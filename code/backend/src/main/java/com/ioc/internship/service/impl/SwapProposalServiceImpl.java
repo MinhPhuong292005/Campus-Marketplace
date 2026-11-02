@@ -132,17 +132,34 @@ public class SwapProposalServiceImpl implements SwapProposalService {
             }
             proposal.setStatus("REJECTED");
 
+            // Tự động hồi phục lại cả 2 bài đăng về ACTIVE nếu trước đó đã đặt trạng thái RESERVED
+            restoreListingIfReserved(proposal.getInitiatorListing());
+            restoreListingIfReserved(proposal.getTargetListing());
+
         } else if ("CANCELLED".equals(newStatus)) {
-            if (!proposal.getInitiatorListing().getUser().getId().equals(currentUserId)) {
+            if (!proposal.getInitiatorListing().getUser().getId().equals(currentUserId) 
+                    && !proposal.getTargetListing().getUser().getId().equals(currentUserId)) {
                 throw new CustomBusinessException(ErrorCodes.FORBIDDEN, HttpStatus.FORBIDDEN);
             }
             proposal.setStatus("CANCELLED");
+
+            // Tự động hồi phục lại cả 2 bài đăng về ACTIVE khi giao dịch swap không thành công
+            restoreListingIfReserved(proposal.getInitiatorListing());
+            restoreListingIfReserved(proposal.getTargetListing());
         } else {
             throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST);
         }
 
         SwapProposalEntity updated = swapProposalRepository.save(proposal);
         return mapToRes(updated);
+    }
+
+    private void restoreListingIfReserved(ListingEntity listing) {
+        if (listing != null && !"DELETED".equalsIgnoreCase(listing.getStatus())) {
+            listing.setStatus("ACTIVE");
+            listingRepository.save(listing);
+            log.info("Listing #{} automatically RESTORED to ACTIVE after unsuccessful swap transaction", listing.getId());
+        }
     }
 
     private SwapProposalRes mapToRes(SwapProposalEntity entity) {
