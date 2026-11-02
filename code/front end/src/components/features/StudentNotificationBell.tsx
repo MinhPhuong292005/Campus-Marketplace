@@ -23,6 +23,7 @@ import {
 import { BaseModal } from '../base/BaseModal';
 import { BaseButton } from '../base/BaseButton';
 import { useAuthStore } from '../../store/useAuthStore';
+import { listingService } from '../../services/listingService';
 
 export const StudentNotificationBell: React.FC = () => {
   const { user } = useAuthStore();
@@ -106,6 +107,69 @@ export const StudentNotificationBell: React.FC = () => {
   const handleMarkAllAsRead = async () => {
     await studentNotificationService.markAllAsRead();
     loadNotifications();
+  };
+
+  const handleActionFromNotification = async (notif: StudentNotification) => {
+    setIsDetailModalOpen(false);
+
+    if (notif.type === 'GIVEAWAY_AWARDED') {
+      // Trích xuất tên món đồ & tên người tặng từ thông báo
+      const matchItem = notif.title.includes(':')
+        ? notif.title.split(':').slice(1).join(':').trim()
+        : notif.message.match(/"([^"]+)"/)
+        ? notif.message.match(/"([^"]+)"/)![1]
+        : 'món đồ tặng';
+
+      let giverName = '';
+      const matchGiver = notif.message.match(/bạn ([^]+?) lựa chọn/);
+      if (matchGiver && matchGiver[1]) {
+        giverName = matchGiver[1].trim();
+      }
+
+      let giverId = undefined;
+
+      // Tra cứu thêm thông tin từ bài đăng nếu có mã bài đăng
+      if (notif.referenceId) {
+        try {
+          const res = await listingService.getListingById(notif.referenceId);
+          if (res?.data) {
+            giverId = res.data.userId;
+            giverName = giverName || res.data.authorName || '';
+          }
+        } catch {}
+      }
+
+      const greeting = giverName ? `Chào bạn ${giverName}!` : 'Chào bạn!';
+      const draftedText = `${greeting} Mình là người may mắn được bạn chọn trao tặng món đồ "${matchItem}". Mình cảm ơn bạn rất nhiều! Cho mình hỏi chúng ta có thể hẹn gặp nhau vào lúc nào và ở điểm nào tại trường Phenikaa để giao nhận đồ tiện nhất ạ?`;
+
+      navigate('/chat', {
+        state: {
+          sellerId: giverId,
+          sellerName: giverName,
+          listingId: notif.referenceId,
+          listingTitle: matchItem,
+          initialMessage: draftedText,
+        },
+      });
+      return;
+    }
+
+    if (notif.type === 'GIVEAWAY_REQUEST' && notif.referenceId) {
+      navigate(`/listings/${notif.referenceId}`);
+      return;
+    }
+
+    if (notif.type === 'RENTAL_REQUEST' || notif.type === 'RENTAL_APPROVED') {
+      navigate('/rentals');
+      return;
+    }
+
+    if (notif.type === 'ORDER_CONFIRMED') {
+      navigate('/chat');
+      return;
+    }
+
+    navigate('/my-listings');
   };
 
   const formatTimeAgo = (dateStr: string) => {
@@ -296,34 +360,12 @@ export const StudentNotificationBell: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Explicit Reason Box - Tự đổi màu theo Sáng / Tối */}
-                      {item.reason && (
-                        <div
-                          className={`my-1.5 p-2 rounded-lg text-[11px] leading-relaxed border ${
-                            isApproved
-                              ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/25 text-emerald-800 dark:text-emerald-300'
-                              : isRejected
-                              ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/25 text-rose-800 dark:text-rose-300'
-                              : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/25 text-amber-800 dark:text-amber-300'
-                          }`}
-                        >
+                      {/* Chỉ hiện lý do trong bản vắn tắt nếu bị từ chối duyệt */}
+                      {isRejected && item.reason && item.reason.trim() !== '' && (
+                        <div className="my-1.5 p-2 rounded-lg text-[11px] leading-relaxed border bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/25 text-rose-800 dark:text-rose-300">
                           <span className="font-bold flex items-center gap-1 mb-0.5">
-                            {isApproved ? (
-                              <>
-                                <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                                Lý do phê duyệt:
-                              </>
-                            ) : isRejected ? (
-                              <>
-                                <ShieldAlert className="w-3 h-3 shrink-0 text-rose-600 dark:text-rose-400" />
-                                Lý do từ chối:
-                              </>
-                            ) : (
-                              <>
-                                <Info className="w-3 h-3 shrink-0 text-amber-600 dark:text-amber-400" />
-                                Lý do:
-                              </>
-                            )}
+                            <ShieldAlert className="w-3 h-3 shrink-0 text-rose-600 dark:text-rose-400" />
+                            Lý do từ chối:
                           </span>
                           <p className="line-clamp-2">{item.reason}</p>
                         </div>
@@ -382,50 +424,99 @@ export const StudentNotificationBell: React.FC = () => {
         </div>
       )}
 
-      {/* POPUP MODAL: Chi tiết thông báo & Lý do phê duyệt / từ chối (Đồng bộ Sáng / Tối) */}
+      {/* POPUP MODAL: Chi tiết thông báo (Đồng bộ Sáng / Tối) */}
       <BaseModal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
-        title="Chi tiết thông báo kiểm duyệt bài viết"
+        title={
+          selectedNotif?.type === 'GIVEAWAY_AWARDED'
+            ? '🎉 Thông báo nhận quà tặng sinh viên'
+            : selectedNotif?.type === 'GIVEAWAY_REQUEST'
+            ? 'Yêu cầu xin nhận đồ tặng'
+            : selectedNotif?.type === 'GIVEAWAY_CLOSED'
+            ? 'Thông báo kết quả trao tặng đồ'
+            : selectedNotif?.type?.startsWith('RENTAL')
+            ? 'Thông báo hợp đồng thuê đồ'
+            : selectedNotif?.type === 'ORDER_CONFIRMED'
+            ? 'Thông báo đơn hàng'
+            : selectedNotif?.type?.startsWith('LISTING')
+            ? 'Chi tiết thông báo kiểm duyệt bài viết'
+            : 'Chi tiết thông báo'
+        }
       >
         {selectedNotif && (
           <div className="space-y-4 text-xs text-slate-700 dark:text-slate-300">
             {/* Header info */}
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 transition-colors">
+            <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 transition-colors">
               <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
-                  selectedNotif.type === 'LISTING_APPROVED'
-                    ? 'bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 dark:border-emerald-500/30'
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-xs mt-0.5 ${
+                  selectedNotif.type === 'GIVEAWAY_AWARDED'
+                    ? 'bg-pink-100 dark:bg-pink-950/50 text-pink-600 dark:text-pink-400 border border-pink-200 dark:border-pink-800'
+                    : selectedNotif.type === 'GIVEAWAY_REQUEST'
+                    ? 'bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800'
+                    : selectedNotif.type === 'GIVEAWAY_CLOSED'
+                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                    : selectedNotif.type === 'ORDER_CONFIRMED'
+                    ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                    : selectedNotif.type?.startsWith('RENTAL')
+                    ? 'bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+                    : selectedNotif.type === 'LISTING_APPROVED'
+                    ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
                     : selectedNotif.type === 'LISTING_REJECTED'
-                    ? 'bg-rose-500/15 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/25 dark:border-rose-500/30'
-                    : 'bg-amber-500/15 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/25 dark:border-amber-500/30'
+                    ? 'bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                    : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
                 }`}
               >
-                {selectedNotif.type === 'LISTING_APPROVED' ? (
+                {selectedNotif.type === 'GIVEAWAY_AWARDED' || selectedNotif.type === 'GIVEAWAY_REQUEST' ? (
+                  <Gift className="w-5 h-5" />
+                ) : selectedNotif.type === 'ORDER_CONFIRMED' ? (
+                  <ShoppingBag className="w-5 h-5" />
+                ) : selectedNotif.type?.startsWith('RENTAL') ? (
+                  <FileText className="w-5 h-5" />
+                ) : selectedNotif.type === 'LISTING_APPROVED' ? (
                   <CheckCircle2 className="w-5 h-5" />
                 ) : selectedNotif.type === 'LISTING_REJECTED' ? (
                   <XCircle className="w-5 h-5" />
                 ) : (
-                  <AlertTriangle className="w-5 h-5" />
+                  <Bell className="w-5 h-5" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">{selectedNotif.title}</h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
-                  <Clock className="w-3 h-3" />
-                  {new Date(selectedNotif.createdAt).toLocaleString('vi-VN')}
+                {/* HIỂN THỊ ĐẦY ĐỦ TIÊU ĐỀ THÔNG BÁO (KHÔNG BỊ TRUNCATE CẮT BỚT BẰNG DẤU ...) */}
+                <h4 className="font-bold text-slate-900 dark:text-white text-sm leading-snug break-words">
+                  {selectedNotif.title}
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-1">
+                  <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>{new Date(selectedNotif.createdAt).toLocaleString('vi-VN')}</span>
                 </p>
               </div>
               <span
                 className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase shrink-0 ${
-                  selectedNotif.type === 'LISTING_APPROVED'
+                  selectedNotif.type === 'GIVEAWAY_AWARDED'
+                    ? 'bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800'
+                    : selectedNotif.type === 'GIVEAWAY_REQUEST'
+                    ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
+                    : selectedNotif.type === 'ORDER_CONFIRMED'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                    : selectedNotif.type?.startsWith('RENTAL')
+                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                    : selectedNotif.type === 'LISTING_APPROVED'
                     ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
                     : selectedNotif.type === 'LISTING_REJECTED'
                     ? 'bg-rose-50 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                 }`}
               >
-                {selectedNotif.type === 'LISTING_APPROVED'
+                {selectedNotif.type === 'GIVEAWAY_AWARDED'
+                  ? 'QUÀ TẶNG (0Đ)'
+                  : selectedNotif.type === 'GIVEAWAY_REQUEST'
+                  ? 'XIN NHẬN ĐỒ'
+                  : selectedNotif.type === 'ORDER_CONFIRMED'
+                  ? 'ĐƠN HÀNG'
+                  : selectedNotif.type?.startsWith('RENTAL')
+                  ? 'THUÊ ĐỒ'
+                  : selectedNotif.type === 'LISTING_APPROVED'
                   ? 'ĐÃ DUYỆT'
                   : selectedNotif.type === 'LISTING_REJECTED'
                   ? 'TỪ CHỐI'
@@ -433,48 +524,59 @@ export const StudentNotificationBell: React.FC = () => {
               </span>
             </div>
 
-            {/* Explicit Reason Box */}
-            <div
-              className={`p-3.5 rounded-xl border ${
-                selectedNotif.type === 'LISTING_APPROVED'
-                  ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
-                  : selectedNotif.type === 'LISTING_REJECTED'
-                  ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-900 dark:text-rose-200'
-                  : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200'
-              }`}
-            >
-              <h5 className="font-bold mb-1 flex items-center gap-1.5 text-xs">
-                {selectedNotif.type === 'LISTING_APPROVED' ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    LÝ DO PHÊ DUYỆT CỦA BAN QUẢN TRỊ:
-                  </>
-                ) : selectedNotif.type === 'LISTING_REJECTED' ? (
-                  <>
-                    <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                    LÝ DO TỪ CHỐI DUYỆT CỦA BAN QUẢN TRỊ:
-                  </>
-                ) : (
-                  <>
-                    <Info className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                    NỘI DUNG LÝ DO:
-                  </>
-                )}
-              </h5>
-              <p className="text-xs leading-relaxed font-semibold bg-white/70 dark:bg-black/20 p-2.5 rounded-lg border border-slate-200/50 dark:border-white/5 text-slate-800 dark:text-slate-100">
-                {selectedNotif.reason || 'Không có lý do chi tiết được ghi chú.'}
+            {/* CHỈ HIỆN HỘP LÝ DO NẾU THỰC SỰ CÓ LÝ DO CỤ THỂ (KHÔNG HIỆN "Không có lý do chi tiết được ghi chú.") */}
+            {selectedNotif.reason && selectedNotif.reason.trim() !== '' && (
+              <div
+                className={`p-3.5 rounded-xl border ${
+                  selectedNotif.type === 'LISTING_APPROVED'
+                    ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+                    : selectedNotif.type === 'LISTING_REJECTED'
+                    ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/30 text-rose-900 dark:text-rose-200'
+                    : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200'
+                }`}
+              >
+                <h5 className="font-bold mb-1 flex items-center gap-1.5 text-xs">
+                  {selectedNotif.type === 'LISTING_APPROVED' ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      LÝ DO PHÊ DUYỆT CỦA BAN QUẢN TRỊ:
+                    </>
+                  ) : selectedNotif.type === 'LISTING_REJECTED' ? (
+                    <>
+                      <ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                      LÝ DO TỪ CHỐI DUYỆT CỦA BAN QUẢN TRỊ:
+                    </>
+                  ) : (
+                    <>
+                      <Info className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      LÝ DO:
+                    </>
+                  )}
+                </h5>
+                <p className="text-xs leading-relaxed font-semibold bg-white/70 dark:bg-black/20 p-2.5 rounded-lg border border-slate-200/50 dark:border-white/5 text-slate-800 dark:text-slate-100">
+                  {selectedNotif.reason}
+                </p>
+              </div>
+            )}
+
+            {/* Chi tiết nội dung thông báo đầy đủ */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-1.5 transition-colors">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block">
+                Chi tiết nội dung:
+              </span>
+              <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-line font-medium">
+                {selectedNotif.message}
               </p>
             </div>
 
-            {/* Description message */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/40 transition-colors">
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase block mb-1">
-                Chi tiết nội dung:
-              </span>
-              <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed">{selectedNotif.message}</p>
-            </div>
+            {/* Gợi ý tương tác thông minh cho người nhận quà tặng */}
+            {selectedNotif.type === 'GIVEAWAY_AWARDED' && (
+              <div className="p-3 bg-pink-50/70 dark:bg-pink-950/30 border border-pink-200 dark:border-pink-900/50 rounded-xl text-pink-900 dark:text-pink-200 text-xs leading-relaxed">
+                🎁 <strong>Hướng dẫn nhận đồ:</strong> Bấm nút <b>"Nhắn tin hẹn gặp nhận đồ"</b> bên dưới, hệ thống sẽ tự động soạn sẵn lời chào lịch sự gửi tới chủ món đồ để hai bạn tiện hẹn giờ & điểm gặp mặt tại trường Phenikaa.
+              </div>
+            )}
 
-            {/* Guidance for Student */}
+            {/* Guidance for Student on rejection */}
             {selectedNotif.type === 'LISTING_REJECTED' && (
               <div className="p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl text-amber-800 dark:text-amber-300 text-[11px] leading-relaxed">
                 💡 <strong>Hướng dẫn sinh viên:</strong> Bạn vui lòng vào <em>Kho đồ của tôi</em>, xem lại bài viết và điều chỉnh hình ảnh hoặc tiêu đề/giá niêm yết theo đúng lý do từ chối trên để được phê duyệt nhanh chóng.
@@ -482,7 +584,7 @@ export const StudentNotificationBell: React.FC = () => {
             )}
 
             {/* Modal actions */}
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">
               <BaseButton
                 variant="secondary"
                 size="sm"
@@ -494,19 +596,8 @@ export const StudentNotificationBell: React.FC = () => {
               <BaseButton
                 variant="primary"
                 size="sm"
-                className="gap-1.5"
-                onClick={() => {
-                  setIsDetailModalOpen(false);
-                  if (selectedNotif.type === 'GIVEAWAY_REQUEST' && selectedNotif.referenceId) {
-                    navigate(`/listings/${selectedNotif.referenceId}`);
-                  } else if (selectedNotif.type === 'GIVEAWAY_AWARDED') {
-                    navigate('/chat');
-                  } else if (selectedNotif.type === 'RENTAL_REQUEST' || selectedNotif.type === 'RENTAL_APPROVED') {
-                    navigate('/rentals');
-                  } else {
-                    navigate('/my-listings');
-                  }
-                }}
+                className="gap-1.5 font-bold"
+                onClick={() => handleActionFromNotification(selectedNotif)}
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 <span>

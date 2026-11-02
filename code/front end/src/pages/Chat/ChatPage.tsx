@@ -65,7 +65,27 @@ export const ChatPage: React.FC = () => {
     sellerName?: string;
     listingId?: number;
     listingTitle?: string;
+    initialMessage?: string;
   } | null;
+
+  useEffect(() => {
+    if (routeState?.initialMessage) {
+      setInputText(routeState.initialMessage);
+    }
+  }, [routeState?.initialMessage]);
+
+  useEffect(() => {
+    if (!routeState?.sellerId && rooms.length > 0 && (routeState?.listingId || routeState?.sellerName)) {
+      const found = rooms.find(
+        (r) =>
+          (routeState?.listingId && r.listingId === routeState.listingId) ||
+          (routeState?.sellerName && r.peerName.toLowerCase().includes(routeState.sellerName.toLowerCase()))
+      );
+      if (found) {
+        setActiveRoomId(found.id);
+      }
+    }
+  }, [rooms, routeState]);
 
 
   const deduplicateRooms = (roomList: ChatRoom[]): ChatRoom[] => {
@@ -95,7 +115,9 @@ export const ChatPage: React.FC = () => {
           const targetRoom = res.data;
           setRooms((prev) => deduplicateRooms([targetRoom, ...prev]));
           setActiveRoomId(targetRoom.id);
-          if (routeState.listingTitle) {
+          if (routeState.initialMessage) {
+            setInputText(routeState.initialMessage);
+          } else if (routeState.listingTitle) {
             setInputText((prev) => prev || `Chào bạn, mình quan tâm đến sản phẩm "${routeState.listingTitle}" của bạn!`);
           }
         }
