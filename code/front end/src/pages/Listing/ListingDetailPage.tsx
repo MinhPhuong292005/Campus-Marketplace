@@ -32,6 +32,7 @@ import { SwapModal } from '../../components/features/SwapModal';
 import { ListingCard } from '../../components/features/ListingCard';
 import { ShopeeReviewSection } from '../../components/features/ShopeeReviewSection';
 import { GiveawayClaimModal } from '../../components/features/GiveawayClaimModal';
+import { GiveawayClaimsManager } from '../../components/features/GiveawayClaimsManager';
 import { DatePickerInput } from '../../components/base/DatePickerInput';
 import { rentalService } from '../../services/rentalService';
 import { giveawayService, GiveawayClaim } from '../../services/giveawayService';
@@ -97,36 +98,36 @@ export const ListingDetailPage: React.FC = () => {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
 
+  const fetchListing = async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const res = await listingService.getListingById(Number(id));
+      if (res.success && res.data) {
+        setListing(res.data);
+        setSelectedImageIndex(0);
+
+        // Fetch real related listings
+        try {
+          const relRes = await listingService.getListings({ categoryId: res.data.categoryId });
+          if (relRes.success && relRes.data?.content) {
+            setRelatedListings(relRes.data.content.filter((item) => item.id !== res.data.id).slice(0, 3));
+          }
+        } catch {
+          setRelatedListings([]);
+        }
+      } else {
+        setListing(null);
+      }
+    } catch {
+      setListing(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    const fetchListing = async () => {
-      if (!id) return;
-      setLoading(true);
-      try {
-        const res = await listingService.getListingById(Number(id));
-        if (res.success && res.data) {
-          setListing(res.data);
-          setSelectedImageIndex(0);
-
-          // Fetch real related listings
-          try {
-            const relRes = await listingService.getListings({ categoryId: res.data.categoryId });
-            if (relRes.success && relRes.data?.content) {
-              setRelatedListings(relRes.data.content.filter((item) => item.id !== res.data.id).slice(0, 3));
-            }
-          } catch {
-            setRelatedListings([]);
-          }
-        } else {
-          setListing(null);
-        }
-      } catch {
-        setListing(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchListing();
   }, [id]);
 
@@ -255,13 +256,18 @@ export const ListingDetailPage: React.FC = () => {
     }
   };
 
-  const refreshGiveawayClaims = () => {
+  const refreshGiveawayClaims = async () => {
     if (!id) return;
     const listingId = Number(id);
-    const claims = giveawayService.getClaimsByListing(listingId);
-    setGiveawayClaims(claims);
-    setIsGiveawayClosed(giveawayService.isGiveawayClosed(listingId));
-    setHasUserClaimed(giveawayService.hasUserClaimed(listingId, user?.id));
+    try {
+      const claims = await giveawayService.getClaimsByListing(listingId);
+      setGiveawayClaims(claims);
+      const closed = claims.some((c) => c.status === 'ACCEPTED' || c.status === 'COMPLETED');
+      setIsGiveawayClosed(closed);
+      setHasUserClaimed(Boolean(user && claims.some((c) => c.requesterId === user.id)));
+    } catch {
+      // ignore
+    }
   };
 
   useEffect(() => {
@@ -274,28 +280,6 @@ export const ListingDetailPage: React.FC = () => {
       window.removeEventListener('campus_giveaway_closed', handleClaimsUpdated);
     };
   }, [id, user]);
-
-  const handleAcceptGiveawayClaim = async (claimId: string, requesterName: string, studentCode?: string) => {
-    if (!listing) return;
-    if (
-      !window.confirm(
-        `Bạn có chắc chắn muốn chốt tặng món đồ "${listing.title}" cho bạn ${requesterName}${
-          studentCode ? ` (MSSV: ${studentCode})` : ''
-        } không?\n\nSau khi chốt tặng:\n- Hệ thống sẽ gửi thông báo chúc mừng tới bạn ấy để hai bạn hẹn gặp nhận đồ tại trường.\n- Bài đăng sẽ đóng nhận thêm đăng ký.\n- Bạn sẽ nhận được +10 điểm tín nhiệm Campus Karma!`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      await giveawayService.acceptClaim(claimId, listing.id);
-      refreshGiveawayClaims();
-      setGiveawayToast(`🎉 Chúc mừng! Bạn đã chốt tặng món đồ thành công cho ${requesterName} và được thưởng +10 Karma!`);
-      setTimeout(() => setGiveawayToast(null), 4000);
-    } catch (err: any) {
-      alert(err.message || 'Lỗi khi xác nhận tặng đồ.');
-    }
-  };
 
   if (loading) {
     return (
@@ -946,140 +930,14 @@ export const ListingDetailPage: React.FC = () => {
           </div>
         )}
 
-      {/* Giveaway Applicants Management (Only visible to Owner) */}
-      {listing.transactionType === 'GIVEAWAY' && user?.id === listing.userId && (
-        <div className="p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-pink-200 dark:border-pink-900/50 shadow-sm space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-pink-100 dark:bg-pink-950/60 text-pink-600 flex items-center justify-center font-bold">
-                <Gift className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  Danh sách sinh viên đăng ký nhận đồ ({giveawayClaims.length} bạn)
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Xem lý do, hoàn cảnh của các bạn và bấm "Chọn tặng bạn này" để chốt người nhận.
-                </p>
-              </div>
-            </div>
-
-            <div className="text-xs font-bold px-3 py-1.5 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800">
-              🎁 Thưởng +10 Karma khi tặng đồ
-            </div>
-          </div>
-
-          {giveawayClaims.length === 0 ? (
-            <div className="text-center py-10 p-6 rounded-2xl bg-pink-50/40 dark:bg-pink-950/20 border border-dashed border-pink-200 dark:border-pink-900/40 space-y-2">
-              <Gift className="w-10 h-10 text-pink-300 dark:text-pink-700 mx-auto" />
-              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Chưa có bạn nào gửi đơn đăng ký xin nhận
-              </p>
-              <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
-                Khi có sinh viên gửi lời nhắn và lý do cần món đồ, danh sách sẽ xuất hiện tại đây để bạn lựa chọn.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3.5 pt-1">
-              {giveawayClaims.map((claim) => (
-                <div
-                  key={claim.id}
-                  className={`p-4 sm:p-5 rounded-2xl border transition-all ${
-                    claim.status === 'ACCEPTED'
-                      ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 shadow-sm'
-                      : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800'
-                  }`}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <img
-                        src={
-                          claim.requesterAvatar ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${claim.requesterName}`
-                        }
-                        alt={claim.requesterName}
-                        className="w-11 h-11 rounded-xl object-cover bg-white border border-slate-200 dark:border-slate-700 shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold text-sm text-slate-900 dark:text-white">
-                            {claim.requesterName}
-                          </span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-mono">
-                            MSSV: {claim.requesterStudentCode || 'Đã xác minh'}
-                          </span>
-                          <KarmaBadge score={claim.requesterKarma || 20} showText={false} />
-                        </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          SĐT/Zalo: <b>{claim.requesterPhone || 'Liên hệ qua chat'}</b> • Gửi lúc {formatDate(claim.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Status Badge */}
-                    <div>
-                      {claim.status === 'ACCEPTED' ? (
-                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Đã chọn tặng bạn này</span>
-                        </span>
-                      ) : isGiveawayClosed ? (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
-                          Chưa phù hợp lần này
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {/* Reason text */}
-                  <div className="mt-3 p-3 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 space-y-1">
-                    <span className="text-[10px] font-bold text-pink-600 dark:text-pink-400 block uppercase tracking-wider">
-                      Lý do & Hoàn cảnh xin nhận đồ:
-                    </span>
-                    <p className="leading-relaxed italic whitespace-pre-line font-medium">
-                      "{claim.message}"
-                    </p>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="mt-3 flex flex-wrap items-center gap-2 justify-end">
-                    <BaseButton
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        navigate('/chat', {
-                          state: {
-                            sellerId: claim.requesterId,
-                            sellerName: claim.requesterName,
-                            listingId: listing.id,
-                            listingTitle: listing.title,
-                            initialMessage: `Chào bạn ${claim.requesterName}, mình là chủ bài đăng tặng "${listing.title}". Mình đã nhận được đơn xin nhận đồ của bạn!`,
-                          },
-                        })
-                      }
-                      className="text-xs font-bold border-blue-300 text-blue-600 hover:bg-blue-50 gap-1.5"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      <span>Nhắn tin với {claim.requesterName.split(' ').pop()}</span>
-                    </BaseButton>
-
-                    {!isGiveawayClosed && (
-                      <BaseButton
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleAcceptGiveawayClaim(claim.id, claim.requesterName, claim.requesterStudentCode)}
-                        className="bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold gap-1.5 shadow-sm"
-                      >
-                        <Gift className="w-3.5 h-3.5" />
-                        <span>Chọn tặng bạn này (+10 Karma)</span>
-                      </BaseButton>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Giveaway Applicants & Transaction Manager */}
+      {listing.transactionType === 'GIVEAWAY' && (
+        <GiveawayClaimsManager
+          listingId={listing.id}
+          listingTitle={listing.title}
+          isOwner={Boolean(user && listing && user.id === listing.userId)}
+          onListingUpdated={fetchListing}
+        />
       )}
 
       {/* Description Section */}

@@ -1,12 +1,13 @@
-import { studentNotificationService } from './studentNotificationService';
+import { api } from './api';
 import { User } from '../types';
 
 export interface GiveawayClaim {
-  id: string;
+  id: number | string;
   listingId: number;
   listingTitle: string;
-  listingImage: string;
+  listingImage?: string;
   ownerId: number;
+  ownerName?: string;
   requesterId: number;
   requesterName: string;
   requesterAvatar?: string;
@@ -14,198 +15,148 @@ export interface GiveawayClaim {
   requesterKarma?: number;
   requesterPhone?: string;
   message: string;
-  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
+  meetingTime?: string;
+  meetingPoint?: string;
+  giverConfirmed?: boolean;
+  receiverConfirmed?: boolean;
   createdAt: string;
-  updatedAt?: string;
+  completedAt?: string;
 }
 
-const STORAGE_KEY = 'campus_giveaway_claims_fresh_v1';
-const CLOSED_GIVEAWAYS_KEY = 'campus_closed_giveaways_v1';
-
-const getStoredClaims = (): GiveawayClaim[] => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-};
-
-const saveStoredClaims = (claims: GiveawayClaim[]) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(claims));
-    window.dispatchEvent(new CustomEvent('campus_giveaway_claims_updated', { detail: claims }));
-  } catch {}
-};
-
-const getClosedGiveaways = (): number[] => {
-  try {
-    const raw = localStorage.getItem(CLOSED_GIVEAWAYS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-};
-
-const markGiveawayClosed = (listingId: number) => {
-  try {
-    const closed = getClosedGiveaways();
-    if (!closed.includes(listingId)) {
-      const updated = [...closed, listingId];
-      localStorage.setItem(CLOSED_GIVEAWAYS_KEY, JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('campus_giveaway_closed', { detail: { listingId } }));
-    }
-  } catch {}
-};
-
 export const giveawayService = {
-  getClaimsByListing: (listingId: number): GiveawayClaim[] => {
-    return getStoredClaims().filter((c) => c.listingId === listingId);
+  // Lấy danh sách người xin nhận đồ (DỮ LIỆU THẬT TỪ DATABASE)
+  getClaimsByListing: async (listingId: number): Promise<GiveawayClaim[]> => {
+    try {
+      const res = await api.get<any>(`/student/giveaways/${listingId}/claims`);
+      if (res && res.data) {
+        return res.data;
+      }
+      return [];
+    } catch {
+      try {
+        const raw = localStorage.getItem(`giveaway_claims_${listingId}`);
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    }
   },
 
-  getClaimsByOwner: (ownerId: number): GiveawayClaim[] => {
-    return getStoredClaims().filter((c) => c.ownerId === ownerId);
-  },
-
-  getClaimsByRequester: (requesterId: number): GiveawayClaim[] => {
-    return getStoredClaims().filter((c) => c.requesterId === requesterId);
-  },
-
-  hasUserClaimed: (listingId: number, userId?: number): boolean => {
-    if (!userId) return false;
-    return getStoredClaims().some((c) => c.listingId === listingId && c.requesterId === userId);
-  },
-
-  isGiveawayClosed: (listingId: number): boolean => {
-    if (getClosedGiveaways().includes(listingId)) return true;
-    return getStoredClaims().some((c) => c.listingId === listingId && c.status === 'ACCEPTED');
-  },
-
+  // Người dùng đăng ký xin nhận món đồ tặng (DỮ LIỆU THẬT)
   submitClaim: async (payload: {
     listingId: number;
-    listingTitle: string;
-    listingImage: string;
-    ownerId: number;
-    requester: User;
+    listingTitle?: string;
+    listingImage?: string;
+    ownerId?: number;
+    requester?: User;
     message: string;
     phone?: string;
   }): Promise<GiveawayClaim> => {
-    if (giveawayService.isGiveawayClosed(payload.listingId)) {
-      throw new Error('Món đồ này đã được trao tặng thành công và đã ngừng nhận thêm yêu cầu!');
+    try {
+      const res = await api.post<any>(`/student/giveaways/${payload.listingId}/claims`, {
+        message: payload.message.trim(),
+        phone: payload.phone?.trim(),
+      });
+      if (res && res.data) {
+        return res.data;
+      }
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || err.message || 'Không thể gửi đơn xin nhận đồ';
+      throw new Error(errorMsg);
     }
 
-    const claims = getStoredClaims();
-    const existing = claims.find(
-      (c) => c.listingId === payload.listingId && c.requesterId === payload.requester.id
-    );
-    if (existing) {
-      throw new Error('Bạn đã gửi yêu cầu xin nhận món đồ này trước đó rồi!');
-    }
-
-    const newClaim: GiveawayClaim = {
-      id: `CLAIM-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    // Local fallback
+    const fallback: GiveawayClaim = {
+      id: Date.now(),
       listingId: payload.listingId,
-      listingTitle: payload.listingTitle,
+      listingTitle: payload.listingTitle || 'Món đồ tặng',
       listingImage: payload.listingImage,
-      ownerId: payload.ownerId,
-      requesterId: payload.requester.id,
-      requesterName: payload.requester.fullName,
-      requesterAvatar: payload.requester.avatarUrl,
-      requesterStudentCode: payload.requester.studentCode,
-      requesterKarma: payload.requester.karmaScore || 20,
-      requesterPhone: payload.phone || (payload.requester as any).phone || '',
+      ownerId: payload.ownerId || 0,
+      requesterId: payload.requester?.id || 0,
+      requesterName: payload.requester?.fullName || 'Sinh viên Phenikaa',
+      requesterAvatar: payload.requester?.avatarUrl,
+      requesterStudentCode: payload.requester?.studentCode,
+      requesterKarma: payload.requester?.karmaScore || 20,
+      requesterPhone: payload.phone,
       message: payload.message.trim(),
       status: 'PENDING',
+      giverConfirmed: false,
+      receiverConfirmed: false,
       createdAt: new Date().toISOString(),
     };
-
-    const updated = [newClaim, ...claims];
-    saveStoredClaims(updated);
-
-    // Gửi thông báo đến NGƯỜI ĐĂNG MÓN ĐỒ TẶNG (payload.ownerId)
     try {
-      studentNotificationService.addLocalNotification(
-        {
-          title: `[Tặng đồ] Có bạn xin nhận: ${payload.listingTitle}`,
-          message: `Bạn ${payload.requester.fullName} (MSSV: ${payload.requester.studentCode || 'N/A'}, Karma: ${
-            payload.requester.karmaScore || 20
-          }) vừa gửi đơn xin nhận món đồ với lý do: "${payload.message}". Hãy vào xem danh sách người đăng ký để chọn bạn phù hợp nhất!`,
-          type: 'GIVEAWAY_REQUEST',
-          referenceId: payload.listingId,
-          reason: payload.message,
-        },
-        payload.ownerId // Gửi đúng tới tài khoản người tặng
-      );
+      const list = await giveawayService.getClaimsByListing(payload.listingId);
+      localStorage.setItem(`giveaway_claims_${payload.listingId}`, JSON.stringify([fallback, ...list]));
     } catch {}
-
-    return newClaim;
+    return fallback;
   },
 
-  acceptClaim: async (claimId: string, listingId: number): Promise<{ success: boolean; chosenRequesterName: string; chosenRequesterId: number }> => {
-    const claims = getStoredClaims();
-    const targetClaim = claims.find((c) => c.id === claimId);
-    if (!targetClaim) {
-      throw new Error('Không tìm thấy yêu cầu nhận đồ!');
-    }
-
-    const updated = claims.map((c) => {
-      if (c.listingId === listingId) {
-        if (c.id === claimId) {
-          return { ...c, status: 'ACCEPTED' as const, updatedAt: new Date().toISOString() };
-        } else {
-          return { ...c, status: 'REJECTED' as const, updatedAt: new Date().toISOString() };
-        }
-      }
-      return c;
-    });
-
-    saveStoredClaims(updated);
-    markGiveawayClosed(listingId);
-
-    // Cộng +10 điểm Karma cho người tặng đồ
+  // Người tặng chốt tặng món đồ cho một bạn (chọn trực tiếp hoặc từ Vòng quay random)
+  acceptClaim: async (
+    listingId: number,
+    claimId: number | string
+  ): Promise<{ success: boolean; data?: GiveawayClaim }> => {
     try {
-      const rawUser = localStorage.getItem('auth_user') || localStorage.getItem('user');
-      if (rawUser) {
-        const parsed = JSON.parse(rawUser);
-        parsed.karmaScore = (parsed.karmaScore || 20) + 10;
-        localStorage.setItem('auth_user', JSON.stringify(parsed));
-        window.dispatchEvent(new CustomEvent('campus_user_updated', { detail: parsed }));
-      }
-    } catch {}
-
-    // 1. Thông báo chúc mừng cho người được chọn (gửi tới targetClaim.requesterId)
-    try {
-      studentNotificationService.addLocalNotification(
-        {
-          title: `🎉 Chúc mừng! Bạn đã được chọn nhận: ${targetClaim.listingTitle}`,
-          message: `Chủ đồ đã chốt trao tặng món đồ "${targetClaim.listingTitle}" cho bạn! Vui lòng vào mục Chat nhắn tin với chủ đồ để hẹn giờ và địa điểm nhận hàng tại khuôn viên trường Phenikaa nhé.`,
-          type: 'GIVEAWAY_AWARDED',
-          referenceId: listingId,
-        },
-        targetClaim.requesterId
-      );
-    } catch {}
-
-    // 2. Thông báo tự động đến tất cả những người khác từng gửi yêu cầu xin món đồ này (gửi tới từng other.requesterId)
-    const otherRequesters = claims.filter((c) => c.listingId === listingId && c.id !== claimId);
-    for (const other of otherRequesters) {
-      try {
-        studentNotificationService.addLocalNotification(
-          {
-            title: `Thông báo: Món đồ "${targetClaim.listingTitle}" đã được tặng`,
-            message: `Rất tiếc, món đồ "${targetClaim.listingTitle}" đã được chủ sở hữu chốt trao tặng cho bạn khác và bài đăng đã ngừng nhận thêm yêu cầu. Cảm ơn bạn đã quan tâm, hãy tiếp tục tìm kiếm các món đồ khác trên Chợ Sinh Viên nhé!`,
-            type: 'GIVEAWAY_CLOSED',
-            referenceId: listingId,
-          },
-          other.requesterId
-        );
-      } catch {}
+      const res = await api.post<any>(`/student/giveaways/${listingId}/claims/${claimId}/accept`);
+      return { success: true, data: res?.data };
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || err.message || 'Không thể chốt tặng lúc này';
+      throw new Error(errorMsg);
     }
+  },
 
-    return { 
-      success: true, 
-      chosenRequesterName: targetClaim.requesterName,
-      chosenRequesterId: targetClaim.requesterId,
-    };
+  // Hẹn giờ & điểm hẹn gặp bàn giao đồ tại Phenikaa
+  updateAppointment: async (
+    claimId: number | string,
+    appointment: { meetingTime: string; meetingPoint: string }
+  ): Promise<GiveawayClaim> => {
+    try {
+      const res = await api.patch<any>(`/student/giveaways/claims/${claimId}/appointment`, appointment);
+      return res.data;
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Không thể cập nhật lịch hẹn');
+    }
+  },
+
+  // Xác nhận đã bàn giao / nhận đồ (Hoàn tất giao dịch -> +5 Karma cho cả 2 bên)
+  confirmHandover: async (claimId: number | string): Promise<{ success: boolean; data: GiveawayClaim }> => {
+    try {
+      const res = await api.post<any>(`/student/giveaways/claims/${claimId}/confirm`);
+      return { success: true, data: res.data };
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Không thể xác nhận giao dịch');
+    }
+  },
+
+  // Hủy giao dịch / Không đến nhận (-10 Karma cho bên vi phạm)
+  cancelTransaction: async (claimId: number | string, reason: string): Promise<GiveawayClaim> => {
+    try {
+      const res = await api.post<any>(`/student/giveaways/claims/${claimId}/cancel?reason=${encodeURIComponent(reason)}`);
+      return res.data;
+    } catch (err: any) {
+      throw new Error(err.response?.data?.message || 'Không thể hủy giao dịch');
+    }
+  },
+
+  // Danh sách đơn xin nhận đồ của sinh viên (để hiển thị trong trang cá nhân / đơn nhận)
+  getClaimsByRequester: (requesterId: number): GiveawayClaim[] => {
+    try {
+      const raw = localStorage.getItem(`giveaway_my_claims_${requesterId}`);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  },
+
+  fetchMyClaims: async (): Promise<GiveawayClaim[]> => {
+    try {
+      const res = await api.get<any>('/student/giveaways/my-claims');
+      if (res && res.data) {
+        return res.data;
+      }
+      return [];
+    } catch {
+      return [];
+    }
   },
 };

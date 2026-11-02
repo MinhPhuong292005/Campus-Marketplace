@@ -91,6 +91,13 @@ public class AuthServiceImpl implements AuthService {
         // Kiểm tra danh sách cấm vĩnh viễn (Blacklist MSSV & Email)
         checkBannedStudent(email, null);
 
+        // Kiểm tra mã sinh viên đã có tài khoản chưa
+        String studentCode = extractStudentCode(email, null);
+        if (studentCode != null && !studentCode.isBlank() && userRepository.existsByStudentCode(studentCode)) {
+            throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.CONFLICT,
+                    "Mã sinh viên [" + studentCode + "] đã được đăng ký tài khoản trên hệ thống. Vui lòng đăng nhập bằng tài khoản này.");
+        }
+
         otpService.sendOtp(email);
     }
 
@@ -122,6 +129,13 @@ public class AuthServiceImpl implements AuthService {
 
         // 2. Kiểm tra danh sách cấm vĩnh viễn (Blacklist MSSV & Email)
         checkBannedStudent(email, req.getStudentCode());
+
+        // Kiểm tra mã sinh viên đã tồn tại chưa
+        String finalStudentCode = extractStudentCode(email, req.getStudentCode());
+        if (finalStudentCode != null && !finalStudentCode.isBlank() && userRepository.existsByStudentCode(finalStudentCode)) {
+            throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.CONFLICT,
+                    "Mã sinh viên [" + finalStudentCode + "] đã được đăng ký tài khoản trên hệ thống. Mỗi mã sinh viên chỉ được phép tạo 1 tài khoản duy nhất!");
+        }
 
         // 3. Check if email exists
         if (userRepository.existsByEmail(email)) {
@@ -157,7 +171,6 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 6. Create user with +20 initial Campus Karma
-        String finalStudentCode = extractStudentCode(email, req.getStudentCode());
         UserEntity user = UserEntity.builder()
                 .email(email)
                 .passwordHash(passwordEncoderUtils.encode(req.getPassword()))

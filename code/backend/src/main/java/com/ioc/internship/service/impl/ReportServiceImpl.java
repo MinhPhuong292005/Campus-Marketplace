@@ -35,6 +35,7 @@ public class ReportServiceImpl implements ReportService {
     private final UserRepository userRepository;
     private final ListingRepository listingRepository;
     private final RentalContractRepository rentalContractRepository;
+    private final com.ioc.internship.service.KarmaService karmaService;
 
     @Override
     @Transactional
@@ -79,6 +80,16 @@ public class ReportServiceImpl implements ReportService {
         ReportEntity saved = reportRepository.save(report);
         log.warn("Report #{} submitted by user #{} against user #{} - reason: {}",
                 saved.getId(), reporterId, (reportedUser != null ? reportedUser.getId() : "N/A"), req.getReason());
+
+        // Nếu người bị tố cáo nhận từ 3 báo cáo trở lên -> Tự động tạm khóa 7 ngày và trừ 10 Karma
+        if (reportedUser != null && "ACTIVE".equalsIgnoreCase(reportedUser.getStatus())) {
+            long reportCount = reportRepository.countByReportedUserId(reportedUser.getId());
+            if (reportCount >= 3) {
+                log.warn("User #{} has reached {} reports. Applying automatic 7-day temporary suspension.", reportedUser.getId(), reportCount);
+                karmaService.applyTemporaryBan(reportedUser, 7, "Tài khoản nhận từ 3 lượt báo cáo vi phạm từ các bạn học khác");
+            }
+        }
+
         return mapToRes(saved);
     }
 
@@ -133,30 +144,22 @@ public class ReportServiceImpl implements ReportService {
             report.setStatus("RESOLVED");
         }
 
-        // Apply penalties
+        // Apply penalties via centralized KarmaService
         UserEntity targetUser = report.getReportedUser();
         if (targetUser != null) {
+            String note = req.getResolutionNotes() != null && !req.getResolutionNotes().isBlank() 
+                    ? req.getResolutionNotes() 
+                    : "Xử lý vi phạm báo cáo";
             if ("PENALIZE_KARMA".equalsIgnoreCase(action)) {
-                int penalty = req.getKarmaPenalty() != null ? req.getKarmaPenalty() : 15;
-                targetUser.setKarmaScore(Math.max(0, targetUser.getKarmaScore() - penalty));
-                userRepository.save(targetUser);
+                int penalty = req.getKarmaPenalty() != null ? req.getKarmaPenalty() : 10;
+                karmaService.adjustKarma(targetUser, -penalty, note);
                 log.info("Karma penalty of -{} points applied to user #{}", penalty, targetUser.getId());
             } else if ("BAN_USER".equalsIgnoreCase(action) || "BLOCK_USER".equalsIgnoreCase(action)) {
-                targetUser.setStatus("BANNED");
-                targetUser.setBlockReason(req.getResolutionNotes() != null && !req.getResolutionNotes().isBlank() 
-                        ? req.getResolutionNotes() 
-                        : "Bị cấm vĩnh viễn do vi phạm nghiêm trọng (tố cáo)");
-                userRepository.save(targetUser);
+                karmaService.adjustKarma(targetUser, -100, note);
                 log.warn("User #{} has been BANNED by admin #{}", targetUser.getId(), adminId);
-            } else if ("SUSPEND_1_WEEK".equalsIgnoreCase(action) || "SCAM_PENALTY".equalsIgnoreCase(action)) {
-                int penalty = req.getKarmaPenalty() != null ? req.getKarmaPenalty() : 20;
-                targetUser.setKarmaScore(Math.max(0, targetUser.getKarmaScore() - penalty));
-                targetUser.setStatus("SUSPENDED");
-                targetUser.setBlockReason(req.getResolutionNotes() != null && !req.getResolutionNotes().isBlank() 
-                        ? req.getResolutionNotes() 
-                        : "Tài khoản bị trừ " + penalty + " điểm Karma và tạm khóa 1 tuần do hành vi lừa đảo/scam đồ sinh viên.");
-                userRepository.save(targetUser);
-                log.warn("User #{} has been SUSPENDED for 1 week and penalized {} Karma by admin #{}", targetUser.getId(), penalty, adminId);
+            } else if ("SUSPEND_1_WEEK".equalsIgnoreCase(action) || "SCAM_PENALTY".equalsIgnoreCase(action) || "SUSPEND".equalsIgnoreCase(action)) {
+                karmaService.applyTemporaryBan(targetUser, 7, note);
+                log.warn("User #{} has been SUSPENDED for 1 week by admin #{}", targetUser.getId(), adminId);
             }
         }
 

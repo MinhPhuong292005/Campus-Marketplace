@@ -320,6 +320,28 @@ public class AdminServiceImpl implements AdminService {
                 throw new CustomBusinessException(ErrorCodes.BAD_REQUEST, HttpStatus.BAD_REQUEST);
         }
 
+        // Nếu điểm tín nhiệm giảm về 0 -> Tự động ban tài khoản và đưa vào blacklist
+        if (user.getKarmaScore() <= 0 && !"BANNED".equalsIgnoreCase(user.getStatus())) {
+            user.setStatus("BANNED");
+            String karmaZeroReason = "Điểm tín nhiệm Campus Karma giảm về 0 do vi phạm quy tắc / bị phạt. Tài khoản bị cấm vĩnh viễn.";
+            user.setBlockReason(karmaZeroReason);
+            String sCode = user.getStudentCode();
+            if ((sCode == null || sCode.trim().isEmpty()) && user.getEmail() != null && user.getEmail().contains("@")) {
+                sCode = user.getEmail().split("@")[0].trim();
+            }
+            if (sCode != null && !sCode.isBlank()) {
+                String finalCode = sCode.trim();
+                BannedStudentCodeEntity bannedEntity = bannedStudentCodeRepository.findByStudentCode(finalCode)
+                        .orElseGet(() -> BannedStudentCodeEntity.builder().studentCode(finalCode).build());
+                bannedEntity.setEmail(user.getEmail());
+                bannedEntity.setFullName(user.getFullName());
+                bannedEntity.setBanReason(karmaZeroReason);
+                bannedEntity.setBannedBy(adminEmail != null ? adminEmail : "HỆ THỐNG (KARMA = 0)");
+                bannedEntity.setBannedAt(LocalDateTime.now());
+                bannedStudentCodeRepository.save(bannedEntity);
+            }
+        }
+
         userRepository.save(user);
 
         // Auto-resolve pending reports against this user so they disappear from emergency warnings
