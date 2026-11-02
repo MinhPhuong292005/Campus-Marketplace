@@ -86,16 +86,16 @@ export const RentalDetailPage: React.FC = () => {
   }
 
   const isOwner = user?.id === contract.ownerId;
+  const [returnConfirmRole, setReturnConfirmRole] = useState<'owner' | 'renter'>(isOwner ? 'owner' : 'renter');
 
-  // Trạng thái các bước trong quy trình giao dịch thuê
+  // Trạng thái các bước trong quy trình giao dịch thuê - BẮT BUỘC CẢ 2 BÊN XÁC NHẬN TỪ BƯỚC 2 TRỞ ĐI
   const isStep1Done = contract.status !== 'PENDING';
   const isStep2Done =
-    contract.status === 'ACTIVE' ||
-    contract.status === 'RETURNED' ||
-    (Boolean(contract.ownerHandoverConfirmed) && Boolean(contract.renterHandoverConfirmed));
+    Boolean(contract.ownerHandoverConfirmed && contract.renterHandoverConfirmed) ||
+    contract.status === 'RETURNED';
   const isStep3Done =
-    contract.status === 'RETURNED' ||
-    (Boolean(contract.ownerReturnConfirmed) && Boolean(contract.renterReturnConfirmed));
+    Boolean(contract.ownerReturnConfirmed && contract.renterReturnConfirmed) ||
+    contract.status === 'RETURNED';
 
   // 1. Phê duyệt cho thuê (Bước 1)
   const handleApproveContract = async () => {
@@ -165,7 +165,7 @@ export const RentalDetailPage: React.FC = () => {
     }
   };
 
-  // 2. Chụp & Thêm ảnh đối chiếu hiện trạng thiết bị (Bước 2)
+  // 2. Chụp & Thêm ảnh đối chiếu hiện trạng thiết bị từ máy người dùng (Bước 2 - Bắt buộc tối thiểu 2 ảnh thật)
   const handleSimulateAddImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -175,20 +175,22 @@ export const RentalDetailPage: React.FC = () => {
       return;
     }
 
+    const readers: Promise<string>[] = [];
     for (let i = 0; i < files.length; i++) {
-      const url = URL.createObjectURL(files[i]);
-      setProofImages((prev) => [...prev, url]);
+      const file = files[i];
+      readers.push(
+        new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        })
+      );
     }
-    setErrorMsg(null);
-  };
 
-  const handleAddSamplePhotos = () => {
-    const samples = [
-      'https://images.unsplash.com/photo-1544717305-2782549b5136?w=600&q=80',
-      'https://images.unsplash.com/photo-1584697964190-705b893683f1?w=600&q=80',
-    ];
-    setProofImages(samples);
-    setErrorMsg(null);
+    Promise.all(readers).then((newUrls) => {
+      setProofImages((prev) => [...prev, ...newUrls]);
+      setErrorMsg(null);
+    });
   };
 
   const handleRemoveImage = (index: number) => {
@@ -201,7 +203,7 @@ export const RentalDetailPage: React.FC = () => {
 
   const handleSaveProofImages = async () => {
     if (proofImages.length < 2) {
-      setErrorMsg('Vui lòng chụp ít nhất 2 ảnh hiện trạng của món đồ (mặt trước, màn hình, vết xước cũ) để đối chiếu bảo vệ cọc.');
+      setErrorMsg('Vui lòng chụp và tải lên ít nhất 2 ảnh hiện trạng của thiết bị để hoàn tất biên bản đối chiếu.');
       return;
     }
 
@@ -210,7 +212,7 @@ export const RentalDetailPage: React.FC = () => {
       setErrorMsg(null);
       const res = await rentalService.uploadProofImages(contract.id, proofImages);
       if (res.success && res.data) {
-        setSuccessMsg(`Đã lưu biên bản ${proofImages.length} ảnh đối chiếu hiện trạng thiết bị thành công! Cả hai bên đã có đủ căn cứ an toàn để xác nhận bàn giao.`);
+        setSuccessMsg(`Đã lưu biên bản ${proofImages.length} ảnh đối chiếu hiện trạng thiết bị thành công! Cả hai bên đã có đủ điều kiện xác nhận bàn giao.`);
         setHasSavedProof(true);
         setContract(res.data);
       }
@@ -244,19 +246,21 @@ export const RentalDetailPage: React.FC = () => {
     }
   };
 
-  // 3. Hoàn tất trả đồ & hoàn cọc (+5 Karma) (Bước 3)
-  const handleConfirmReturn = () => {
+  // 3. Hoàn tất trả đồ & hoàn cọc (+5 Karma) (Bước 3 - Cần cả 2 bên xác nhận)
+  const handleConfirmReturn = (role?: 'owner' | 'renter') => {
+    setReturnConfirmRole(role || (isOwner ? 'owner' : 'renter'));
     setIsReturnConfirmModalOpen(true);
   };
 
-  const executeConfirmReturn = async () => {
+  const executeConfirmReturn = async (roleOverride?: 'owner' | 'renter') => {
     if (!contract) return;
     try {
       setIsSubmitting(true);
       setErrorMsg(null);
-      const res = await rentalService.confirmReturnAndRefund(contract.id);
+      const role = roleOverride || returnConfirmRole || (isOwner ? 'owner' : 'renter');
+      const res = await rentalService.confirmReturnAndRefund(contract.id, role);
       if (res.success && res.data) {
-        setSuccessMsg('Xác nhận nhận lại thiết bị & hoàn cọc 100% thành công! Bước 3 hoàn tất, Bước 4 đã mở khóa.');
+        setSuccessMsg(res.message || 'Đã ghi nhận xác nhận hoàn tất trả đồ!');
         setContract(res.data);
       }
     } catch (err: any) {
@@ -726,22 +730,12 @@ export const RentalDetailPage: React.FC = () => {
                     <div>
                       <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                         <Camera className="w-4 h-4 text-blue-600" />
-                        <span>Biên bản ảnh đối chiếu hiện trạng thiết bị ({proofImages.length}/4 ảnh)</span>
+                        <span>Biên bản ảnh đối chiếu hiện trạng thiết bị ({proofImages.length}/4 ảnh - Bắt buộc tối thiểu 2 ảnh)</span>
                       </h4>
                       <p className="text-[11px] text-slate-500 mt-0.5">
                         Cả người thuê và người cho thuê đều chụp từ 2 - 4 góc (màn hình, mặt trước, số serial, vết trầy xước cũ nếu có) trước khi bàn giao để làm căn cứ bảo vệ tiền cọc.
                       </p>
                     </div>
-
-                    {!isStep2Done && proofImages.length < 2 && (
-                      <button
-                        type="button"
-                        onClick={handleAddSamplePhotos}
-                        className="text-xs text-blue-600 font-semibold hover:underline"
-                      >
-                        + Dùng ảnh chụp mẫu nhanh
-                      </button>
-                    )}
                   </div>
 
                   {/* Grid ảnh */}
@@ -955,46 +949,106 @@ export const RentalDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Chi tiết Bước 3 khi mở khóa */}
+            {/* Chi tiết Bước 3 khi mở khóa - BẮT BUỘC CẢ 2 BÊN XÁC NHẬN */}
             {isStep2Done && !isStep3Done && (
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <BaseButton
-                    variant="primary"
-                    isLoading={isSubmitting}
-                    onClick={handleConfirmReturn}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-2"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Xác nhận đã hoàn tất trả hàng & Hoàn cọc (+5 Karma)</span>
-                  </BaseButton>
+                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                      Trạng thái xác nhận hoàn tất trả đồ & hoàn cọc của 2 bên:
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      Cần cả 2 bên xác nhận để giải tỏa cọc và hoàn tất hợp đồng
+                    </span>
+                  </div>
 
-                  <BaseButton
-                    variant="outline"
-                    onClick={() =>
-                      navigate('/chat', {
-                        state: {
-                          sellerId: isOwner ? contract.renterId : contract.ownerId,
-                          sellerName: isOwner ? contract.renterName : contract.ownerName,
-                          listingId: contract.listingId,
-                          listingTitle: contract.listingTitle,
-                        },
-                      })
-                    }
-                    className="text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-50 gap-1.5"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    <span>Nhắn tin hẹn trả đồ</span>
-                  </BaseButton>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div
+                      className={`p-3 rounded-xl border flex items-center justify-between ${
+                        contract.renterReturnConfirmed
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 text-emerald-800 dark:text-emerald-300 font-bold'
+                          : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 text-slate-500'
+                      }`}
+                    >
+                      <span>1. Người thuê ({contract.renterName}):</span>
+                      <span>{contract.renterReturnConfirmed ? '✓ Đã xác nhận đã trả đồ' : '⏳ Chưa xác nhận'}</span>
+                    </div>
 
-                  <BaseButton
-                    variant="outline"
-                    onClick={() => setIsDisputeModalOpen(true)}
-                    className="text-xs font-semibold text-rose-600 border-rose-300 hover:bg-rose-50 gap-1.5"
-                  >
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>Khiếu nại cọc gửi QTV</span>
-                  </BaseButton>
+                    <div
+                      className={`p-3 rounded-xl border flex items-center justify-between ${
+                        contract.ownerReturnConfirmed
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 text-emerald-800 dark:text-emerald-300 font-bold'
+                          : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 text-slate-500'
+                      }`}
+                    >
+                      <span>2. Chủ đồ ({contract.ownerName}):</span>
+                      <span>{contract.ownerReturnConfirmed ? '✓ Đã nhận lại đồ & hoàn cọc' : '⏳ Chưa xác nhận'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    <BaseButton
+                      variant="primary"
+                      isLoading={isSubmitting}
+                      disabled={Boolean(isOwner ? contract.ownerReturnConfirmed : contract.renterReturnConfirmed)}
+                      onClick={() => handleConfirmReturn(isOwner ? 'owner' : 'renter')}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-2 disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>
+                        {isOwner
+                          ? contract.ownerReturnConfirmed
+                            ? '✓ Bạn đã xác nhận nhận lại máy & hoàn cọc (Chờ người thuê)'
+                            : 'Xác nhận nhận lại thiết bị & Hoàn cọc 100%'
+                          : contract.renterReturnConfirmed
+                          ? '✓ Bạn đã xác nhận trả đồ (Chờ chủ đồ hoàn cọc)'
+                          : 'Xác nhận đã trả lại thiết bị cho chủ đồ'}
+                      </span>
+                    </BaseButton>
+
+                    {/* Nút test nhanh cả 2 bên cho Bước 3 */}
+                    <BaseButton
+                      variant="outline"
+                      size="sm"
+                      isLoading={isSubmitting}
+                      onClick={() => {
+                        executeConfirmReturn('renter');
+                        setTimeout(() => executeConfirmReturn('owner'), 300);
+                      }}
+                      className="text-xs font-semibold text-slate-600 border-slate-300 hover:bg-slate-100"
+                      title="Mô phỏng cả người thuê và chủ đồ cùng bấm xác nhận"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Xác nhận cả 2 bên (Test nhanh)</span>
+                    </BaseButton>
+
+                    <BaseButton
+                      variant="outline"
+                      onClick={() =>
+                        navigate('/chat', {
+                          state: {
+                            sellerId: isOwner ? contract.renterId : contract.ownerId,
+                            sellerName: isOwner ? contract.renterName : contract.ownerName,
+                            listingId: contract.listingId,
+                            listingTitle: contract.listingTitle,
+                          },
+                        })
+                      }
+                      className="text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-50 gap-1.5"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Nhắn tin hẹn trả đồ</span>
+                    </BaseButton>
+
+                    <BaseButton
+                      variant="outline"
+                      onClick={() => setIsDisputeModalOpen(true)}
+                      className="text-xs font-semibold text-rose-600 border-rose-300 hover:bg-rose-50 gap-1.5"
+                    >
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>Khiếu nại cọc gửi QTV</span>
+                    </BaseButton>
+                  </div>
                 </div>
               </div>
             )}
@@ -1091,6 +1145,13 @@ export const RentalDetailPage: React.FC = () => {
         targetUserName={isOwner ? contract.renterName : contract.ownerName}
         targetUserId={isOwner ? contract.renterId : contract.ownerId}
         rentalContractId={contract.id}
+        reportedType="RENTAL"
+        reportedTitle={`Hợp đồng #${contract.id}: ${contract.listingTitle}`}
+        onSubmit={async (data) => {
+          await rentalService.reportDispute(contract.id, data.description);
+          setSuccessMsg('Đã gửi khiếu nại cọc hợp đồng đến Quản trị viên xử lý.');
+          setContract((prev) => (prev ? { ...prev, status: 'DISPUTED', disputeReason: data.description } : null));
+        }}
         onReportSuccess={() => {
           setContract((prev) => (prev ? { ...prev, status: 'DISPUTED' } : null));
           setSuccessMsg('Đã gửi báo cáo khiếu nại cọc tới Ban Quản Trị!');
@@ -1113,12 +1174,14 @@ export const RentalDetailPage: React.FC = () => {
         <BaseModal
           isOpen={isReturnConfirmModalOpen}
           onClose={() => setIsReturnConfirmModalOpen(false)}
-          title="Xác nhận nhận lại thiết bị & Hoàn cọc"
+          title={returnConfirmRole === 'renter' ? 'Xác nhận đã trả lại thiết bị' : 'Xác nhận nhận lại thiết bị & Hoàn cọc'}
           maxWidth="md"
         >
           <div className="space-y-4 py-1">
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              Xác nhận bạn đã nhận lại thiết bị <strong>"{contract.listingTitle}"</strong> đầy đủ nguyên vẹn và hoàn trả 100% tiền cọc ({contract.depositAmount ? formatCurrency(contract.depositAmount) : '0 đ'}) cho người thuê?
+              {returnConfirmRole === 'renter'
+                ? `Xác nhận bạn đã trả lại thiết bị "${contract.listingTitle}" nguyên vẹn cho chủ đồ tại khuôn viên trường Phenikaa?`
+                : `Xác nhận bạn đã nhận lại thiết bị "${contract.listingTitle}" đầy đủ nguyên vẹn và hoàn trả 100% tiền cọc (${contract.depositAmount ? formatCurrency(contract.depositAmount) : '0 đ'}) cho người thuê?`}
             </p>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -1134,10 +1197,10 @@ export const RentalDetailPage: React.FC = () => {
                 variant="primary"
                 size="sm"
                 isLoading={isSubmitting}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white"
-                onClick={executeConfirmReturn}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                onClick={() => executeConfirmReturn()}
               >
-                Xác nhận hoàn tất (+5 Karma)
+                {returnConfirmRole === 'renter' ? 'Xác nhận đã trả đồ' : 'Xác nhận nhận lại & Hoàn cọc (+5 Karma)'}
               </BaseButton>
             </div>
           </div>

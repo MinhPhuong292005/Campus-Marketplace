@@ -464,30 +464,6 @@ export const RentalListPage: React.FC = () => {
                       </button>
                     )}
 
-                    {/* Handover action */}
-                    {contract.status === 'APPROVED' && (
-                      <button
-                        onClick={() => handleHandover(contract)}
-                        disabled={isProcessingId === contract.id}
-                        className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        <Package className="w-4 h-4" />
-                        <span>Xác nhận đã bàn giao đồ</span>
-                      </button>
-                    )}
-
-                    {/* Return & Refund action */}
-                    {contract.status === 'ACTIVE' && isOwner && (
-                      <button
-                        onClick={() => handleReturn(contract)}
-                        disabled={isProcessingId === contract.id}
-                        className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        <span>Xác nhận nhận lại đồ & Hoàn cọc (+5 Karma)</span>
-                      </button>
-                    )}
-
                     {/* Chat with peer */}
                     {peerId && (
                       <button

@@ -438,30 +438,25 @@ export const SuspendedAccountModal: React.FC<SuspendedAccountModalProps> = ({
                 </div>
               )}
 
-              {/* Quick Preset Evidence Buttons */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                <span className="text-[10px] text-slate-400 font-medium">Gợi ý ảnh mẫu:</span>
-                <button
-                  type="button"
-                  onClick={() => setEvidenceUrl('https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=800&q=80')}
-                  className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] text-slate-700 dark:text-slate-300 hover:border-indigo-400 transition"
-                >
-                  🧾 Bill chuyển khoản Vietcombank
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEvidenceUrl('https://images.unsplash.com/photo-1577563908411-5077b6dc7624?w=800&q=80')}
-                  className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] text-slate-700 dark:text-slate-300 hover:border-indigo-400 transition"
-                >
-                  💬 Ảnh tin nhắn đối chất
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEvidenceUrl('https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=900&q=80')}
-                  className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] text-slate-700 dark:text-slate-300 hover:border-indigo-400 transition"
-                >
-                  📦 Ảnh sản phẩm thực tế
-                </button>
+              {/* File Upload from user device */}
+              <div className="flex items-center gap-2 pt-1">
+                <label className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer flex items-center gap-1.5 transition">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Tải ảnh từ máy</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => setEvidenceUrl(reader.result as string);
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </label>
               </div>
 
               {/* Attached Preview */}

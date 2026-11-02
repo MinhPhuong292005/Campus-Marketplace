@@ -242,21 +242,22 @@ export const rentalService = {
   confirmHandover: async (contractId: number, role?: 'owner' | 'renter'): Promise<ApiResponse<RentalContract>> => {
     let updated: RentalContract | null = null;
     try {
-      const res = await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/handover`);
+      const res = await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/handover`, { role });
       if (res?.data) updated = res.data;
     } catch {}
 
     const all = getStoredRentals().map((r) => {
       if (r.id === contractId) {
-        const ownerConf = role === 'owner' ? true : r.ownerHandoverConfirmed ?? false;
-        const renterConf = role === 'renter' ? true : r.renterHandoverConfirmed ?? false;
-        // Nếu cả hai bên đã bấm hoặc không truyền role cụ thể -> chuyển status sang ACTIVE
-        const isBothConfirmed = (ownerConf && renterConf) || !role;
+        const ownerConf = role === 'owner' ? true : Boolean(r.ownerHandoverConfirmed);
+        const renterConf = role === 'renter' ? true : Boolean(r.renterHandoverConfirmed);
+        
+        // Cần CẢ HAI BÊN xác nhận mới kích hoạt ACTIVE (Bước 3)
+        const isBothConfirmed = ownerConf && renterConf;
 
         const item: RentalContract = {
           ...r,
-          ownerHandoverConfirmed: ownerConf || isBothConfirmed,
-          renterHandoverConfirmed: renterConf || isBothConfirmed,
+          ownerHandoverConfirmed: ownerConf,
+          renterHandoverConfirmed: renterConf,
           status: isBothConfirmed ? ('ACTIVE' as const) : r.status,
           updatedAt: new Date().toISOString(),
         };
@@ -274,8 +275,8 @@ export const rentalService = {
       success: true,
       data: updated,
       message: updated?.status === 'ACTIVE'
-        ? 'Cả hai bên đã xác nhận bàn giao thiết bị thành công! Hợp đồng chuyển sang "Đang trong thời hạn thuê".'
-        : 'Đã ghi nhận xác nhận bàn giao của bạn. Đang chờ đối phương xác nhận để kích hoạt thời gian thuê.',
+        ? 'Cả hai bên đã xác nhận bàn giao thiết bị thành công! Hợp đồng chuyển sang Bước 3: "Đang trong thời hạn thuê".'
+        : 'Đã ghi nhận xác nhận của bạn! Vui lòng chờ đối phương xác nhận để chính thức kích hoạt thời gian thuê.',
     };
   },
 
@@ -305,20 +306,22 @@ export const rentalService = {
   confirmReturnAndRefund: async (contractId: number, role?: 'owner' | 'renter'): Promise<ApiResponse<RentalContract>> => {
     let updated: RentalContract | null = null;
     try {
-      const res = await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/return`);
+      const res = await putRequest<RentalContract>(`${API_ROUTES.RENTALS}/${contractId}/return`, { role });
       if (res?.data) updated = res.data;
     } catch {}
 
     const all = getStoredRentals().map((r) => {
       if (r.id === contractId) {
-        const ownerRet = role === 'owner' ? true : r.ownerReturnConfirmed ?? false;
-        const renterRet = role === 'renter' ? true : r.renterReturnConfirmed ?? false;
-        const isBothReturned = (ownerRet && renterRet) || !role;
+        const ownerRet = role === 'owner' ? true : Boolean(r.ownerReturnConfirmed);
+        const renterRet = role === 'renter' ? true : Boolean(r.renterReturnConfirmed);
+
+        // Cần CẢ HAI BÊN xác nhận mới kích hoạt RETURNED (Bước 4)
+        const isBothReturned = ownerRet && renterRet;
 
         const item: RentalContract = {
           ...r,
-          ownerReturnConfirmed: ownerRet || isBothReturned,
-          renterReturnConfirmed: renterRet || isBothReturned,
+          ownerReturnConfirmed: ownerRet,
+          renterReturnConfirmed: renterRet,
           status: isBothReturned ? ('RETURNED' as const) : r.status,
           updatedAt: new Date().toISOString(),
         };
@@ -332,7 +335,7 @@ export const rentalService = {
       updated = all.find((r) => r.id === contractId)!;
     }
 
-    // Sau khi trả đồ & hoàn cọc thành công, món đồ tự động sẵn sàng (ACTIVE) để cho người khác thuê tiếp
+    // Sau khi cả 2 bên xác nhận trả đồ & hoàn cọc thành công, món đồ sẵn sàng (ACTIVE) để cho người khác thuê tiếp
     if (updated?.listingId && updated.status === 'RETURNED') {
       listingService.updateListingStatus(updated.listingId, 'ACTIVE').catch(() => {});
     }
@@ -341,8 +344,8 @@ export const rentalService = {
       success: true,
       data: updated,
       message: updated?.status === 'RETURNED'
-        ? 'Xác nhận trả đồ & hoàn cọc 100% thành công! Cả 2 bên nhận +5 Campus Karma.'
-        : 'Đã ghi nhận xác nhận hoàn trả đồ của bạn.',
+        ? 'Cả 2 bên đã xác nhận hoàn tất trả đồ & giải tỏa 100% tiền cọc! Hợp đồng hoàn tất (+5 Campus Karma).'
+        : 'Đã ghi nhận xác nhận hoàn trả đồ của bạn. Đang chờ đối phương xác nhận để hoàn tất hợp đồng.',
     };
   },
 
