@@ -9,6 +9,7 @@ import {
   Clock,
   Send,
   RotateCcw,
+  Lock,
 } from 'lucide-react';
 import { BaseButton } from '../base/BaseButton';
 import { useAuthStore } from '../../store/useAuthStore';

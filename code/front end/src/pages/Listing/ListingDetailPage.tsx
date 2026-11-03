@@ -22,6 +22,7 @@ import {
   Layers,
   Pencil,
   ShieldCheck,
+  X,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
 import { listingService } from '../../services/listingService';
