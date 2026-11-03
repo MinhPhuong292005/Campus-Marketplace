@@ -32,9 +32,9 @@ export const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 transition-colors">
+    <div className={isChatPage ? "h-screen flex flex-col bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 overflow-hidden" : "min-h-screen flex flex-col bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 transition-colors"}>
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+      <header className="shrink-0 z-40 w-full border-b border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5">
@@ -158,7 +158,7 @@ export const MainLayout: React.FC = () => {
       )}
 
       {/* Main Page Content */}
-      <main className={isChatPage ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden p-2 sm:p-4 max-w-[1600px] mx-auto" : "flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6"}>
+      <main className={isChatPage ? "flex-1 min-h-0 w-full overflow-hidden p-2 sm:p-3 max-w-[1600px] mx-auto" : "flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6"}>
         <Outlet />
       </main>
 

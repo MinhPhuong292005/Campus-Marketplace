@@ -9,7 +9,6 @@ import {
   Settings,
   LogOut,
   ExternalLink,
-  ShieldCheck,
   MapPin,
 } from 'lucide-react';
 import { useAdminAuthStore } from '../store/useAdminAuthStore';

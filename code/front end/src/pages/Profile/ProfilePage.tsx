@@ -3,7 +3,6 @@ import {
   User,
   School,
   MapPin,
-  Building,
   GraduationCap,
   Calendar,
   ShieldCheck,

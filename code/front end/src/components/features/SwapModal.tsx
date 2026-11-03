@@ -6,7 +6,6 @@ import {
   Check,
   Camera,
   ShieldAlert,
-  Info,
 } from 'lucide-react';
 import { BaseModal } from '../base/BaseModal';
 import { BaseButton } from '../base/BaseButton';

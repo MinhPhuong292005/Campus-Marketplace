@@ -573,7 +573,7 @@ export const adminService = {
     } catch {}
     const unis = getStoredUniversities().filter((u) => u.id !== id);
     saveStoredUniversities(unis);
-    return { success: true };
+    return { success: true, data: undefined as any };
   },
 
   createCampus: async (payload: {
@@ -628,7 +628,7 @@ export const adminService = {
       ),
     }));
     saveStoredUniversities(updated);
-    return { success: true };
+    return { success: true, data: undefined as any };
   },
 
   deleteCampus: async (id: number): Promise<ApiResponse<void>> => {
@@ -641,7 +641,7 @@ export const adminService = {
       campuses: (u.campuses || []).filter((c) => c.id !== id),
     }));
     saveStoredUniversities(updated);
-    return { success: true };
+    return { success: true, data: undefined as any };
   },
 
   // 6. Safe Meeting Points Management

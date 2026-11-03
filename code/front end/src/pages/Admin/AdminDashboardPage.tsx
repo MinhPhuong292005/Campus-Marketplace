@@ -33,7 +33,6 @@ import {
   Building,
   Building2,
   Pencil,
-  Video,
   ShieldCheck,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';

@@ -4,11 +4,9 @@ import {
   UploadCloud,
   Pencil,
   AlertCircle,
-  CheckCircle,
   Gift,
   Clock,
   ArrowLeftRight,
-  ShieldCheck,
   Image as ImageIcon,
 } from 'lucide-react';
 import { BaseButton } from '../base/BaseButton';
@@ -99,8 +97,9 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({
 
       // Normalize images
       let imgs: string[] = [];
-      if (Array.isArray(listing.imageUrls) && listing.imageUrls.length > 0) {
-        imgs = [...listing.imageUrls];
+      const anyListing = listing as any;
+      if (Array.isArray(anyListing.imageUrls) && anyListing.imageUrls.length > 0) {
+        imgs = [...anyListing.imageUrls];
       } else if (Array.isArray(listing.images) && listing.images.length > 0) {
         imgs = listing.images.map((img: any) =>
           typeof img === 'string' ? img : img.mediaUrl

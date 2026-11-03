@@ -173,7 +173,39 @@ export const ChatPage: React.FC = () => {
     privacy: true,
   });
 
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
+  const prevMessagesLengthRef = useRef(0);
+  const prevActiveRoomIdRef = useRef<number | null>(null);
+
+  // Reliable container-specific scroll to bottom without affecting window/parent scroll
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const doScroll = () => {
+      const container = messagesContainerRef.current;
+      if (container) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior,
+        });
+      }
+    };
+
+    doScroll();
+    requestAnimationFrame(doScroll);
+    setTimeout(doScroll, 80);
+    setTimeout(doScroll, 220);
+  }, []);
+
+  const handleMessagesScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+    isNearBottomRef.current = isAtBottom;
+    setShowScrollBottomBtn(!isAtBottom && scrollHeight > clientHeight + 120);
+  };
 
   // 1. Fetch user's conversation rooms
   const loadRooms = useCallback(async () => {
@@ -249,10 +281,36 @@ export const ChatPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [activeRoomId, loadMessages]);
 
-  // Auto-scroll to bottom of messages
+  // Auto-scroll to bottom of messages container
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length === 0) return;
+
+    const isRoomChanged = prevActiveRoomIdRef.current !== activeRoomId;
+    prevActiveRoomIdRef.current = activeRoomId;
+
+    if (isRoomChanged) {
+      isNearBottomRef.current = true;
+      setShowScrollBottomBtn(false);
+      scrollToBottom('auto');
+    } else {
+      const hasNewMessage = messages.length > prevMessagesLengthRef.current;
+      if (hasNewMessage) {
+        if (isNearBottomRef.current) {
+          scrollToBottom('smooth');
+        } else {
+          setShowScrollBottomBtn(true);
+        }
+      }
+    }
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages, activeRoomId, scrollToBottom]);
+
+  // Ensure scroll to bottom after initial message fetch finishes
+  useEffect(() => {
+    if (!isLoadingMessages && messages.length > 0 && isNearBottomRef.current) {
+      scrollToBottom('auto');
+    }
+  }, [isLoadingMessages, messages.length, scrollToBottom]);
 
   // Real-time anti-fraud typing detector
   useEffect(() => {
@@ -296,6 +354,9 @@ export const ChatPage: React.FC = () => {
     setMessages((prev) => [...prev, tempMsg]);
     setInputText('');
     setFraudWarning(null);
+    isNearBottomRef.current = true;
+    setShowScrollBottomBtn(false);
+    scrollToBottom('smooth');
 
     try {
       await chatService.sendMessage(activeRoomId, contentToSend);
@@ -308,6 +369,8 @@ export const ChatPage: React.FC = () => {
 
   // Quick Like Thumb Up (Messenger signature feature)
   const handleSendThumbUp = () => {
+    isNearBottomRef.current = true;
+    setShowScrollBottomBtn(false);
     handleSendMessage(undefined, '👍');
   };
 
@@ -315,6 +378,8 @@ export const ChatPage: React.FC = () => {
   const handleSelectSafePoint = async (point: SafeMeetingPoint) => {
     if (!activeRoomId) return;
     const meetingMsg = `📍 [ĐỀ XUẤT ĐIỂM HẸN AN TOÀN]\nĐịa điểm: ${point.name}\nĐịa chỉ: ${point.address}\nThời gian khuyến nghị: ${point.recommendedHours}\nKhu vực có bảo vệ & Camera an ninh giám sát.`;
+    isNearBottomRef.current = true;
+    setShowScrollBottomBtn(false);
     handleSendMessage(undefined, meetingMsg);
     setIsSafePointModalOpen(false);
   };
@@ -366,6 +431,9 @@ export const ChatPage: React.FC = () => {
         if (newMsgRes && newMsgRes.data) {
           setMessages((prev) => [...prev, newMsgRes.data]);
           loadRooms();
+          isNearBottomRef.current = true;
+          setShowScrollBottomBtn(false);
+          scrollToBottom('smooth');
         }
       }
     } catch (err) {
@@ -569,17 +637,17 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
   };
 
   return (
-    <div className="flex h-full min-h-[500px] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div className="flex h-full min-h-0 w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
       {/* ======================================================== */}
       {/* 1. LEFT SIDEBAR: CONVERSATIONS LIST (ĐOẠN CHAT)           */}
       {/* ======================================================== */}
       <div
-        className={`w-full lg:w-[350px] xl:w-[380px] flex-shrink-0 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-slate-900 ${
+        className={`w-full lg:w-[350px] xl:w-[380px] flex-shrink-0 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-slate-900 h-full min-h-0 overflow-hidden ${
           activeRoomId ? 'hidden lg:flex' : 'flex'
         }`}
       >
         {/* Header */}
-        <div className="p-4 pb-2 flex items-center justify-between">
+        <div className="p-4 pb-2 flex items-center justify-between shrink-0">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             Đoạn chat
           </h1>
@@ -601,7 +669,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
         </div>
 
         {/* Search Bar (Messenger Style) */}
-        <div className="px-4 py-2">
+        <div className="px-4 py-2 shrink-0">
           <div className="relative flex items-center">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
             <input
@@ -615,7 +683,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
         </div>
 
         {/* Filter Pills */}
-        <div className="px-4 py-1.5 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800/60 pb-3">
+        <div className="px-4 py-1.5 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800/60 pb-3 shrink-0">
           <button
             onClick={() => setFilterTab('ALL')}
             className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
@@ -639,7 +707,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
         </div>
 
         {/* Rooms Scrollable List */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1">
           {isLoadingRooms ? (
             <div className="p-4 space-y-3">
               {[1, 2, 3].map((i) => (
@@ -745,7 +813,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
       {/* ======================================================== */}
       {activeRoom ? (
         <div
-          className={`flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 ${
+          className={`flex-1 flex flex-col min-w-0 h-full min-h-0 bg-white dark:bg-slate-900 overflow-hidden relative ${
             !activeRoomId ? 'hidden lg:flex' : 'flex'
           }`}
         >
@@ -907,7 +975,11 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
 
 
           {/* Messages Stream Container */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#ffffff] dark:bg-[#0b141a]">
+          <div
+            ref={messagesContainerRef}
+            onScroll={handleMessagesScroll}
+            className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-[#ffffff] dark:bg-[#0b141a]"
+          >
             {/* Profile Header inside chat stream (Messenger style) */}
             <div className="text-center py-6">
               <img
@@ -988,6 +1060,11 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                             controls
                             className="w-full max-h-64 rounded-xl"
                             preload="metadata"
+                            onLoadedData={() => {
+                              if (isNearBottomRef.current) {
+                                scrollToBottom('auto');
+                              }
+                            }}
                           />
                         </div>
                       ) : msg.messageType === 'IMAGE' || (msg.content && (msg.content.startsWith('http') || msg.content.startsWith('blob:') || msg.content.startsWith('data:image') || msg.content.startsWith('/')) && /\.(jpg|jpeg|png|webp|gif)/i.test(msg.content)) ? (
@@ -997,6 +1074,11 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                             alt="Ảnh đính kèm"
                             className="w-full max-h-64 object-cover cursor-pointer hover:opacity-95 transition"
                             onClick={() => window.open(msg.content, '_blank')}
+                            onLoad={() => {
+                              if (isNearBottomRef.current) {
+                                scrollToBottom('auto');
+                              }
+                            }}
                           />
                         </div>
                       ) : msg.content && msg.content.includes('[YÊU CẦU ĐẶT MUA MỚI]') ? (
@@ -1147,9 +1229,26 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Floating Scroll to Bottom Button */}
+          {showScrollBottomBtn && (
+            <button
+              type="button"
+              onClick={() => {
+                isNearBottomRef.current = true;
+                setShowScrollBottomBtn(false);
+                scrollToBottom('smooth');
+              }}
+              className="absolute bottom-20 right-6 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-lg shadow-blue-500/30 transition-all transform hover:scale-105 active:scale-95 animate-in fade-in slide-in-from-bottom-2 cursor-pointer"
+              title="Cuộn xuống tin nhắn mới nhất"
+            >
+              <ChevronDown className="w-4 h-4" />
+              <span>Tin nhắn mới nhất</span>
+            </button>
+          )}
+
           {/* Typing Anti-Fraud Alert */}
           {fraudWarning && (
-            <div className="mx-4 mb-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 animate-in fade-in">
+            <div className="mx-4 mb-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 animate-in fade-in shrink-0">
               <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0" />
               <span>{fraudWarning}</span>
             </div>
@@ -1157,7 +1256,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
 
           {/* Chat Input Bar OR Locked Account Notice (Facebook Messenger UI Exact Match) */}
           {activeRoom.peerStatus === 'SUSPENDED' ? (
-            <div className="p-7 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center select-none animate-in fade-in">
+            <div className="p-7 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center select-none animate-in fade-in shrink-0">
               <h4 className="text-[15px] font-bold text-slate-900 dark:text-white mb-1.5">
                 {activeRoom.peerName} chưa thể truy cập vào đoạn chat này
               </h4>
@@ -1166,7 +1265,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
               </p>
             </div>
           ) : user?.status === 'SUSPENDED' ? (
-            <div className="p-7 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center select-none animate-in fade-in">
+            <div className="p-7 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center select-none animate-in fade-in shrink-0">
               <h4 className="text-[15px] font-bold text-slate-900 dark:text-white mb-1.5 flex items-center justify-center gap-2">
                 <Lock className="w-4 h-4 text-amber-500" />
                 Tài khoản của bạn đang bị tạm khóa chức năng nhắn tin
@@ -1176,7 +1275,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
               </p>
             </div>
           ) : (
-            <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
               {/* Replying quote preview bar */}
               {replyingToMessage && (
                 <div className="flex items-center justify-between px-3.5 py-1.5 bg-blue-50 dark:bg-slate-800 border-l-4 border-blue-500 rounded-t-xl mb-1 text-xs">
@@ -1285,7 +1384,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
       {/* 3. RIGHT SIDEBAR: MESSENGER CHAT INFO PANEL              */}
       {/* ======================================================== */}
       {isRightSidebarOpen && activeRoom && (
-        <div className="w-[300px] xl:w-[320px] flex-shrink-0 border-l border-slate-200 dark:border-slate-800 hidden xl:flex flex-col bg-white dark:bg-slate-900 overflow-y-auto">
+        <div className="w-[300px] xl:w-[320px] flex-shrink-0 border-l border-slate-200 dark:border-slate-800 hidden xl:flex flex-col bg-white dark:bg-slate-900 h-full min-h-0 overflow-y-auto">
           {/* Header Contact Profile */}
           <div className="p-6 text-center border-b border-slate-100 dark:border-slate-800">
             <div className="relative inline-block mx-auto">
