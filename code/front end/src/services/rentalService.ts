@@ -110,14 +110,6 @@ export const rentalService = {
   },
 
   createRentalContract: async (payload: CreateRentalContractPayload): Promise<ApiResponse<RentalContract>> => {
-    // Check spam lockout
-    const spamCheck = spamProtectionService.checkRenterSpamStatus(payload.renterId);
-    if (spamCheck.isLocked) {
-      throw new Error(
-        `Tài khoản của bạn đang bị tạm khóa tính năng thuê trong 1 giờ do liên tục spam thao tác. Vui lòng quay lại sau ${spamCheck.minutesLeft} phút.`
-      );
-    }
-
     const formattedPayload = {
       ...payload,
       startDate: payload.startDate.includes('T') ? payload.startDate : `${payload.startDate}T00:00:00`,

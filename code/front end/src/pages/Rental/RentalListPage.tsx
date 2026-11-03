@@ -13,13 +13,10 @@ import {
   MessageCircle,
   XCircle,
   AlertCircle,
-  AlertTriangle,
-  ShieldAlert,
 } from 'lucide-react';
 import { BaseButton } from '../../components/base/BaseButton';
 import { BaseModal } from '../../components/base/BaseModal';
 import { rentalService } from '../../services/rentalService';
-import { spamProtectionService, SpamStatus } from '../../services/spamProtectionService';
 import { RentalRejectCancelModal } from '../../components/features/RentalRejectCancelModal';
 import { RentalContract, RentalStatus } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -40,17 +37,6 @@ export const RentalListPage: React.FC = () => {
   const [modalType, setModalType] = useState<'REJECT' | 'CANCEL'>('REJECT');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [returnConfirmContract, setReturnConfirmContract] = useState<RentalContract | null>(null);
-
-  // Spam status for renter
-  const [spamStatus, setSpamStatus] = useState<SpamStatus>({
-    userId: user?.id || 0,
-    count: 0,
-    isWarning: false,
-    isLocked: false,
-    lockoutUntil: null,
-    minutesLeft: 0,
-    lastActionTime: null,
-  });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -75,19 +61,6 @@ export const RentalListPage: React.FC = () => {
     window.addEventListener('campus_rentals_updated', handleUpdate);
     return () => window.removeEventListener('campus_rentals_updated', handleUpdate);
   }, [activeTab]);
-
-  useEffect(() => {
-    if (user?.id) {
-      setSpamStatus(spamProtectionService.checkRenterSpamStatus(user.id));
-    }
-    const handleSpamUpdate = () => {
-      if (user?.id) {
-        setSpamStatus(spamProtectionService.checkRenterSpamStatus(user.id));
-      }
-    };
-    window.addEventListener('campus_spam_status_updated', handleSpamUpdate);
-    return () => window.removeEventListener('campus_spam_status_updated', handleSpamUpdate);
-  }, [user?.id]);
 
   const handleApprove = async (contract: RentalContract) => {
     try {
@@ -212,43 +185,6 @@ export const RentalListPage: React.FC = () => {
           <span>Bảo Đảm Tiền Cọc Sinh Viên</span>
         </div>
       </div>
-
-      {/* RED SPAM BANNER NOTIFICATION */}
-      {spamStatus.isLocked ? (
-        <div className="p-4 sm:p-5 rounded-3xl bg-rose-600 text-white shadow-xl shadow-rose-600/30 flex items-center gap-4 border-2 border-rose-400 animate-in fade-in duration-300">
-          <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
-            <ShieldAlert className="w-7 h-7 text-white" />
-          </div>
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h4 className="text-sm font-black tracking-wide uppercase">
-                ⛔ Tài Khoản Đang Bị Tạm Khóa Thuê Đồ Trong 1 Giờ
-              </h4>
-              <span className="text-[10px] bg-white/25 px-2.5 py-0.5 rounded-full font-mono font-bold">
-                Còn lại ~{spamStatus.minutesLeft} phút
-              </span>
-            </div>
-            <p className="text-xs text-rose-100 leading-relaxed">
-              Do bạn liên tục gửi hoặc hủy yêu cầu thuê đồ quá nhiều lần sau khi đã được cảnh báo, hệ thống tạm khóa tính năng tạo yêu cầu thuê mới trong 1 giờ để đảm bảo văn minh giao dịch trong trường Phenikaa.
-            </p>
-          </div>
-        </div>
-      ) : spamStatus.isWarning ? (
-        <div className="p-4 sm:p-5 rounded-3xl bg-rose-600 text-white shadow-xl shadow-rose-600/25 flex items-center gap-4 border-2 border-rose-300 animate-pulse duration-700">
-          <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-7 h-7 text-white" />
-          </div>
-          <div className="space-y-1">
-            <h4 className="text-sm font-black tracking-wide uppercase">
-              🚨 CẢNH BÁO SPAM THAO TÁC THUÊ ĐỒ ({spamStatus.count} LẦN LIÊN TIẾP)
-            </h4>
-            <p className="text-xs text-rose-100 leading-relaxed">
-              Bạn đã thực hiện gửi hoặc hủy yêu cầu thuê liên tiếp <strong>3 lần trong thời gian ngắn</strong>. 
-              <strong> Nếu còn tiếp tục spam gửi hoặc hủy yêu cầu, tài khoản của bạn sẽ bị tạm khóa trong vòng 1 giờ!</strong>
-            </p>
-          </div>
-        </div>
-      ) : null}
 
       {/* Tabs */}
       <div className="flex items-center gap-1.5 p-1.5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-x-auto shadow-sm">
