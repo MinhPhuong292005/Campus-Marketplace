@@ -473,6 +473,14 @@ export const ChatPage: React.FC = () => {
 
   const openSaleModal = (targetOrder?: PurchaseOrder) => {
     if (!activeRoom) return;
+    if (!isCurrentUserSeller) {
+      alert('Chỉ người bán mới có quyền xác nhận đơn và chọn điểm hẹn giao dịch!');
+      return;
+    }
+    if (targetOrder && targetOrder.buyerId === user?.id) {
+      alert('Bạn là người đặt đơn này, chỉ có người bán mới được quyền xác nhận đơn!');
+      return;
+    }
     if (targetOrder) {
       setTargetConfirmOrderId(targetOrder.id);
       setSaleItemTitle(targetOrder.listingTitle);
@@ -589,23 +597,31 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
     }
   }, [activeRoom?.listingId]);
 
-  // Đơn hàng liên quan giữa 2 bạn sinh viên
-  const activeOrder = orders.find(
-    (o) =>
-      ((o.sellerId === user?.id && o.buyerId === activeRoom?.peerUserId) ||
-        (o.buyerId === user?.id && o.sellerId === activeRoom?.peerUserId) ||
-        (activeRoom?.listingId && o.listingId === activeRoom.listingId)) &&
-      (o.status === 'PENDING' || o.status === 'CONFIRMED')
-  );
+  // Đơn hàng liên quan giữa 2 bạn sinh viên (Ưu tiên đơn PENDING đang chờ xác nhận)
+  const activeOrder =
+    orders.find(
+      (o) =>
+        ((o.sellerId === user?.id && o.buyerId === activeRoom?.peerUserId) ||
+          (o.buyerId === user?.id && o.sellerId === activeRoom?.peerUserId) ||
+          (activeRoom?.listingId && o.listingId === activeRoom.listingId)) &&
+        o.status === 'PENDING'
+    ) ||
+    orders.find(
+      (o) =>
+        ((o.sellerId === user?.id && o.buyerId === activeRoom?.peerUserId) ||
+          (o.buyerId === user?.id && o.sellerId === activeRoom?.peerUserId) ||
+          (activeRoom?.listingId && o.listingId === activeRoom.listingId)) &&
+        o.status === 'CONFIRMED'
+    );
 
-  // Check if current user is the SELLER
+  // Check if current user is the SELLER (Người bán)
+  // Quy tắc bất biến: Người đặt mua (buyer) TUYỆT ĐỐI KHÔNG phải là người bán!
   const isCurrentUserSeller = Boolean(
-    (activeOrder && activeOrder.sellerId === user?.id) ||
-    (user?.id && (
-      (activeRoom?.sellerId && activeRoom.sellerId === user.id) ||
-      (activeListingSellerId && activeListingSellerId === user.id) ||
-      (routeState?.sellerId && routeState.sellerId === user.id)
-    ))
+    user?.id && (
+      activeOrder
+        ? (activeOrder.sellerId === user.id && activeOrder.buyerId !== user.id)
+        : (activeListingSellerId ? activeListingSellerId === user.id : (activeRoom?.sellerId === user.id && activeRoom.peerUserId !== user.id))
+    )
   );
 
   // Filter rooms
@@ -892,7 +908,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
           {activeOrder && (
             <div className="px-4 py-2 bg-slate-50/80 dark:bg-slate-900/90 border-b border-slate-200/80 dark:border-slate-800 shrink-0 animate-in fade-in">
               {activeOrder.status === 'PENDING' ? (
-                activeOrder.sellerId === user?.id || (!activeOrder.buyerId || activeOrder.buyerId !== user?.id) ? (
+                isCurrentUserSeller ? (
                   <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-xl bg-amber-500 text-white shrink-0">
@@ -904,7 +920,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                             Yêu cầu mua từ {activeOrder.buyerName} {activeOrder.buyerStudentCode ? `(MSSV: ${activeOrder.buyerStudentCode})` : ''}
                           </span>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 dark:bg-amber-900/80 dark:text-amber-200">
-                            Chờ chọn điểm hẹn
+                            Chờ bạn chọn điểm hẹn
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
@@ -960,13 +976,16 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => openSaleModal(activeOrder)}
-                    className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline self-end sm:self-center cursor-pointer"
-                  >
-                    Đổi điểm hẹn khác
-                  </button>
+                  {/* Chỉ người bán mới có quyền đổi điểm hẹn */}
+                  {isCurrentUserSeller && (
+                    <button
+                      type="button"
+                      onClick={() => openSaleModal(activeOrder)}
+                      className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline self-end sm:self-center cursor-pointer"
+                    >
+                      Đổi điểm hẹn khác
+                    </button>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -1101,14 +1120,21 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                             <span className="text-[11px] text-slate-500">
                               Giao dịch trực tiếp tại Phenikaa
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => openSaleModal(activeOrder?.status === 'PENDING' ? activeOrder : undefined)}
-                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
-                            >
-                              <MapPin className="w-3.5 h-3.5" />
-                              <span>Xác nhận & Chọn điểm hẹn</span>
-                            </button>
+                            {/* CHỈ NGƯỜI BÁN MỚI ĐƯỢC XÁC NHẬN ĐƠN */}
+                            {isCurrentUserSeller ? (
+                              <button
+                                type="button"
+                                onClick={() => openSaleModal(activeOrder?.status === 'PENDING' ? activeOrder : undefined)}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
+                              >
+                                <MapPin className="w-3.5 h-3.5" />
+                                <span>Xác nhận & Chọn điểm hẹn</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] font-medium text-slate-400 italic">
+                                Chờ người bán xác nhận & chọn điểm hẹn...
+                              </span>
+                            )}
                           </div>
                         </div>
                       ) : msg.content && (msg.content.includes('[XÁC NHẬN CHỐT BÁN HÀNG]') || msg.content.includes('[XÁC NHẬN BÁN HÀNG]')) ? (
