@@ -35,6 +35,7 @@ import { SafeMeetingPointsModal } from '../../components/features/SafeMeetingPoi
 import { KarmaBadge } from '../../components/features/KarmaBadge';
 import { studentNotificationService } from '../../services/studentNotificationService';
 import { orderService, PurchaseOrder } from '../../services/orderService';
+import { formatCurrency } from '../../utils/formatters';
 
 export const ChatPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -424,50 +425,6 @@ export const ChatPage: React.FC = () => {
     setSaleMeetingTime('14:30');
     setSaleNote('Gặp trực tiếp kiểm tra đồ trước khi thanh toán.');
     setIsSaleModalOpen(true);
-  };
-
-  const handleSendBuyRequest = async () => {
-    if (!activeRoom || !user) return;
-    const buyerStudentCode = user.studentCode || (user.email ? user.email.split('@')[0] : '23010190');
-    const title = activeRoom.listingTitle || 'Sách giải tích 1';
-    const price = activeRoom.listingPrice || 50000;
-    const defaultPoint = PHENIKAA_SAFE_MEETING_POINTS[0].name + ' (' + PHENIKAA_SAFE_MEETING_POINTS[0].address + ')';
-
-    const order = orderService.createOrder({
-      listingId: activeRoom.listingId || Date.now(),
-      listingTitle: title,
-      listingImage: activeRoom.listingImage || '',
-      sellerId: activeRoom.peerUserId,
-      sellerName: activeRoom.peerName,
-      buyerId: user.id,
-      buyerName: user.fullName,
-      buyerStudentCode,
-      price,
-      meetingPoint: defaultPoint,
-      status: 'PENDING',
-    });
-
-    studentNotificationService.notifySellerNewOrder({
-      sellerId: activeRoom.peerUserId,
-      buyerName: user.fullName,
-      buyerStudentCode,
-      listingTitle: title,
-      orderId: order.id,
-      listingId: activeRoom.listingId,
-    });
-
-    const buyMsg = `🛒 [YÊU CẦU ĐẶT MUA MỚI]
-• Mã đơn: #${order.id}
-• Món đồ: ${title}
-• Giá: ${price.toLocaleString('vi-VN')} đ
-• Người mua: ${user.fullName} (MSSV: ${buyerStudentCode})
-• Điểm hẹn mong muốn: ${defaultPoint}
-
-👉 Người bán vui lòng nhấn "Xác nhận & Chọn điểm hẹn" để chốt lịch giao dịch an toàn tại trường!`;
-
-    handleSendMessage(undefined, buyMsg);
-    setToastNotice('🎉 Đã gửi yêu cầu mua hàng thành công!');
-    setTimeout(() => setToastNotice(null), 3500);
   };
 
   const handleSubmitSaleConfirmation = (e: React.FormEvent) => {
@@ -1251,7 +1208,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                   {isCurrentUserSeller && (
                     <button
                       type="button"
-                      onClick={openSaleModal}
+                      onClick={() => openSaleModal()}
                       className="p-2 rounded-full hover:bg-emerald-50 dark:hover:bg-slate-800 transition text-emerald-600 dark:text-emerald-400 cursor-pointer"
                       title="Tạo đơn chốt bán hàng"
                     >

@@ -9,6 +9,7 @@ export interface CartItem {
   rentalDays?: number;
   sellerId: number;
   sellerName: string;
+  sellerStudentCode?: string;
   sellerAvatar?: string;
   sellerKarma?: number;
   rentalTerms?: string;
