@@ -22,6 +22,8 @@ import {
   Reply,
   Clock,
   Calendar,
+  MapPin,
+  ShoppingBag,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -32,7 +34,7 @@ import { ReportModal } from '../../components/features/ReportModal';
 import { SafeMeetingPointsModal } from '../../components/features/SafeMeetingPointsModal';
 import { KarmaBadge } from '../../components/features/KarmaBadge';
 import { studentNotificationService } from '../../services/studentNotificationService';
-import { orderService } from '../../services/orderService';
+import { orderService, PurchaseOrder } from '../../services/orderService';
 
 export const ChatPage: React.FC = () => {
   const { user } = useAuthStore();
@@ -386,18 +388,86 @@ export const ChatPage: React.FC = () => {
   const [saleMeetingDate, setSaleMeetingDate] = useState(getTodayStr());
   const [saleMeetingTime, setSaleMeetingTime] = useState('14:30');
   const [saleNote, setSaleNote] = useState('Gặp trực tiếp kiểm tra đồ trước khi thanh toán.');
+  const [targetConfirmOrderId, setTargetConfirmOrderId] = useState<string | null>(null);
 
-  const openSaleModal = () => {
+  // Orders State
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+
+  useEffect(() => {
+    setOrders(orderService.getMyOrders());
+    const handleOrdersUpdate = () => {
+      setOrders(orderService.getMyOrders());
+    };
+    window.addEventListener('campus_orders_updated', handleOrdersUpdate);
+    return () => window.removeEventListener('campus_orders_updated', handleOrdersUpdate);
+  }, []);
+
+  const openSaleModal = (targetOrder?: PurchaseOrder) => {
     if (!activeRoom) return;
-    setSaleItemTitle(activeRoom.listingTitle || 'Máy tính Casio');
-    setSalePrice(activeRoom.listingPrice || 50000);
-    setSaleDeposit(0);
-    const pt = PHENIKAA_SAFE_MEETING_POINTS[0];
-    setSaleMeetingPoint(`${pt.name} (${pt.address})`);
+    if (targetOrder) {
+      setTargetConfirmOrderId(targetOrder.id);
+      setSaleItemTitle(targetOrder.listingTitle);
+      setSalePrice(targetOrder.price);
+      setSaleDeposit(targetOrder.deposit || 0);
+      if (targetOrder.meetingPoint) {
+        setSaleMeetingPoint(targetOrder.meetingPoint);
+      }
+    } else {
+      setTargetConfirmOrderId(null);
+      setSaleItemTitle(activeRoom.listingTitle || 'Sách giải tích 1');
+      setSalePrice(activeRoom.listingPrice || 50000);
+      setSaleDeposit(0);
+      const pt = PHENIKAA_SAFE_MEETING_POINTS[0];
+      setSaleMeetingPoint(`${pt.name} (${pt.address})`);
+    }
     setSaleMeetingDate(getTodayStr());
     setSaleMeetingTime('14:30');
     setSaleNote('Gặp trực tiếp kiểm tra đồ trước khi thanh toán.');
     setIsSaleModalOpen(true);
+  };
+
+  const handleSendBuyRequest = async () => {
+    if (!activeRoom || !user) return;
+    const buyerStudentCode = user.studentCode || (user.email ? user.email.split('@')[0] : '23010190');
+    const title = activeRoom.listingTitle || 'Sách giải tích 1';
+    const price = activeRoom.listingPrice || 50000;
+    const defaultPoint = PHENIKAA_SAFE_MEETING_POINTS[0].name + ' (' + PHENIKAA_SAFE_MEETING_POINTS[0].address + ')';
+
+    const order = orderService.createOrder({
+      listingId: activeRoom.listingId || Date.now(),
+      listingTitle: title,
+      listingImage: activeRoom.listingImage || '',
+      sellerId: activeRoom.peerUserId,
+      sellerName: activeRoom.peerName,
+      buyerId: user.id,
+      buyerName: user.fullName,
+      buyerStudentCode,
+      price,
+      meetingPoint: defaultPoint,
+      status: 'PENDING',
+    });
+
+    studentNotificationService.notifySellerNewOrder({
+      sellerId: activeRoom.peerUserId,
+      buyerName: user.fullName,
+      buyerStudentCode,
+      listingTitle: title,
+      orderId: order.id,
+      listingId: activeRoom.listingId,
+    });
+
+    const buyMsg = `🛒 [YÊU CẦU ĐẶT MUA MỚI]
+• Mã đơn: #${order.id}
+• Món đồ: ${title}
+• Giá: ${price.toLocaleString('vi-VN')} đ
+• Người mua: ${user.fullName} (MSSV: ${buyerStudentCode})
+• Điểm hẹn mong muốn: ${defaultPoint}
+
+👉 Người bán vui lòng nhấn "Xác nhận & Chọn điểm hẹn" để chốt lịch giao dịch an toàn tại trường!`;
+
+    handleSendMessage(undefined, buyMsg);
+    setToastNotice('🎉 Đã gửi yêu cầu mua hàng thành công!');
+    setTimeout(() => setToastNotice(null), 3500);
   };
 
   const handleSubmitSaleConfirmation = (e: React.FormEvent) => {
@@ -442,8 +512,15 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
       meetingPoint: saleMeetingPoint,
     });
 
-    // 3. Update order in orderService
-    if (activeRoom.listingId) {
+    // 3. Update or create order in orderService
+    if (targetConfirmOrderId) {
+      orderService.confirmOrder(targetConfirmOrderId, {
+        meetingPoint: saleMeetingPoint,
+        meetingDate: saleMeetingDate,
+        meetingTime: saleMeetingTime,
+        meetingNote: saleNote,
+      });
+    } else if (activeRoom.listingId) {
       orderService.createOrder({
         listingId: activeRoom.listingId,
         listingTitle: saleItemTitle.trim(),
@@ -452,13 +529,19 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
         sellerName,
         buyerId: activeRoom.peerUserId,
         buyerName: peerName,
+        buyerStudentCode: activeRoom.peerCampus || '23010190',
         price: salePrice,
         deposit: saleDeposit || 0,
+        meetingPoint: saleMeetingPoint,
+        meetingDate: saleMeetingDate,
+        meetingTime: saleMeetingTime,
+        meetingNote: saleNote,
+        status: 'CONFIRMED',
       });
     }
 
     setIsSaleModalOpen(false);
-    setToastNotice(`🎉 Đã tạo đơn xác nhận bán thành công! Tin nhắn và thông báo đã được gửi tới ${peerName}.`);
+    setToastNotice(`🎉 Đã xác nhận đơn và chốt điểm hẹn thành công! Tin nhắn và thông báo đã gửi tới ${peerName}.`);
     setTimeout(() => setToastNotice(null), 3500);
   };
 
@@ -481,13 +564,23 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
     }
   }, [activeRoom?.listingId]);
 
-  // Check if current user is the SELLER (Chỉ người bán mới thấy nút tạo chốt đơn)
+  // Đơn hàng liên quan giữa 2 bạn sinh viên
+  const activeOrder = orders.find(
+    (o) =>
+      ((o.sellerId === user?.id && o.buyerId === activeRoom?.peerUserId) ||
+        (o.buyerId === user?.id && o.sellerId === activeRoom?.peerUserId) ||
+        (activeRoom?.listingId && o.listingId === activeRoom.listingId)) &&
+      (o.status === 'PENDING' || o.status === 'CONFIRMED')
+  );
+
+  // Check if current user is the SELLER
   const isCurrentUserSeller = Boolean(
-    user?.id && (
+    (activeOrder && activeOrder.sellerId === user?.id) ||
+    (user?.id && (
       (activeRoom?.sellerId && activeRoom.sellerId === user.id) ||
       (activeListingSellerId && activeListingSellerId === user.id) ||
       (routeState?.sellerId && routeState.sellerId === user.id)
-    )
+    ))
   );
 
   // Filter rooms
@@ -758,18 +851,31 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
             </div>
 
             {/* Top Right Action Icons */}
-            <div className="flex items-center gap-2 text-blue-600">
-              {isCurrentUserSeller && (
+            <div className="flex items-center gap-2">
+              {/* Nút gửi yêu cầu mua cho bên mua */}
+              {(!activeOrder || activeOrder.status !== 'PENDING') && (
                 <button
                   type="button"
-                  onClick={openSaleModal}
-                  className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title="Tạo chốt đơn giao dịch cho người mua"
+                  onClick={handleSendBuyRequest}
+                  className="px-3 py-1.5 rounded-full border border-orange-300 dark:border-orange-700 bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 font-bold text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="Gửi yêu cầu mua món đồ này"
                 >
-                  <PackageCheck className="w-4 h-4" />
-                  <span className="hidden sm:inline">Tạo chốt đơn</span>
+                  <ShoppingBag className="w-3.5 h-3.5 text-orange-500" />
+                  <span className="hidden sm:inline">Yêu cầu mua</span>
                 </button>
               )}
+
+              {/* Nút xác nhận đơn và chọn điểm hẹn */}
+              <button
+                type="button"
+                onClick={() => openSaleModal(activeOrder?.status === 'PENDING' ? activeOrder : undefined)}
+                className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="Xác nhận đơn và chọn điểm hẹn giao dịch tại Phenikaa"
+              >
+                <PackageCheck className="w-4 h-4" />
+                <span>Xác nhận & Chọn điểm hẹn</span>
+              </button>
+
               <button
                 onClick={() => setIsRightSidebarOpen((prev) => !prev)}
                 className={`p-2.5 rounded-full transition ${
@@ -783,6 +889,90 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
               </button>
             </div>
           </div>
+
+          {/* Active Order & Meeting Point Banner */}
+          {activeOrder && (
+            <div className="px-4 py-2 bg-slate-50/80 dark:bg-slate-900/90 border-b border-slate-200/80 dark:border-slate-800 shrink-0 animate-in fade-in">
+              {activeOrder.status === 'PENDING' ? (
+                activeOrder.sellerId === user?.id || (!activeOrder.buyerId || activeOrder.buyerId !== user?.id) ? (
+                  <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-amber-500 text-white shrink-0">
+                        <PackageCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-amber-900 dark:text-amber-100">
+                            Yêu cầu mua từ {activeOrder.buyerName} {activeOrder.buyerStudentCode ? `(MSSV: ${activeOrder.buyerStudentCode})` : ''}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 dark:bg-amber-900/80 dark:text-amber-200">
+                            Chờ chọn điểm hẹn
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                          Món đồ: <strong>{activeOrder.listingTitle}</strong> • Giá chốt: <strong className="text-orange-600">{formatCurrency(activeOrder.price)}</strong>
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openSaleModal(activeOrder)}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition active:scale-95 shrink-0 cursor-pointer self-end sm:self-auto"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      <span>Xác nhận & Chọn điểm hẹn</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 flex items-center justify-between gap-3 shadow-xs text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-blue-600 text-white shrink-0">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-blue-900 dark:text-blue-100">
+                          Đã gửi yêu cầu mua: {activeOrder.listingTitle} ({formatCurrency(activeOrder.price)})
+                        </span>
+                        <p className="text-slate-500 text-[11px] mt-0.5">
+                          Đang chờ người bán ({activeOrder.sellerName}) xác nhận và chọn điểm hẹn giao dịch an toàn tại trường Phenikaa.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ) : activeOrder.status === 'CONFIRMED' ? (
+                <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs text-xs">
+                  <div className="flex items-start sm:items-center gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-emerald-600 text-white shrink-0">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-emerald-900 dark:text-emerald-100">
+                          ✓ Đã chốt điểm hẹn: {activeOrder.listingTitle} ({formatCurrency(activeOrder.price)})
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200">
+                          Đã xác nhận
+                        </span>
+                      </div>
+                      <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5">
+                        📍 Điểm hẹn: <strong className="text-slate-900 dark:text-white">{activeOrder.meetingPoint}</strong>
+                        {activeOrder.meetingTime ? ` • Giờ: ${activeOrder.meetingTime}` : ''}
+                        {activeOrder.meetingDate ? ` • Ngày: ${activeOrder.meetingDate}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openSaleModal(activeOrder)}
+                    className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline self-end sm:self-center cursor-pointer"
+                  >
+                    Đổi điểm hẹn khác
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
 
 
 
@@ -878,6 +1068,36 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                             className="w-full max-h-64 object-cover cursor-pointer hover:opacity-95 transition"
                             onClick={() => window.open(msg.content, '_blank')}
                           />
+                        </div>
+                      ) : msg.content && msg.content.includes('[YÊU CẦU ĐẶT MUA MỚI]') ? (
+                        <div className="rounded-2xl border-2 border-orange-400/80 dark:border-orange-600/80 bg-white dark:bg-slate-900 p-4 shadow-md text-left max-w-sm sm:max-w-md space-y-2.5 animate-in fade-in">
+                          <div className="flex items-center justify-between gap-2 pb-2 border-b border-orange-100 dark:border-orange-900/60">
+                            <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 font-extrabold text-xs">
+                              <ShoppingBag className="w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0" />
+                              <span>YÊU CẦU ĐẶT MUA HÀNG</span>
+                            </div>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              Chờ xác nhận
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed font-sans">
+                            {msg.content}
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-slate-500">
+                              Giao dịch trực tiếp tại Phenikaa
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openSaleModal(activeOrder?.status === 'PENDING' ? activeOrder : undefined)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
+                            >
+                              <MapPin className="w-3.5 h-3.5" />
+                              <span>Xác nhận & Chọn điểm hẹn</span>
+                            </button>
+                          </div>
                         </div>
                       ) : msg.content && (msg.content.includes('[XÁC NHẬN CHỐT BÁN HÀNG]') || msg.content.includes('[XÁC NHẬN BÁN HÀNG]')) ? (
                         <div className="rounded-2xl border-2 border-emerald-400/80 dark:border-emerald-600/80 bg-white dark:bg-slate-900 p-4 shadow-md text-left max-w-sm sm:max-w-md space-y-2.5 animate-in fade-in">

@@ -73,7 +73,7 @@ public class ChatServiceImpl implements ChatService {
         List<ChatRoomEntity> between = chatRoomRepository.findBetweenUsers(currentUserId, req.getPeerUserId());
         if (!between.isEmpty()) {
             ChatRoomEntity existing = between.get(0);
-            if (listing != null && existing.getListing() == null) {
+            if (listing != null) {
                 existing.setListing(listing);
                 chatRoomRepository.save(existing);
             }

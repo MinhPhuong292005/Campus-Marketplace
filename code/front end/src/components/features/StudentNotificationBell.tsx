@@ -164,6 +164,11 @@ export const StudentNotificationBell: React.FC = () => {
       return;
     }
 
+    if (notif.type === 'ORDER_REQUEST') {
+      navigate('/orders?tab=sales');
+      return;
+    }
+
     if (notif.type === 'ORDER_CONFIRMED') {
       navigate('/chat');
       return;
@@ -328,6 +333,10 @@ export const StudentNotificationBell: React.FC = () => {
                       ) : item.type === 'RENTAL_REQUEST' || item.type === 'RENTAL_APPROVED' ? (
                         <div className="w-8 h-8 rounded-xl bg-blue-500/15 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/25 dark:border-blue-500/30 flex items-center justify-center shadow-xs">
                           <FileText className="w-4 h-4" />
+                        </div>
+                      ) : item.type === 'ORDER_REQUEST' ? (
+                        <div className="w-8 h-8 rounded-xl bg-orange-500/15 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/25 dark:border-orange-500/30 flex items-center justify-center shadow-xs">
+                          <ShoppingBag className="w-4 h-4" />
                         </div>
                       ) : item.type === 'ORDER_CONFIRMED' ? (
                         <div className="w-8 h-8 rounded-xl bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 dark:border-emerald-500/30 flex items-center justify-center shadow-xs">

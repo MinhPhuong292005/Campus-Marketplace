@@ -13,6 +13,7 @@ export interface StudentNotification {
     | 'GIVEAWAY_REQUEST'
     | 'GIVEAWAY_AWARDED'
     | 'GIVEAWAY_CLOSED'
+    | 'ORDER_REQUEST'
     | 'ORDER_CONFIRMED'
     | 'LISTING_PENDING'
     | 'RENTAL_REQUEST'
@@ -258,6 +259,27 @@ export const studentNotificationService = {
         type: 'ORDER_CONFIRMED',
       },
       payload.buyerId
+    );
+  },
+
+  notifySellerNewOrder: (payload: {
+    sellerId: number;
+    buyerName: string;
+    buyerStudentCode?: string;
+    listingTitle: string;
+    orderId?: string;
+    listingId?: number;
+  }): StudentNotification => {
+    return studentNotificationService.addLocalNotification(
+      {
+        title: `[Đơn hàng mới] Yêu cầu mua: ${payload.listingTitle}`,
+        message: `Sinh viên ${payload.buyerName}${
+          payload.buyerStudentCode ? ` (MSSV: ${payload.buyerStudentCode})` : ''
+        } vừa gửi yêu cầu đặt mua món đồ "${payload.listingTitle}". Vui lòng vào xác nhận đơn và chọn điểm hẹn giao dịch!`,
+        type: 'ORDER_REQUEST',
+        referenceId: payload.listingId,
+      },
+      payload.sellerId
     );
   },
 

@@ -12,6 +12,7 @@ export interface PurchaseOrder {
   sellerStudentCode?: string;
   buyerId: number;
   buyerName: string;
+  buyerStudentCode?: string;
   price: number;
   deposit?: number;
   transactionType?: 'SELL' | 'RENT';
@@ -20,8 +21,11 @@ export interface PurchaseOrder {
   paymentMethod?: 'DIRECT' | 'CASH' | 'BANK_TRANSFER' | 'VIETQR';
   paymentStatus?: 'PAID' | 'PENDING';
   meetingPoint?: string;
+  meetingDate?: string;
+  meetingTime?: string;
+  meetingNote?: string;
   orderDate: string;
-  status: 'CONFIRMED' | 'DELIVERED' | 'COMPLETED' | 'DISPUTED';
+  status: 'PENDING' | 'CONFIRMED' | 'DELIVERED' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED';
   disputeReason?: string;
   refundAmount?: number;
   disputeDescription?: string;
@@ -62,6 +66,7 @@ export const orderService = {
     sellerStudentCode?: string;
     buyerId: number;
     buyerName: string;
+    buyerStudentCode?: string;
     price: number;
     deposit?: number;
     transactionType?: 'SELL' | 'RENT';
@@ -70,6 +75,10 @@ export const orderService = {
     paymentMethod?: 'DIRECT' | 'CASH' | 'BANK_TRANSFER' | 'VIETQR';
     paymentStatus?: 'PAID' | 'PENDING';
     meetingPoint?: string;
+    meetingDate?: string;
+    meetingTime?: string;
+    meetingNote?: string;
+    status?: PurchaseOrder['status'];
   }): PurchaseOrder => {
     const orders = orderService.getMyOrders();
     const newOrder: PurchaseOrder = {
@@ -82,6 +91,7 @@ export const orderService = {
       sellerStudentCode: payload.sellerStudentCode,
       buyerId: payload.buyerId,
       buyerName: payload.buyerName,
+      buyerStudentCode: payload.buyerStudentCode,
       price: payload.price,
       deposit: payload.deposit || 0,
       transactionType: payload.transactionType,
@@ -90,14 +100,47 @@ export const orderService = {
       paymentMethod: payload.paymentMethod || 'DIRECT',
       paymentStatus: payload.paymentStatus || 'PENDING',
       meetingPoint: payload.meetingPoint,
+      meetingDate: payload.meetingDate,
+      meetingTime: payload.meetingTime,
+      meetingNote: payload.meetingNote,
       orderDate: new Date().toISOString(),
-      status: 'CONFIRMED',
+      status: payload.status || 'PENDING',
     };
 
     const updated = [newOrder, ...orders];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('campus_orders_updated', { detail: updated }));
     return newOrder;
+  },
+
+  confirmOrder: (
+    orderId: string,
+    details: {
+      meetingPoint: string;
+      meetingDate: string;
+      meetingTime: string;
+      meetingNote?: string;
+    }
+  ): PurchaseOrder | null => {
+    const list = orderService.getMyOrders();
+    let updatedOrder: PurchaseOrder | null = null;
+    const updated = list.map((o) => {
+      if (o.id === orderId) {
+        updatedOrder = {
+          ...o,
+          status: 'CONFIRMED' as const,
+          meetingPoint: details.meetingPoint,
+          meetingDate: details.meetingDate,
+          meetingTime: details.meetingTime,
+          meetingNote: details.meetingNote,
+        };
+        return updatedOrder;
+      }
+      return o;
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('campus_orders_updated', { detail: updated }));
+    return updatedOrder;
   },
 
   updateOrderStatus: (orderId: string, status: PurchaseOrder['status']) => {
@@ -114,7 +157,7 @@ export const orderService = {
         (o) =>
           o.listingId === listingId &&
           (buyerId ? o.buyerId === buyerId : true) &&
-          (o.status === 'CONFIRMED' || o.status === 'DELIVERED' || o.status === 'COMPLETED' || o.status === 'DISPUTED')
+          (o.status === 'PENDING' || o.status === 'CONFIRMED' || o.status === 'DELIVERED' || o.status === 'COMPLETED' || o.status === 'DISPUTED')
       ) || null
     );
   },

@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { CartItem, cartService } from '../../services/cartService';
 import { orderService } from '../../services/orderService';
+import { studentNotificationService } from '../../services/studentNotificationService';
+import { chatService } from '../../services/chatService';
 import { formatCurrency } from '../../utils/formatters';
 import { BaseButton } from '../../components/base/BaseButton';
 import { KarmaBadge } from '../../components/features/KarmaBadge';
@@ -103,7 +105,7 @@ export const CheckoutPage: React.FC = () => {
     0
   );
 
-  const handleConfirmOrder = () => {
+  const handleConfirmOrder = async () => {
     if (!user) {
       navigate('/auth/login');
       return;
@@ -115,16 +117,19 @@ export const CheckoutPage: React.FC = () => {
       // Create orders for each item
       let lastCreatedOrderId = '';
       const primaryItem = checkoutItems[0];
+      const buyerStudentCode = user.studentCode || (user.email ? user.email.split('@')[0] : '23010190');
 
-      checkoutItems.forEach((item) => {
+      for (const item of checkoutItems) {
         const order = orderService.createOrder({
           listingId: item.listingId,
           listingTitle: item.listingTitle,
           listingImage: item.listingImage,
           sellerId: item.sellerId,
           sellerName: item.sellerName,
+          sellerStudentCode: item.sellerStudentCode,
           buyerId: user.id,
           buyerName: user.fullName,
+          buyerStudentCode,
           price: item.price * item.quantity,
           transactionType: item.transactionType,
           quantity: item.quantity,
@@ -132,9 +137,40 @@ export const CheckoutPage: React.FC = () => {
           paymentMethod: paymentMethod,
           paymentStatus: 'PENDING',
           meetingPoint: selectedMeetingPoint,
+          status: 'PENDING',
         });
         lastCreatedOrderId = order.id;
-      });
+
+        // 1. Gửi thông báo đến tài khoản người bán
+        try {
+          studentNotificationService.notifySellerNewOrder({
+            sellerId: item.sellerId,
+            buyerName: user.fullName,
+            buyerStudentCode,
+            listingTitle: item.listingTitle,
+            orderId: order.id,
+            listingId: item.listingId,
+          });
+        } catch {}
+
+        // 2. Gửi tin nhắn tự động vào đoạn chat giữa hai bạn
+        try {
+          const roomRes = await chatService.createOrGetRoom(item.sellerId, item.listingId);
+          if (roomRes?.data?.id) {
+            const orderMsg = `🛒 [YÊU CẦU ĐẶT MUA MỚI]
+• Mã đơn: #${order.id}
+• Món đồ: ${item.listingTitle}
+• Giá: ${formatCurrency(item.price * item.quantity)}
+• Người mua: ${user.fullName} (MSSV: ${buyerStudentCode})
+• Điểm hẹn mong muốn: ${selectedMeetingPoint}
+
+👉 Người bán vui lòng nhấn "Xác nhận & Chọn điểm hẹn" để chốt lịch giao dịch an toàn tại trường!`;
+            await chatService.sendMessage(roomRes.data.id, orderMsg);
+          }
+        } catch (chatErr) {
+          console.warn('Failed to send auto order message to chat:', chatErr);
+        }
+      }
 
       // If came from cart, remove checked out items from cart
       if (routeState?.isFromCart) {
