@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Star,
   CheckCircle2,
-  ShieldCheck,
   ThumbsUp,
   MessageSquare,
   Lock,
@@ -226,12 +225,6 @@ export const ShopeeReviewSection: React.FC<ShopeeReviewSectionProps> = ({
               Nhận xét thực tế từ sinh viên cho <strong>"{listingTitle}"</strong> • Đánh giá minh bạch từ người mua / thuê đồ
             </p>
           </div>
-        </div>
-
-        {/* Verified Shopee Badge */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          <span>100% Đánh giá từ Người mua & Thuê thực tế</span>
         </div>
       </div>
 
