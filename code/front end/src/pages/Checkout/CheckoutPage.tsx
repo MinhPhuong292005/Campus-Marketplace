@@ -3,13 +3,10 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   MapPin,
-  CreditCard,
   Banknote,
   CheckCircle2,
   Store,
   MessageCircle,
-  Copy,
-  Check,
   AlertCircle,
   PackageCheck,
 } from 'lucide-react';
@@ -70,15 +67,14 @@ export const CheckoutPage: React.FC = () => {
   const selectedMeetingPoint =
     checkoutItems[0]?.safeMeetingPoint || 'Sảnh Tòa A2 (Khu Giảng đường Phenikaa)';
 
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER'>('CASH');
-  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const paymentMethod = 'DIRECT';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successOrder, setSuccessOrder] = useState<{
     orderId: string;
     sellerId: number;
     sellerName: string;
     totalAmount: number;
-    paymentMethod: 'CASH' | 'BANK_TRANSFER';
+    paymentMethod: string;
     listingTitle: string;
   } | null>(null);
 
@@ -106,20 +102,6 @@ export const CheckoutPage: React.FC = () => {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-
-  // Sample MB Bank account for VietQR demo
-  const bankInfo = {
-    bankName: 'MB Bank (Ngân hàng Quân Đội)',
-    accountNumber: '0382888999',
-    accountName: checkoutItems[0]?.sellerName?.toUpperCase() || 'NGUYEN MINH PHUONG',
-    transferContent: `CAMPUS DH${Math.floor(1000 + Math.random() * 9000)} ${user?.studentCode || '23010190'}`,
-  };
-
-  const handleCopy = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
 
   const handleConfirmOrder = () => {
     if (!user) {
@@ -286,147 +268,30 @@ export const CheckoutPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. Payment Methods (Tiền mặt trực tiếp vs Chuyển khoản ngân hàng - Hoàn toàn không dùng QR) */}
+      {/* 3. Payment Method (Chỉ có Thanh toán trực tiếp) */}
       <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
         <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-          <CreditCard className="w-4 h-4 text-emerald-600" />
+          <Banknote className="w-4 h-4 text-emerald-600" />
           <span>Phương Thức Thanh Toán</span>
         </h2>
 
-        {/* Radio Options */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Method 1: Cash */}
-          <div
-            onClick={() => setPaymentMethod('CASH')}
-            className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3 ${
-              paymentMethod === 'CASH'
-                ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-950/20 shadow-xs'
-                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 shrink-0">
-              <Banknote className="w-5 h-5" />
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  Tiền mặt khi gặp mặt
-                </span>
-                {paymentMethod === 'CASH' && (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-orange-500" />
-                )}
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Thanh toán tiền mặt trực tiếp cho bạn sinh viên khi gặp tại sảnh hoặc thư viện sau khi kiểm tra đồ nguyên vẹn.
-              </p>
-            </div>
+        {/* Single Direct Payment Option */}
+        <div className="p-4 rounded-2xl border-2 border-orange-500 bg-orange-50/50 dark:bg-orange-950/20 flex items-start gap-3">
+          <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 shrink-0">
+            <Banknote className="w-5 h-5" />
           </div>
-
-          {/* Method 2: Direct Bank Transfer (NO QR) */}
-          <div
-            onClick={() => setPaymentMethod('BANK_TRANSFER')}
-            className={`cursor-pointer p-4 rounded-2xl border-2 transition-all flex items-start gap-3 ${
-              paymentMethod === 'BANK_TRANSFER'
-                ? 'border-orange-500 bg-orange-50/50 dark:bg-orange-950/20 shadow-xs'
-                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
-            }`}
-          >
-            <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 shrink-0">
-              <CreditCard className="w-5 h-5" />
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-900 dark:text-white">
+                Thanh toán trực tiếp
+              </span>
+              <CheckCircle2 className="w-3.5 h-3.5 text-orange-500" />
             </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  Chuyển khoản trực tiếp (Số tài khoản)
-                </span>
-                {paymentMethod === 'BANK_TRANSFER' && (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-orange-500" />
-                )}
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Chuyển tiền trực tiếp vào tài khoản ngân hàng của sinh viên khi giao nhận hàng (nhập số tài khoản, không dùng mã QR).
-              </p>
-            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Thanh toán trực tiếp giữa hai bạn sinh viên khi gặp mặt giao nhận đồ tại điểm hẹn trường Phenikaa.
+            </p>
           </div>
         </div>
-
-        {/* Bank Details Frame when selected (NO QR) */}
-        {paymentMethod === 'BANK_TRANSFER' && (
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/60 to-indigo-50/40 dark:from-slate-800/80 dark:to-slate-800/40 border border-blue-200/80 dark:border-blue-900/40 space-y-4 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between text-xs pb-2 border-b border-blue-200/50 dark:border-blue-800/40">
-              <span className="font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
-                <CreditCard className="w-4 h-4 text-blue-600" />
-                <span>Thông Tin Tài Khoản Nhận Tiền Của Người Bán</span>
-              </span>
-              <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md">
-                Chuyển khoản 24/7
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Bank Info */}
-              <div className="space-y-3 text-xs bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Ngân hàng thụ hưởng:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{bankInfo.bankName}</span>
-                </div>
-
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Chủ tài khoản:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{bankInfo.accountName}</span>
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Số tài khoản:</span>
-                    <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">
-                      {bankInfo.accountNumber}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(bankInfo.accountNumber, 'accNum')}
-                    className="p-1.5 rounded-lg bg-blue-50 dark:bg-slate-700 text-blue-600 hover:bg-blue-100 transition flex items-center gap-1 text-[11px] cursor-pointer"
-                  >
-                    {copiedField === 'accNum' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedField === 'accNum' ? 'Đã chép' : 'Sao chép'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Amount & Transfer Message */}
-              <div className="space-y-3 text-xs bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Số tiền cần chuyển:</span>
-                  <span className="font-bold text-base text-orange-600 dark:text-orange-400">
-                    {formatCurrency(totalAmount)}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Nội dung chuyển khoản:</span>
-                    <span className="font-mono font-bold text-slate-900 dark:text-white text-xs truncate max-w-[180px] block">
-                      {bankInfo.transferContent}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(bankInfo.transferContent, 'content')}
-                    className="p-1.5 rounded-lg bg-blue-50 dark:bg-slate-700 text-blue-600 hover:bg-blue-100 transition flex items-center gap-1 text-[11px] cursor-pointer"
-                  >
-                    {copiedField === 'content' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedField === 'content' ? 'Đã chép' : 'Sao chép'}</span>
-                  </button>
-                </div>
-
-                <p className="text-[10px] text-slate-500 italic">
-                  * Mở app ngân hàng của bạn, chuyển tiền theo đúng STK và nội dung trên khi gặp mặt kiểm tra đồ.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 4. Payment Breakdown & Confirmation Bar (Shopee Style) */}
@@ -449,7 +314,7 @@ export const CheckoutPage: React.FC = () => {
           <div className="flex justify-between text-slate-600 dark:text-slate-300">
             <span>Phương thức thanh toán đã chọn:</span>
             <span className="font-bold text-slate-900 dark:text-white">
-              {paymentMethod === 'CASH' ? '💵 Tiền mặt khi gặp mặt' : '🏦 Chuyển khoản ngân hàng trực tiếp'}
+              Thanh toán trực tiếp
             </span>
           </div>
         </div>
@@ -498,9 +363,9 @@ export const CheckoutPage: React.FC = () => {
                 <span className="font-bold text-orange-600">{formatCurrency(successOrder.totalAmount)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Hình thức:</span>
+                <span className="text-slate-500">Hình thức thanh toán:</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {successOrder.paymentMethod === 'CASH' ? '💵 Tiền mặt khi gặp mặt' : '🏦 Chuyển khoản ngân hàng trực tiếp'}
+                  Thanh toán trực tiếp
                 </span>
               </div>
               <div className="flex justify-between">

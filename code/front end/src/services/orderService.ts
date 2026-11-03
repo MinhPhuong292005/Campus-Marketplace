@@ -17,7 +17,7 @@ export interface PurchaseOrder {
   transactionType?: 'SELL' | 'RENT';
   quantity?: number;
   rentalDays?: number;
-  paymentMethod?: 'CASH' | 'BANK_TRANSFER' | 'VIETQR';
+  paymentMethod?: 'DIRECT' | 'CASH' | 'BANK_TRANSFER' | 'VIETQR';
   paymentStatus?: 'PAID' | 'PENDING';
   meetingPoint?: string;
   orderDate: string;
@@ -67,7 +67,7 @@ export const orderService = {
     transactionType?: 'SELL' | 'RENT';
     quantity?: number;
     rentalDays?: number;
-    paymentMethod?: 'CASH' | 'BANK_TRANSFER' | 'VIETQR';
+    paymentMethod?: 'DIRECT' | 'CASH' | 'BANK_TRANSFER' | 'VIETQR';
     paymentStatus?: 'PAID' | 'PENDING';
     meetingPoint?: string;
   }): PurchaseOrder => {
@@ -87,7 +87,7 @@ export const orderService = {
       transactionType: payload.transactionType,
       quantity: payload.quantity,
       rentalDays: payload.rentalDays,
-      paymentMethod: payload.paymentMethod || 'CASH',
+      paymentMethod: payload.paymentMethod || 'DIRECT',
       paymentStatus: payload.paymentStatus || 'PENDING',
       meetingPoint: payload.meetingPoint,
       orderDate: new Date().toISOString(),
