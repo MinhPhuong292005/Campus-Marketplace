@@ -426,12 +426,6 @@ export const RentalDetailPage: React.FC = () => {
             {contract.rentalTerms ||
               'Áp dụng quy định chuẩn: Làm hỏng mất 100% cọc; Trầy xước khấu trừ 20-30%; Trả muộn tính phụ phí; Hai bên kiểm tra máy trực tiếp khi nhận và trả.'}
           </p>
-          <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 text-[11px] text-amber-700 dark:text-amber-400 flex items-start gap-1">
-            <span className="font-semibold shrink-0">Căn cứ Ban Quản Trị:</span>
-            <span>
-              Điều khoản này là cơ sở để Quản trị viên (QTV) phân xử khiếu nại (ví dụ: người thuê trả muộn 2 ngày và người cho thuê có bằng chứng, QTV sẽ xem xét chỉ hoàn lại một phần cọc chứ không hoàn đủ).
-            </span>
-          </div>
         </div>
       </div>
 

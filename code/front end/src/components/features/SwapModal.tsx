@@ -456,11 +456,6 @@ export const SwapModal: React.FC<SwapModalProps> = ({
           {/* TAB 2: Nhập thông tin nhanh (Không tự lên kho, không cần admin duyệt) */}
           {activeTab === 'QUICK_ADD' && (
             <div className="space-y-3.5 p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/40">
-              <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 text-xs font-bold">
-                <Info className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Nhập nhanh để đổi (Không tự lên kho chợ, không cần chờ admin duyệt):</span>
-              </div>
-
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
                   Tên sản phẩm muốn đổi *

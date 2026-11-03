@@ -2347,9 +2347,6 @@ export const AdminDashboardPage: React.FC = () => {
                 <div>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
                     <span>Quản Lý Điểm Hẹn & Cơ Sở Trường</span>
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
-                      Safe Locations
-                    </span>
                   </h1>
                   <p className="text-xs text-slate-400 mt-1">
                     Quản lý các điểm hẹn giao dịch an toàn (có camera giám sát), cơ sở campus (hiện tại có 1 cơ sở chính) và thông tin trường Phenikaa
@@ -2390,7 +2387,7 @@ export const AdminDashboardPage: React.FC = () => {
                   }`}
                 >
                   <MapPin className="w-4 h-4" />
-                  <span>📍 Điểm hẹn an toàn ({meetingPoints.length})</span>
+                  <span>Điểm hẹn an toàn ({meetingPoints.length})</span>
                 </button>
 
                 <button
@@ -2403,7 +2400,7 @@ export const AdminDashboardPage: React.FC = () => {
                   }`}
                 >
                   <Building2 className="w-4 h-4" />
-                  <span>🏫 Cơ sở campus ({universities.reduce((acc, u) => acc + (u.campuses?.length || 0), 0)})</span>
+                  <span>Cơ sở campus ({universities.reduce((acc, u) => acc + (u.campuses?.length || 0), 0)})</span>
                 </button>
 
                 <button
@@ -2416,7 +2413,7 @@ export const AdminDashboardPage: React.FC = () => {
                   }`}
                 >
                   <School className="w-4 h-4" />
-                  <span>🏛️ Trường đại học ({universities.length})</span>
+                  <span>Trường đại học ({universities.length})</span>
                 </button>
               </div>
 
@@ -2728,9 +2725,6 @@ export const AdminDashboardPage: React.FC = () => {
                 <div>
                   <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
                     <span>Quản Lý Danh Mục Hàng Hóa</span>
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-wider">
-                      Categories
-                    </span>
                   </h1>
                   <p className="text-xs text-slate-400 mt-1">
                     Quản lý danh mục hàng hóa sinh viên Phenikaa (Sách giáo trình, Đồ công nghệ, Đồ gia dụng, Thời trang...)

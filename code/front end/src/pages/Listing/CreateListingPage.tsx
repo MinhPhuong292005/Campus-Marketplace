@@ -532,9 +532,9 @@ export const CreateListingPage: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {[
               { type: 'SELL', label: 'Bán thanh lý', desc: 'Thu hồi vốn sinh viên', icon: DollarSign, color: 'blue' },
-              { type: 'GIVEAWAY', label: 'Tặng 0đ (Free)', desc: 'Tích +10 Karma Score', icon: Gift, color: 'emerald' },
+              { type: 'GIVEAWAY', label: 'Tặng 0đ', desc: 'Tích +10 Karma Score', icon: Gift, color: 'emerald' },
               { type: 'RENT', label: 'Cho thuê ngắn hạn', desc: 'Máy tính, máy ảnh', icon: Clock, color: 'indigo' },
-              { type: 'SWAP', label: 'Đổi đồ (Swap)', desc: 'Giao lưu ngang giá', icon: ArrowLeftRight, color: 'purple' },
+              { type: 'SWAP', label: 'Đổi đồ', desc: 'Giao lưu ngang giá', icon: ArrowLeftRight, color: 'purple' },
             ].map((item) => {
               const isSelected = transactionType === item.type;
               return (
@@ -769,29 +769,12 @@ export const CreateListingPage: React.FC = () => {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-slate-900 dark:text-white"
                   {...register('rentalTerms')}
                 />
-                <div className="mt-1.5 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
-                  <span className="font-semibold shrink-0">Cơ sở phân xử BQT:</span>
-                  <span>
-                    Các điều khoản này sẽ là căn cứ pháp lý để Quản trị viên (QTV) xem xét khi có tranh chấp (ví dụ: người thuê trả muộn 2 ngày và người cho thuê có bằng chứng thì QTV sẽ chỉ xem xét hoàn lại một phần cọc chứ không hoàn đủ).
-                  </span>
-                </div>
               </div>
             </div>
           ) : transactionType === 'SWAP' ? (
             <div className="space-y-4 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/20">
-              <div className="p-3.5 rounded-2xl bg-amber-100/70 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <ArrowLeftRight className="w-5 h-5 text-amber-600 shrink-0" />
-                  <div>
-                    <p className="font-bold">Hình thức Trao đổi đồ (Giao lưu ngang giá)</p>
-                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                      Giao lưu món đồ này lấy tài liệu, dụng cụ học tập hoặc vật dụng khác với các bạn sinh viên Phenikaa.
-                    </p>
-                  </div>
-                </div>
-                <span className="font-mono font-extrabold text-xs px-2.5 py-1 rounded-full bg-amber-200/80 dark:bg-amber-800/60 text-amber-900 dark:text-amber-100 shrink-0">
-                  Trao đổi đồ
-                </span>
+              <div>
+                <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">Hình thức trao đổi đồ</p>
               </div>
 
               {/* Ô 1: Nhập giá trị ước tính của món đồ */}
