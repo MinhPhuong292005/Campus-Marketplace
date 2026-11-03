@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { ShoppingBag, ShoppingCart, MessageSquare, PlusCircle, LogOut, Sun, Moon, Package, FileText, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { KarmaBadge } from '../components/features/KarmaBadge';
@@ -11,6 +11,8 @@ import { cartService } from '../services/cartService';
 export const MainLayout: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isChatPage = location.pathname.startsWith('/chat');
   const [isDark, setIsDark] = React.useState(false);
   const [isSuspendedModalOpen, setIsSuspendedModalOpen] = React.useState(false);
   const [cartCount, setCartCount] = React.useState(0);
@@ -156,7 +158,7 @@ export const MainLayout: React.FC = () => {
       )}
 
       {/* Main Page Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className={isChatPage ? "flex-1 w-full h-[calc(100vh-4rem)] overflow-hidden p-2 sm:p-4 max-w-[1600px] mx-auto" : "flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6"}>
         <Outlet />
       </main>
 
@@ -167,19 +169,21 @@ export const MainLayout: React.FC = () => {
         user={user}
       />
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© 2026 Campus Marketplace. Nền tảng P2P sinh viên Việt Nam.</p>
-          <div className="flex items-center gap-3">
-            <p className="text-slate-400">Tuân thủ Nghị định 13/2023/NĐ-CP</p>
-            <span className="text-slate-300 dark:text-slate-700">•</span>
-            <Link to="/admin/login" className="text-slate-400 hover:text-indigo-500 font-medium transition-colors">
-              Cổng Quản Trị Viên
-            </Link>
+      {/* Footer (Ẩn ở trang chat để giao diện full màn hình và cuộn tin nhắn mượt mà) */}
+      {!isChatPage && (
+        <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 text-center text-xs text-slate-500">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p>© 2026 Campus Marketplace. Nền tảng P2P sinh viên Việt Nam.</p>
+            <div className="flex items-center gap-3">
+              <p className="text-slate-400">Tuân thủ Nghị định 13/2023/NĐ-CP</p>
+              <span className="text-slate-300 dark:text-slate-700">•</span>
+              <Link to="/admin/login" className="text-slate-400 hover:text-indigo-500 font-medium transition-colors">
+                Cổng Quản Trị Viên
+              </Link>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 };

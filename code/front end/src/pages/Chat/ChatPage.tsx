@@ -612,7 +612,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
   };
 
   return (
-    <div className="flex h-[calc(100vh-130px)] min-h-[580px] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div className="flex h-full min-h-[500px] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden">
       {/* ======================================================== */}
       {/* 1. LEFT SIDEBAR: CONVERSATIONS LIST (ĐOẠN CHAT)           */}
       {/* ======================================================== */}
@@ -842,9 +842,6 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                 ) : (
                   <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
                     Đang hoạt động
-                    <span className="text-slate-400 font-normal">
-                      • {activeRoom.peerCampus || 'Trường Đại học Phenikaa'}
-                    </span>
                   </p>
                 )}
               </div>
@@ -852,30 +849,6 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
 
             {/* Top Right Action Icons */}
             <div className="flex items-center gap-2">
-              {/* Nút gửi yêu cầu mua cho bên mua */}
-              {(!activeOrder || activeOrder.status !== 'PENDING') && (
-                <button
-                  type="button"
-                  onClick={handleSendBuyRequest}
-                  className="px-3 py-1.5 rounded-full border border-orange-300 dark:border-orange-700 bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 font-bold text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title="Gửi yêu cầu mua món đồ này"
-                >
-                  <ShoppingBag className="w-3.5 h-3.5 text-orange-500" />
-                  <span className="hidden sm:inline">Yêu cầu mua</span>
-                </button>
-              )}
-
-              {/* Nút xác nhận đơn và chọn điểm hẹn */}
-              <button
-                type="button"
-                onClick={() => openSaleModal(activeOrder?.status === 'PENDING' ? activeOrder : undefined)}
-                className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                title="Xác nhận đơn và chọn điểm hẹn giao dịch tại Phenikaa"
-              >
-                <PackageCheck className="w-4 h-4" />
-                <span>Xác nhận & Chọn điểm hẹn</span>
-              </button>
-
               <button
                 onClick={() => setIsRightSidebarOpen((prev) => !prev)}
                 className={`p-2.5 rounded-full transition ${
@@ -998,7 +971,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
                 {activeRoom.peerName}
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Sinh viên {activeRoom.peerCampus || 'Trường Đại học Phenikaa'}
+                Sinh viên Trường Đại học Phenikaa
               </p>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold mt-2 shadow-2xs">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -1380,7 +1353,7 @@ ${saleNote.trim() ? `• Ghi chú: ${saleNote.trim()}` : ''}
               {activeRoom.peerName}
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              {activeRoom.peerCampus || 'Trường Đại học Phenikaa'}
+              Trường Đại học Phenikaa
             </p>
 
             {/* Điểm karma thay thế đoạn mã hóa đầu cuối (không có sinh viên đã xác thực) */}
